@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/lahkiri/xeo-forge2/blob/master/LICENSE">
+  <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   </a>
   <a href="#">
@@ -122,8 +122,8 @@ xeo-forge/
 
 ```bash
 # Clone the repository
-git clone https://github.com/lahkiri/xeo-forge2.git
-cd xeo-forge2
+git clone https://github.com/lahkiri/xeo-forge.git
+cd xeo-forge
 
 # Install dependencies
 npm install
