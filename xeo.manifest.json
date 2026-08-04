@@ -1,0 +1,35 @@
+{
+  "name": "xeo-forge2",
+  "version": "2.0.0",
+  "language": "typescript",
+  "framework": "next.js",
+  "runtime": "node",
+  "entryPoint": "npm start",
+  "buildCommand": "next build",
+  "startCommand": "next start",
+  "packages": [
+    "better-sqlite3",
+    "next",
+    "openai",
+    "pg",
+    "react",
+    "react-dom",
+    "uuid",
+    "zod"
+  ],
+  "envVars": [
+    "ROOT_ADMIN_EMAIL",
+    "ROOT_ADMIN_PASSWORD",
+    "MODEL_NAME",
+    "MODEL_BASE_URL",
+    "MODEL_API_KEY",
+    "MODEL_ID",
+    "MODEL_TEMPERATURE",
+    "MODEL_MAX_TOKENS",
+    "TASK_WORK_DIR",
+    "DEFAULT_DAILY_GRANT"
+  ],
+  "fileCount": 118,
+  "totalSize": 759770,
+  "generatedAt": "2026-07-13T01:52:16.969Z"
+}

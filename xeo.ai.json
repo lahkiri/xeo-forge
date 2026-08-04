@@ -1,0 +1,14 @@
+{
+  "enabled": false,
+  "documentation": "xeo-forge2 - ",
+  "context": {
+    "language": "typescript",
+    "framework": "next.js",
+    "runtime": "node"
+  },
+  "capabilities": [
+    "error-analysis",
+    "install-help",
+    "configuration-guide"
+  ]
+}

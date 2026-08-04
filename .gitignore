@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Database
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Task workspaces (agent sandboxes)
+/tmp/xeo-tasks/
+
+# Test artifacts
+.vitest-tmp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Debug scripts (not part of the project)
+_check-db.js
+_query-*.js
