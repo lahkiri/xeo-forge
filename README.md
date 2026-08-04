@@ -6,11 +6,30 @@
 </p>
 
 <p align="center">
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#features">Features</a> •
-  <a href="#architecture">Architecture</a> •
-  <a href="#api">API</a> •
-  <a href="#tech-stack">Tech Stack</a>
+  <a href="https://github.com/lahkiri/xeo-forge2">
+    <img src="https://img.shields.io/badge/version-2.0.0-blue.svg" alt="Version">
+  </a>
+  <a href="https://github.com/lahkiri/xeo-forge2/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  </a>
+  <a href="https://github.com/lahkiri/xeo-forge2">
+    <img src="https://img.shields.io/badge/TypeScript-5.5-blue.svg" alt="TypeScript">
+  </a>
+  <a href="https://github.com/lahkiri/xeo-forge2">
+    <img src="https://img.shields.io/badge/Next.js-14-black.svg" alt="Next.js">
+  </a>
+  <a href="https://github.com/lahkiri/xeo-forge2">
+    <img src="https://img.shields.io/badge/Tests-119%20✓-brightgreen.svg" alt="Tests">
+  </a>
+</p>
+
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-architecture">Architecture</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-api-endpoints">API</a> •
+  <a href="#-tech-stack">Tech Stack</a> •
+  <a href="#-author">Author</a>
 </p>
 
 ---
@@ -53,11 +72,70 @@
 
 ---
 
+## 🏗️ Architecture
+
+```
+xeo-forge2/
+├── app/                    # Next.js 14 App Router
+│   ├── api/                # REST endpoints (22+ routes)
+│   │   ├── auth/           # Login, logout, register, me
+│   │   ├── tasks/          # CRUD + approve/reject/mode/stream
+│   │   ├── credits/        # Balance + ledger
+│   │   └── admin/          # Users, model config, audit
+│   ├── dashboard/          # Task creation & management
+│   ├── tasks/[id]/         # Task execution (SSE + workspace)
+│   ├── admin/              # Admin panel
+│   ├── login/              # Authentication
+│   └── register/           # User registration
+│
+├── lib/                    # Core logic
+│   ├── agent/              # 🧠 Agent engine
+│   │   ├── loop.ts         # Main execution loop with guards
+│   │   ├── runner.ts       # Fire-and-forget task runner
+│   │   ├── tools.ts        # Tool definitions + dispatch
+│   │   ├── files.ts        # File read/write/edit/list
+│   │   ├── code.ts         # Bash/Python execution
+│   │   ├── preview.ts      # Live preview server
+│   │   ├── prompts.ts      # System prompts
+│   │   ├── context.ts      # Context window accounting
+│   │   └── compaction.ts   # Auto-compaction
+│   ├── db/                 # 💾 Database layer
+│   │   ├── index.ts        # SQLite/PostgreSQL adapter
+│   │   ├── schema.ts       # DDL + migrations
+│   │   └── queries.ts      # All read/write operations
+│   ├── auth/               # 🔐 Authentication
+│   ├── credits/            # 💳 Credit engine
+│   ├── model/              # 🤖 Global model config
+│   ├── sse/                # 📡 Event streaming
+│   └── types.ts            # Shared TypeScript types
+│
+├── components/             # 🎨 Shared UI components
+├── test/                   # 🧪 Vitest unit tests (119 tests)
+└── scripts/                # 🔧 Database init scripts
+```
+
+### Data Model
+
+| Table | Purpose |
+|-------|---------|
+| `users` | User accounts with admin/suspended flags |
+| `auth_sessions` | Cookie-based session tokens |
+| `credits` | Per-user balance + daily grant |
+| `credit_ledger` | Immutable audit trail of all credit changes |
+| `tasks` | Task state, plan, approved plan, result |
+| `task_events` | Monotonic seq-ordered event log |
+| `messages` | Conversation history (active + archived) |
+| `model_settings` | Single global model config (row id=1) |
+| `admin_actions` | Admin audit trail |
+| `uploads` | User-uploaded files with quarantine pipeline |
+
+---
+
 ## 🚀 Quick Start
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/xeo-forge2.git
+git clone https://github.com/lahkiri/xeo-forge2.git
 cd xeo-forge2
 
 # Install dependencies
@@ -93,65 +171,6 @@ Open [http://localhost:3000](http://localhost:3000) and start building.
 | `TASK_WORK_DIR` | — | `/tmp/xeo-tasks` | Agent workspace root |
 
 > **Without `DATABASE_URL`**, the system uses SQLite at `data/xeo.db` — perfect for local development.
-
----
-
-## 🏗️ Architecture
-
-```
-xeo-forge2/
-├── app/                    # Next.js 14 App Router
-│   ├── api/                # REST endpoints
-│   │   ├── auth/           # Login, logout, register, me
-│   │   ├── tasks/          # CRUD + approve/reject/mode/stream
-│   │   ├── credits/        # Balance + ledger
-│   │   └── admin/          # Users, model config, audit
-│   ├── dashboard/          # Task creation & management
-│   ├── tasks/[id]/         # Task execution (SSE + workspace)
-│   ├── admin/              # Admin panel
-│   ├── login/              # Authentication
-│   └── register/           # User registration
-│
-├── lib/                    # Core logic
-│   ├── agent/              # 🧠 Agent engine
-│   │   ├── loop.ts         # Main execution loop with guards
-│   │   ├── runner.ts       # Fire-and-forget task runner
-│   │   ├── tools.ts        # Tool definitions + dispatch
-│   │   ├── files.ts        # File read/write/edit/list
-│   │   ├── code.ts         # Bash/Python execution
-│   │   ├── preview.ts      # Live preview server
-│   │   ├── prompts.ts      # System prompts
-│   │   ├── context.ts      # Context window accounting
-│   │   └── compaction.ts   # Auto-compaction
-│   ├── db/                 # 💾 Database layer
-│   │   ├── index.ts        # SQLite/PostgreSQL adapter
-│   │   ├── schema.ts       # DDL + migrations
-│   │   └── queries.ts      # All read/write operations
-│   ├── auth/               # 🔐 Authentication
-│   ├── credits/            # 💳 Credit engine
-│   ├── model/              # 🤖 Global model config
-│   ├── sse/                # 📡 Event streaming
-│   └── types.ts            # Shared TypeScript types
-│
-├── components/             # 🎨 Shared UI components
-├── test/                   # 🧪 Vitest unit tests
-└── scripts/                # 🔧 Database init scripts
-```
-
-### Data Model
-
-| Table | Purpose |
-|-------|---------|
-| `users` | User accounts with admin/suspended flags |
-| `auth_sessions` | Cookie-based session tokens |
-| `credits` | Per-user balance + daily grant |
-| `credit_ledger` | Immutable audit trail of all credit changes |
-| `tasks` | Task state, plan, approved plan, result |
-| `task_events` | Monotonic seq-ordered event log |
-| `messages` | Conversation history (active + archived) |
-| `model_settings` | Single global model config (row id=1) |
-| `admin_actions` | Admin audit trail |
-| `uploads` | User-uploaded files with quarantine pipeline |
 
 ---
 
@@ -241,6 +260,59 @@ Set `NODE_ENV=production` and configure `DATABASE_URL` for PostgreSQL.
 
 ---
 
+## 👨‍💻 Author
+
+**Wissem Lahkiri** — Software Developer
+
+[![GitHub](https://img.shields.io/badge/GitHub-lahkiri-181717?style=flat&logo=github)](https://github.com/lahkiri)
+[![Location](https://img.shields.io/badge/Location-Tunisia-blue?style=flat&logo=googlemaps)](https://maps.google.com/?q=Tunisia)
+
+Building backend systems, APIs, automation, and AI-assisted tooling.
+
+### 🎯 Technical Skills
+
+#### 🗄️ Database Engineering
+- **PostgreSQL** — Schema design, migrations, complex queries, indexing, transactions
+- **SQLite** — Embedded database, WAL mode, PRAGMA optimization
+- **Dual-DB Architecture** — Unified adapter with dialect-aware query translation
+- **Data Modeling** — Normalized schemas, audit trails, immutable ledgers
+
+#### 🔧 Backend & APIs
+- **RESTful API Design** — 22+ endpoints with proper HTTP semantics
+- **Authentication** — Cookie-based sessions, SHA-256 hashed tokens, route guards
+- **Real-time Streaming** — Server-Sent Events (SSE) with event persistence
+- **Credit Systems** — Atomic transactions, ledger audit trails, daily grants
+
+#### 🤖 AI & LLM Integration
+- **OpenAI SDK** — Streaming tool calls, function calling, response parsing
+- **Agent Architecture** — Dual-mode execution (planning/build), tool dispatch
+- **Context Management** — Window accounting, auto-compaction, message archiving
+- **Prompt Engineering** — System prompts, fallback paths, language detection
+
+#### 🛡️ Security
+- **SSRF Protection** — IP blocking, hostname validation, loopback prevention
+- **Input Validation** — Zod schemas, type-safe tool arguments
+- **Sandboxing** — Per-task workspaces, path confinement, execution isolation
+
+#### ⚡ Frontend
+- **Next.js 14** — App Router, server components, API routes
+- **React 18** — Client components, hooks, state management
+- **Tailwind CSS** — Utility-first styling, responsive design
+
+#### 🚀 DevOps & Architecture
+- **TypeScript** — Strict mode, type safety, shared type definitions
+- **Testing** — Vitest, unit tests, 119 test cases passing
+- **CI/CD Ready** — Environment configuration, production builds
+- **Clean Architecture** — Single source of truth, separation of concerns
+
+---
+
 ## 📄 License
 
 MIT License. See [LICENSE](LICENSE) for details.
+
+---
+
+<p align="center">
+  Built with ❤️ by <a href="https://github.com/lahkiri">Wissem Lahkiri</a>
+</p>
