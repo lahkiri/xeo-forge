@@ -11,6 +11,30 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/lahkiri/xeo-forge2/blob/master/LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/TypeScript-5.5-blue.svg?logo=typescript" alt="TypeScript">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/React-18-blue.svg?logo=react" alt="React">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Tailwind-3.7-blue.svg?logo=tailwindcss" alt="Tailwind">
+  </a>
+  <a href="#">
+    <img src="https://img.shields.io/badge/Tests-119%20passing-brightgreen.svg" alt="Tests">
+  </a>
+</p>
+
+<p align="center">
   <a href="#features">Features</a> |
   <a href="#architecture">Architecture</a> |
   <a href="#quick-start">Quick Start</a> |
