@@ -162,14 +162,24 @@ export async function getTasksByUser(userId: string): Promise<Task[]> {
     .all(userId);
 }
 
-export async function listAllTasks(limit = 200): Promise<Task[]> {
-  return db.prepare<Task>(`SELECT * FROM tasks ORDER BY created_at DESC LIMIT ?`).all(limit);
+export async function listAllTasks(
+  limit = 200,
+): Promise<(Task & { email: string | null })[]> {
+  return db
+    .prepare<Task & { email: string | null }>(
+      `SELECT t.*, u.email
+       FROM tasks t
+       LEFT JOIN users u ON u.id = t.user_id
+       ORDER BY t.created_at DESC
+       LIMIT ?`,
+    )
+    .all(limit);
 }
 
 export async function updateTaskStatus(
   id: string,
   status: TaskStatus,
-  fields?: { plan?: string; resultSummary?: string; error?: string },
+  fields?: { plan?: string; resultSummary?: string; error?: string; clearError?: boolean },
 ): Promise<void> {
   await db
     .prepare(
@@ -177,11 +187,19 @@ export async function updateTaskStatus(
        SET status = ?,
            plan = COALESCE(?, plan),
            result_summary = COALESCE(?, result_summary),
-           error = COALESCE(?, error),
+           error = CASE WHEN ? THEN NULL ELSE COALESCE(?, error) END,
            updated_at = ?
        WHERE id = ?`,
     )
-    .run(status, fields?.plan ?? null, fields?.resultSummary ?? null, fields?.error ?? null, nowIso(), id);
+    .run(
+      status,
+      fields?.plan ?? null,
+      fields?.resultSummary ?? null,
+      fields?.clearError ? 1 : 0,
+      fields?.error ?? null,
+      nowIso(),
+      id,
+    );
 }
 
 export async function addTaskCredits(id: string, delta: number): Promise<void> {
@@ -268,14 +286,16 @@ export async function switchTaskMode(
       .run(nowIso(), id);
     return res.changes > 0;
   }
-  // Switching to build: only allowed from planned (use approveTaskPlan for the
-  // full snapshot+switch gate). This is a simpler mode flip for other states.
+  // Switching to build: must go through approveTaskPlan when the task is
+  // awaiting approval (status='planned') so approved_plan is snapshotted.
+  // Flipping mode alone from 'planned' would leave a dead state (mode=build +
+  // no approved_plan), so we refuse it here �?" the UI uses approve for that.
   const res = await db
     .prepare(
       `UPDATE tasks
        SET mode = 'build',
            updated_at = ?
-       WHERE id = ? AND status NOT IN ('running', 'pending')`,
+       WHERE id = ? AND status NOT IN ('running', 'pending', 'planned')`,
     )
     .run(nowIso(), id);
   return res.changes > 0;
@@ -370,11 +390,13 @@ export async function getMessages(taskId: string): Promise<Message[]> {
 /**
  * Get only active messages — the live context window the agent loads each run.
  * Archived rows (active=0) are excluded; they are retained for audit/display.
+ * Ordered by (created_at, id): the compaction summary is inserted with an
+ * older created_at so it sorts FIRST, before the messages it summarizes.
  */
 export async function getContextMessages(taskId: string): Promise<Message[]> {
   return db
     .prepare<Message>(
-      `SELECT * FROM messages WHERE task_id = ? AND active = 1 ORDER BY id ASC`,
+      `SELECT * FROM messages WHERE task_id = ? AND active = 1 ORDER BY created_at ASC, id ASC`,
     )
     .all(taskId);
 }
@@ -413,8 +435,15 @@ export async function compactMessages(
 
   // 3. Insert the compaction summary as an active system message, placed
   //    BEFORE the kept messages by inserting with a created_at timestamp
-  //    just before the first kept message.
-  const ts = nowIso();
+  //    just before the first kept message. This is what actually makes the
+  //    summary sort first in getContextMessages() (created_at, id ordering).
+  const firstKept = active[active.length - keepCount];
+  let ts = nowIso();
+  const firstKeptMs = firstKept ? Date.parse(firstKept.created_at) : NaN;
+  if (firstKept && Number.isFinite(firstKeptMs)) {
+    const prev = firstKeptMs - 1;
+    ts = new Date(prev > 0 ? prev : 0).toISOString();
+  }
   let summary: Message | undefined;
   if (db.kind === 'pg') {
     // PostgreSQL: RETURNING * avoids race with concurrent writes.

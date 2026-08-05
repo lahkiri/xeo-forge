@@ -1,0 +1,67 @@
+# Xeo Forge — self-hosting with Docker.
+#
+#   cp .env.example .env   # then edit .env with your values
+#   docker compose up -d   # -> http://localhost:3000
+#
+# Services:
+#   db    PostgreSQL 16 (persistent volume)
+#   init  one-shot schema + root admin + model seeding (runs scripts/db-init.ts)
+#   app   the Next.js app (standalone build)
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-xeo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-xeo}
+      POSTGRES_DB: ${POSTGRES_DB:-xeo_forge}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-xeo} -d ${POSTGRES_DB:-xeo_forge}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  init:
+    build:
+      context: .
+      target: builder
+    command: npx tsx scripts/db-init.ts
+    environment: &xeo-env
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-xeo}:${POSTGRES_PASSWORD:-xeo}@db:5432/${POSTGRES_DB:-xeo_forge}
+      ROOT_ADMIN_EMAIL: ${ROOT_ADMIN_EMAIL:-admin@example.com}
+      ROOT_ADMIN_PASSWORD: ${ROOT_ADMIN_PASSWORD:-change-me-strong-password}
+      MODEL_BASE_URL: ${MODEL_BASE_URL:-https://api.openai.com/v1}
+      MODEL_API_KEY: ${MODEL_API_KEY:?MODEL_API_KEY is required}
+      MODEL_ID: ${MODEL_ID:-gpt-4o-mini}
+      MODEL_NAME: ${MODEL_NAME:-}
+      MODEL_TEMPERATURE: ${MODEL_TEMPERATURE:-0.7}
+      MODEL_MAX_TOKENS: ${MODEL_MAX_TOKENS:-4000}
+      MODEL_CONTEXT_WINDOW: ${MODEL_CONTEXT_WINDOW:-128000}
+      MODEL_AUTO_COMPACT_THRESHOLD: ${MODEL_AUTO_COMPACT_THRESHOLD:-80}
+      DEFAULT_DAILY_GRANT: ${DEFAULT_DAILY_GRANT:-50}
+      CREDIT_TASK_CREATE: ${CREDIT_TASK_CREATE:-2}
+      CREDIT_PER_TOOL_CALL: ${CREDIT_PER_TOOL_CALL:-1}
+      COOKIE_SECURE: ${COOKIE_SECURE:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3000}:3000"
+    environment: *xeo-env
+    volumes:
+      - taskworks:/tmp/xeo-tasks
+    depends_on:
+      init:
+        condition: service_completed_successfully
+
+volumes:
+  pgdata:
+  taskworks:

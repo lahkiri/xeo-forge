@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // Standalone output: produces a self-contained .next/standalone with only
+  // the runtime files needed to serve the app — used by the Dockerfile.
+  output: "standalone",
   experimental: {
     serverComponentsExternalPackages: ["better-sqlite3", "pg"],
   },

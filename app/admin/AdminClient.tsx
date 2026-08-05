@@ -3,8 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Button, Card } from '@/components/ui';
-import type { AuthUser, AdminAction, ModelSettingsSafe } from '@/lib/types';
+import { Button, Card, StatusBadge } from '@/components/ui';
+import type { AuthUser, AdminAction, ModelSettingsSafe, Task } from '@/lib/types';
 
 /** User row as delivered by the admin API (password_hash stripped, stats joined). */
 type AdminUserRow = {
@@ -19,17 +19,31 @@ type AdminUserRow = {
   task_count: number;
 };
 
+/** Task row from /api/admin/tasks */
+type AdminTaskRow = {
+  id: string;
+  user_id: string;
+  email: string | null;
+  goal: string;
+  status: string;
+  mode: string;
+  credits_spent: number;
+  created_at: string;
+};
+
 interface Props {
   currentUser: AuthUser;
   initialUsers: AdminUserRow[];
   initialModel: ModelSettingsSafe | null;
   initialActions: AdminAction[];
+  initialTasks?: AdminTaskRow[];
 }
 
-export default function AdminClient({ currentUser, initialUsers, initialModel, initialActions }: Props) {
+export default function AdminClient({ currentUser, initialUsers, initialModel, initialActions, initialTasks = [] }: Props) {
   const router = useRouter();
   const [users, setUsers] = useState<AdminUserRow[]>(initialUsers);
   const actions = initialActions;
+  const [tasks, setTasks] = useState<AdminTaskRow[]>(initialTasks);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -438,6 +452,48 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               </Button>
             </div>
           </form>
+        </Card>
+      </section>
+
+      {/* Recent tasks (admin inspection: any user, any task) */}
+      <section>
+        <h2 className="mb-3 text-lg font-medium">Recent tasks</h2>
+        <Card className="overflow-x-auto p-0">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-white/10 text-xs uppercase text-gray-400">
+              <tr>
+                <th className="px-3 py-2">When</th>
+                <th className="px-3 py-2">User</th>
+                <th className="px-3 py-2">Mode</th>
+                <th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Goal</th>
+                <th className="px-3 py-2">Credits</th>
+              </tr>
+            </thead>
+            <tbody>
+              {tasks.length === 0 && (
+                <tr>
+                  <td className="px-3 py-2 text-gray-500" colSpan={6}>
+                    No tasks yet.
+                  </td>
+                </tr>
+              )}
+              {tasks.map((t) => (
+                <tr key={t.id} className="border-b border-white/5 hover:bg-white/[0.02]">
+                  <td className="px-3 py-2 whitespace-nowrap text-gray-400">
+                    {new Date(t.created_at).toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2 text-gray-300">{t.email ?? t.user_id.slice(0, 8)}</td>
+                  <td className="px-3 py-2 capitalize">{t.mode}</td>
+                  <td className="px-3 py-2">
+                    <StatusBadge status={t.status as Task['status']} />
+                  </td>
+                  <td className="max-w-[24rem] truncate px-3 py-2">{t.goal}</td>
+                  <td className="px-3 py-2">{t.credits_spent}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </Card>
       </section>
 

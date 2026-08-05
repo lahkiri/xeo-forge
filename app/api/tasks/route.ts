@@ -12,6 +12,7 @@ export const dynamic = 'force-dynamic';
 
 const CreateTaskSchema = z.object({
   goal: z.string().min(1).max(20000),
+  mode: z.enum(['planning', 'build']).optional(),
 });
 
 export async function GET() {
@@ -34,7 +35,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Create the task row first so the creation debit has a ref_id to point at.
-    const task = await createTask({ userId: user.id, goal: parsed.data.goal, mode: 'build' });
+    // Default to planning mode (AGENTS.md: task defaults to planning) unless
+    // the client explicitly requests build.
+    const mode = parsed.data.mode ?? 'planning';
+    const task = await createTask({ userId: user.id, goal: parsed.data.goal, mode });
 
     // Debit creation cost atomically. If insufficient, mark the task failed so
     // history stays truthful (no orphan pending row) and return 402.
@@ -50,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fire-and-forget; the runner owns status transitions and failure emission.
-    startAgentRun({ taskId: task.id, userId: user.id, goal: parsed.data.goal, mode: 'build' });
+    startAgentRun({ taskId: task.id, userId: user.id, goal: parsed.data.goal, mode });
 
     return NextResponse.json({ task }, { status: 201 });
   } catch (err) {

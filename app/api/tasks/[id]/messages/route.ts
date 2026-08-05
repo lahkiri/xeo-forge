@@ -50,8 +50,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     // Reset task status so the agent run can start.
     // Use task.mode as source of truth (not status heuristic).
+    // clearError: a follow-up on a failed task must not keep showing the old error.
     const nextMode = task.mode;
-    await updateTaskStatus(params.id, 'pending');
+    await updateTaskStatus(params.id, 'pending', { clearError: true });
 
     // Start a new agent run with the full conversation history.
     startAgentRun({

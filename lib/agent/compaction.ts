@@ -29,7 +29,11 @@ export async function summarizeMessages(
   const model = await resolveModel();
   if (!model) return null;
 
-  const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl });
+  const client = new OpenAI({
+    apiKey: model.apiKey,
+    baseURL: model.baseUrl,
+    timeout: 300_000,
+  });
 
   const conversationText = messages
     .map((m) => {

@@ -61,6 +61,14 @@ const STAGNATION_THRESHOLD = 3;
 const POST_ESCALATION_LIMIT = 3;
 const HARD_SAFETY_CAP = 200;
 
+/**
+ * HTTP timeout for OpenAI-compatible completions. Without this, a hung
+ * upstream stream can hold a task in 'running' forever (observed bug: a task
+ * stuck running with no events). 5 minutes is generous for long tool-heavy
+ * responses while still breaking dead connections.
+ */
+const OPENAI_TIMEOUT_MS = 300_000;
+
 /** Number of most-recent active messages to keep during compaction. */
 const COMPACT_KEEP_COUNT = 8;
 
@@ -152,7 +160,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
   await emitTaskEvent(taskId, 'mode', { mode });
   await emitTaskEvent(taskId, 'task_status', { status: 'running' });
 
-  const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl });
+  const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS });
   const ctx = createToolContext(taskId, mode);
   const toolSchemas = schemasForMode(mode);
 
@@ -245,6 +253,13 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
   }
 
   let creditsSpent = 0;
+
+  // Accumulated assistant text across ALL iterations in planning mode. Models
+  // often write the full plan as prose across several turns and then call
+  // task_complete with only a short summary ("Plan completed."). We persist
+  // the richest text as the proposed plan so the approval gate shows the
+  // actual plan, not the terse completion summary (bug fix: plan loss).
+  let planBuffer = '';
 
   const debitForTool = async (): Promise<boolean> => {
     try {
@@ -554,6 +569,11 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
         if (choice.finish_reason) finishReason = choice.finish_reason;
       }
 
+      // In planning mode, accumulate the model's prose as the candidate plan.
+      if (mode === 'planning' && textBuf.trim()) {
+        planBuffer += (planBuffer ? '\n\n' : '') + textBuf.trim();
+      }
+
       /* ---- Fallback text-action path ---- */
       if (useFallback) {
         const action = parseFallbackAction(textBuf);
@@ -562,7 +582,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
           if (textBuf.trim()) {
             // Planning mode: text without <action> is acceptable.
             if (mode === 'planning') {
-              await finalizeComplete(taskId, mode, textBuf.trim());
+              await finalizeComplete(taskId, mode, textBuf.trim(), planBuffer);
               return;
             }
             // Build mode: text without task_complete is suspicious.
@@ -640,7 +660,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
             });
             continue;
           }
-          await finalizeComplete(taskId, mode, summary);
+          await finalizeComplete(taskId, mode, summary, planBuffer);
           return;
         }
         if (action.tool === 'todo_update') {
@@ -769,7 +789,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
               continue;
             }
             messages.push({ role: 'tool', tool_call_id: call.id, content: 'completed' });
-            await finalizeComplete(taskId, mode, summary);
+            await finalizeComplete(taskId, mode, summary, planBuffer);
             return;
           }
           if (call.name === 'todo_update') {
@@ -857,7 +877,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
 
         // Planning mode: text termination is acceptable — plans end in text.
         if (mode === 'planning') {
-          await finalizeComplete(taskId, mode, text || 'Done.');
+          await finalizeComplete(taskId, mode, text || 'Done.', planBuffer);
           return;
         }
 
@@ -969,7 +989,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
         }
 
         // Fallback: accept text as completion (should rarely reach here)
-        await finalizeComplete(taskId, mode, text || 'Done.');
+        await finalizeComplete(taskId, mode, text || 'Done.', planBuffer);
         return;
       }
       // Empty response (flaky provider) — loop again, bounded by HARD_SAFETY_CAP.
@@ -1012,17 +1032,28 @@ async function safeExecute(
   }
 }
 
-async function finalizeComplete(taskId: string, mode: TaskMode, summary: string): Promise<boolean> {
+async function finalizeComplete(
+  taskId: string,
+  mode: TaskMode,
+  summary: string,
+  planOverride?: string,
+): Promise<boolean> {
   // Persist the assistant's summary as a conversation message for follow-up context.
   await appendMessage(taskId, 'assistant', summary);
 
   if (mode === 'planning') {
     // Planning run finished: store the proposed plan and await user approval.
+    // The plan is the richest text we have �?" the accumulated prose across
+    // iterations (planOverride) wins over the terse task_complete summary.
+    const plan =
+      planOverride && planOverride.trim().length > summary.trim().length
+        ? planOverride.trim()
+        : summary;
     // 'planned' is non-terminal so the live stream stays open across approval.
-    await updateTaskStatus(taskId, 'planned', { plan: summary });
+    await updateTaskStatus(taskId, 'planned', { plan });
     const task = await getTaskById(taskId);
     const planVersion = task?.plan_version ?? 0;
-    await emitTaskEvent(taskId, 'plan', { plan: summary, plan_version: planVersion });
+    await emitTaskEvent(taskId, 'plan', { plan, plan_version: planVersion });
     await emitTaskEvent(taskId, 'task_status', { status: 'planned' });
     await emitTaskEvent(taskId, 'done', { status: 'planned', summary });
     return true;
