@@ -3,15 +3,10 @@ import { requireUser, assertOwnerOrAdmin } from '@/lib/auth/guard';
 import { getTaskById } from '@/lib/db/queries';
 import { getPreviewPort } from '@/lib/agent/preview';
 import { errorResponse } from '@/app/api/_lib/respond';
+import { shouldForwardPreviewResponseHeader } from '@/lib/agent/preview-headers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-// Headers we must not forward from the upstream preview server to the client.
-const STRIP_RESPONSE_HEADERS = new Set([
-  'content-encoding', 'content-length', 'transfer-encoding', 'connection',
-  'keep-alive', 'x-frame-options', 'content-security-policy',
-]);
 
 /**
  * Same-origin authenticated proxy to a running, HTTP-verified preview server.
@@ -64,7 +59,7 @@ async function handle(req: NextRequest, taskId: string, pathParts: string[]) {
   const body = await upstream.arrayBuffer();
   const headers = new Headers();
   upstream.headers.forEach((value, key) => {
-    if (!STRIP_RESPONSE_HEADERS.has(key.toLowerCase())) headers.set(key, value);
+    if (shouldForwardPreviewResponseHeader(key)) headers.set(key, value);
   });
   // Allow same-origin framing by our own app.
   headers.set('Content-Security-Policy', "frame-ancestors 'self'");

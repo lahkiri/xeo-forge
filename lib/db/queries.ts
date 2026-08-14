@@ -176,6 +176,26 @@ export async function listAllTasks(
     .all(limit);
 }
 
+/**
+ * Atomically claim a terminal/planned task for a follow-up run.
+ *
+ * The conditional UPDATE is the single concurrency gate: only one request can
+ * transition the task to pending, so only that request may start a runner.
+ */
+export async function claimTaskForFollowUp(id: string): Promise<Task | undefined> {
+  const res = await db
+    .prepare(
+      `UPDATE tasks
+       SET status = 'pending',
+           error = NULL,
+           updated_at = ?
+       WHERE id = ? AND status IN ('completed', 'failed', 'planned')`,
+    )
+    .run(nowIso(), id);
+  if (res.changes === 0) return undefined;
+  return getTaskById(id);
+}
+
 export async function updateTaskStatus(
   id: string,
   status: TaskStatus,
@@ -295,7 +315,8 @@ export async function switchTaskMode(
       `UPDATE tasks
        SET mode = 'build',
            updated_at = ?
-       WHERE id = ? AND status NOT IN ('running', 'pending', 'planned')`,
+       WHERE id = ? AND status NOT IN ('running', 'pending', 'planned')
+         AND approved_plan IS NOT NULL AND length(trim(approved_plan)) > 0`,
     )
     .run(nowIso(), id);
   return res.changes > 0;
@@ -309,28 +330,47 @@ export async function switchTaskMode(
  * Append an event with the next monotonic per-task seq.
  * Returns the stored row (including seq) so callers can forward it live.
  *
- * Uses a subquery to compute next seq; UNIQUE(task_id, seq) guards against
- * duplicates. Single-runner-per-task means no concurrent writers race here.
+ * Uses a subquery to compute next seq. UNIQUE(task_id, seq) is the arbiter
+ * under concurrency; appendTaskEvent retries a collision rather than dropping
+ * the event or failing the whole run.
  */
+function isUniqueViolation(err: unknown): boolean {
+  const code = (err as { code?: unknown })?.code;
+  const message = String((err as { message?: unknown })?.message ?? err);
+  return code === '23505' || /unique constraint|duplicate key/i.test(message);
+}
+
 export async function appendTaskEvent(taskId: string, type: string, content: unknown): Promise<TaskEvent> {
   const json = JSON.stringify(content ?? {});
-  const ts = nowIso();
-  const seqRow = await db
-    .prepare<{ next_seq: number }>(
-      `SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM task_events WHERE task_id = ?`,
-    )
-    .get(taskId);
-  const seq = seqRow?.next_seq ?? 1;
-  await db
-    .prepare(
-      `INSERT INTO task_events (task_id, seq, type, content, created_at) VALUES (?, ?, ?, ?, ?)`,
-    )
-    .run(taskId, seq, type, json, ts);
-  const row = await db
-    .prepare<TaskEvent>(`SELECT * FROM task_events WHERE task_id = ? AND seq = ?`)
-    .get(taskId, seq);
-  if (!row) throw new Error('appendTaskEvent: row not found after insert');
-  return row;
+
+  // MAX(seq)+1 is only a hint under concurrency. The UNIQUE(task_id, seq)
+  // constraint is the arbiter; retrying a collision lets the loser pick the
+  // next sequence instead of dropping the event or failing the whole run.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const ts = nowIso();
+    const seqRow = await db
+      .prepare<{ next_seq: number }>(
+        `SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM task_events WHERE task_id = ?`,
+      )
+      .get(taskId);
+    const seq = seqRow?.next_seq ?? 1;
+    try {
+      await db
+        .prepare(
+          `INSERT INTO task_events (task_id, seq, type, content, created_at) VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run(taskId, seq, type, json, ts);
+      const row = await db
+        .prepare<TaskEvent>(`SELECT * FROM task_events WHERE task_id = ? AND seq = ?`)
+        .get(taskId, seq);
+      if (!row) throw new Error('appendTaskEvent: row not found after insert');
+      return row;
+    } catch (err) {
+      if (!isUniqueViolation(err) || attempt === 4) throw err;
+    }
+  }
+
+  throw new Error('appendTaskEvent: exhausted sequence collision retries');
 }
 
 export async function getTaskEvents(taskId: string, afterSeq = 0): Promise<TaskEvent[]> {

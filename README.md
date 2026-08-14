@@ -20,7 +20,7 @@
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js">
   <img src="https://img.shields.io/badge/React-18-61dafb.svg?logo=react" alt="React">
-  <img src="https://img.shields.io/badge/Tests-119%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/Tests-131%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/Self--hosting-Docker-blueviolet.svg?logo=docker" alt="Docker">
 </p>
 
@@ -40,6 +40,21 @@ Every step is streamed to the UI in real time and persisted to the database, so 
 reload the page and pick up exactly where you left off. Users get credit-based budgets,
 admins get full inspection and control, and the entire platform runs on **one global model**
 you configure once.
+
+## Product Positioning
+
+**The approval-first coding agent you can self-host.**
+
+Xeo Forge is built for solo developers, internal tools teams, and privacy-conscious
+organizations that want an agent to do real work without giving up visibility or control.
+The product promise is simple: the agent can move quickly, but it cannot move silently.
+Every build starts from a human-approved plan, every meaningful step is visible, and the
+workspace can run on infrastructure you own.
+
+Use this launch message in demos, README posts, and community announcements:
+
+> **Give your AI agent a forge, not a blank check.** Plan with confidence, approve the
+> approach, then let Xeo Forge build and show its work.
 
 ---
 
@@ -61,7 +76,7 @@ you configure once.
 ### Agent Runtime Safety
 - Stagnation detection, read-only loop detection, and text-termination guards.
 - Per-task sandboxed workspaces with path confinement + command blocklists.
-- Adaptive execution — no arbitrary iteration cap.
+- Adaptive execution with stagnation detection, credit budgets, and a hard safety ceiling.
 
 ### Context Management
 - Real context-usage percentage computed from the live message array.
@@ -75,7 +90,7 @@ you configure once.
 
 ## Screenshots
 
-| Dashboard (Plan/Build mode picker) | Live task view (proposed plan) |
+| Dashboard (approval-first flow) | Live task view (proposed plan) |
 |-------------------------------------|--------------------------------|
 | ![Dashboard](docs/screenshots/dashboard.png) | ![Task plan](docs/screenshots/task-plan.png) |
 
@@ -198,12 +213,12 @@ database row is the source of truth (env only seeds the initial value).
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | `GET` | `/api/tasks` | List my tasks |
-| `POST` | `/api/tasks` | Create task (`{ goal, mode: "planning"\|"build" }`) |
+| `POST` | `/api/tasks` | Create a planning task (`{ goal }`; build starts only after approval) |
 | `GET` | `/api/tasks/:id` | Get task |
 | `GET` | `/api/tasks/:id/stream` | SSE event stream |
 | `POST` | `/api/tasks/:id/approve` | Approve plan → start build |
 | `POST` | `/api/tasks/:id/reject` | Reject plan → re-plan |
-| `POST` | `/api/tasks/:id/mode` | Switch mode (non-running tasks) |
+| `POST` | `/api/tasks/:id/mode` | Switch to planning, or resume Build only with an approved plan |
 | `GET` | `/api/tasks/:id/messages` | Conversation messages |
 | `POST` | `/api/tasks/:id/messages` | Send follow-up message |
 | `POST` | `/api/tasks/:id/uploads` | Upload task files |

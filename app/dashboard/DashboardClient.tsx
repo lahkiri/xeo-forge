@@ -20,7 +20,6 @@ export default function DashboardClient({
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [balance, setBalance] = useState(initialBalance);
   const [goal, setGoal] = useState('');
-  const [mode, setMode] = useState<'planning' | 'build'>('planning');
   const [staged, setStaged] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -40,7 +39,7 @@ export default function DashboardClient({
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ goal, mode }),
+        body: JSON.stringify({ goal }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -102,27 +101,9 @@ export default function DashboardClient({
         <form onSubmit={submitTask} className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <label className="block text-sm font-medium">New task</label>
-            <div className="flex rounded-md border border-white/15 bg-black/30 p-0.5">
-              {(['planning', 'build'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  className={`rounded px-3 py-1 text-xs font-medium transition ${
-                    mode === m
-                      ? 'bg-indigo-500/80 text-white'
-                      : 'text-gray-400 hover:text-gray-200'
-                  }`}
-                  title={
-                    m === 'planning'
-                      ? 'Plan first: the agent inspects and proposes a plan for your approval.'
-                      : 'Build directly: the agent executes immediately with full tool access.'
-                  }
-                >
-                  {m === 'planning' ? 'Plan' : 'Build'}
-                </button>
-              ))}
-            </div>
+            <span className="rounded-full border border-indigo-400/30 bg-indigo-400/10 px-3 py-1 text-xs text-indigo-200">
+              Plan → Approve → Build
+            </span>
           </div>
           <textarea
             value={goal}

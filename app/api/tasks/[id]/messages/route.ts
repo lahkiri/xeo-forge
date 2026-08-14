@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser, assertOwnerOrAdmin } from '@/lib/auth/guard';
-import { getTaskById, appendMessage, updateTaskStatus } from '@/lib/db/queries';
+import { getTaskById, appendMessage, claimTaskForFollowUp, updateTaskStatus } from '@/lib/db/queries';
 import { startAgentRun } from '@/lib/agent/runner';
 import { errorResponse } from '../../../_lib/respond';
 
@@ -16,8 +16,8 @@ const MessageSchema = z.object({
  * Send a follow-up message in an existing task session.
  *
  * Persists the user message, then starts a new agent run with the full
- * conversation history injected into context. Only allowed on non-running
- * tasks (completed, failed, planned, or pending after a prior run).
+ * conversation history injected into context. Only allowed on terminal or
+ * approval-waiting tasks (completed, failed, or planned).
  *
  * The agent run streams back via SSE on the same task channel — the client
  * already listens for all event types.
@@ -45,22 +45,35 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Message content is required.' }, { status: 400 });
     }
 
-    // Persist the user message.
-    await appendMessage(params.id, 'user', parsed.data.content);
+    // Claim the task before appending the message. The conditional UPDATE is
+    // the concurrency gate: exactly one request can transition a terminal or
+    // planned task to pending and therefore start a new runner.
+    const claimed = await claimTaskForFollowUp(params.id);
+    if (!claimed) {
+      return NextResponse.json(
+        { error: 'The task is already running or was claimed by another request.' },
+        { status: 409 },
+      );
+    }
 
-    // Reset task status so the agent run can start.
-    // Use task.mode as source of truth (not status heuristic).
-    // clearError: a follow-up on a failed task must not keep showing the old error.
-    const nextMode = task.mode;
-    await updateTaskStatus(params.id, 'pending', { clearError: true });
+    try {
+      await appendMessage(params.id, 'user', parsed.data.content);
+    } catch (err) {
+      // Do not leave a claimed task silently stuck in pending if persistence of
+      // the user message fails.
+      await updateTaskStatus(params.id, 'failed', {
+        error: 'Failed to persist follow-up message before starting the agent.',
+      }).catch((rollbackErr) => console.error('[tasks/message] failed to record message error', rollbackErr));
+      throw err;
+    }
 
     // Start a new agent run with the full conversation history.
     startAgentRun({
-      taskId: params.id,
-      userId: task.user_id,
-      goal: task.goal,
-      mode: nextMode,
-      approvedPlan: nextMode === 'build' ? task.approved_plan : undefined,
+      taskId: claimed.id,
+      userId: claimed.user_id,
+      goal: claimed.goal,
+      mode: claimed.mode,
+      approvedPlan: claimed.mode === 'build' ? claimed.approved_plan : undefined,
     });
 
     return NextResponse.json({ ok: true }, { status: 200 });

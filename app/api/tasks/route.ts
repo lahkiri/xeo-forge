@@ -33,11 +33,16 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: 'A non-empty goal is required.' }, { status: 400 });
     }
+    if (parsed.data.mode === 'build') {
+      return NextResponse.json(
+        { error: 'New tasks must start in planning mode. Approve the proposed plan to begin the build.' },
+        { status: 409 },
+      );
+    }
 
-    // Create the task row first so the creation debit has a ref_id to point at.
-    // Default to planning mode (AGENTS.md: task defaults to planning) unless
-    // the client explicitly requests build.
-    const mode = parsed.data.mode ?? 'planning';
+    // Every new task starts in planning mode. Build mode is entered only by
+    // the atomic approveTaskPlan transition, which freezes approved_plan.
+    const mode = 'planning' as const;
     const task = await createTask({ userId: user.id, goal: parsed.data.goal, mode });
 
     // Debit creation cost atomically. If insufficient, mark the task failed so

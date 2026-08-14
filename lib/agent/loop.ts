@@ -44,6 +44,7 @@ import { isArchive } from './uploads';
 import { CREDITS_PER_TOOL_CALL } from '../credits/pricing';
 import { computeContextUsage, shouldCompact, type ContextUsage } from './context';
 import { summarizeMessages } from './compaction';
+import { canStartAgentRun } from './build-policy';
 
 /**
  * Adaptive execution boundary — replaces hardcoded iteration limits.
@@ -152,6 +153,18 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
   if (!model) {
     await updateTaskStatus(taskId, 'failed', { error: 'No global model is configured.' });
     await emitTaskEvent(taskId, 'error', { message: 'No global model is configured.' });
+    await emitTaskEvent(taskId, 'done', { status: 'failed' });
+    return;
+  }
+
+  // Defense in depth: build is authorized only by an immutable approved plan.
+  // API routes and DB transitions enforce this too, but the runner must never
+  // execute write-capable tools if it is invoked incorrectly or from a future
+  // integration point.
+  if (!canStartAgentRun(mode, approvedPlan)) {
+    const error = 'Build run rejected: an approved plan is required.';
+    await updateTaskStatus(taskId, 'failed', { error });
+    await emitTaskEvent(taskId, 'error', { message: error });
     await emitTaskEvent(taskId, 'done', { status: 'failed' });
     return;
   }
