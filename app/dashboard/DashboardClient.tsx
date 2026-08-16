@@ -1,11 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button, Card, StatusBadge } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
-import type { AuthUser, Task } from '@/lib/types';
+import type { AgentProfile, AgentSkill, AuthUser, Task } from '@/lib/types';
 
 export default function DashboardClient({
   user,
@@ -20,9 +20,20 @@ export default function DashboardClient({
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [balance, setBalance] = useState(initialBalance);
   const [goal, setGoal] = useState('');
+  const [profiles, setProfiles] = useState<AgentProfile[]>([]);
+  const [skills, setSkills] = useState<AgentSkill[]>([]);
+  const [profileId, setProfileId] = useState('');
+  const [skillId, setSkillId] = useState('');
   const [staged, setStaged] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    Promise.all([fetch('/api/agent/profiles'), fetch('/api/agent/skills')]).then(async ([profileRes, skillRes]) => {
+      if (profileRes.ok) setProfiles((await profileRes.json()).profiles || []);
+      if (skillRes.ok) setSkills((await skillRes.json()).skills || []);
+    }).catch(() => {});
+  }, []);
 
   async function refresh() {
     const [tRes, cRes] = await Promise.all([fetch('/api/tasks'), fetch('/api/credits')]);
@@ -39,7 +50,7 @@ export default function DashboardClient({
       const res = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ goal }),
+        body: JSON.stringify({ goal, profileId: profileId || null, skillId: skillId || null }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -51,6 +62,8 @@ export default function DashboardClient({
         return;
       }
       setGoal('');
+      setProfileId('');
+      setSkillId('');
       // Attach any staged files to the newly created task via the same
       // shared handler + same route (no separate pipeline). Best-effort.
       if (staged.length > 0) {
@@ -82,6 +95,9 @@ export default function DashboardClient({
           <p className="text-sm text-gray-400">{user.displayName}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <Link href="/settings">
+            <Button variant="ghost">Prompt Studio</Button>
+          </Link>
           <span className="rounded-md bg-white/5 px-3 py-1.5 text-sm">
             <span className="text-gray-400">Credits:</span>{' '}
             <span className="font-semibold">{balance}</span>
@@ -112,6 +128,13 @@ export default function DashboardClient({
             placeholder="Describe what you want the agent to do..."
             className="w-full resize-y rounded-md border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none focus:border-indigo-500"
           />
+          {(profiles.length > 0 || skills.length > 0) && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
+              {skills.length > 0 && <><label htmlFor="agent-skill" className="text-xs text-gray-500">Workflow</label><select id="agent-skill" value={skillId} onChange={(e) => setSkillId(e.target.value)} className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-300 outline-none focus:border-cyan-500"><option value="">No workflow</option>{skills.filter((s) => s.enabled).map((s) => <option key={s.id} value={s.id}>{s.name} · {s.kind}</option>)}</select></>}
+              {profiles.length > 0 && <><label htmlFor="agent-profile" className="text-xs text-gray-500">Role</label><select id="agent-profile" value={profileId} onChange={(e) => setProfileId(e.target.value)} className="rounded-md border border-white/10 bg-black/30 px-3 py-2 text-xs text-gray-300 outline-none focus:border-indigo-500"><option value="">Xeo default</option>{profiles.filter((p) => p.enabled).map((p) => <option key={p.id} value={p.id}>{p.name} · {p.kind}</option>)}</select></>}
+              <Link href="/settings" className="text-[11px] text-indigo-300 hover:text-indigo-200">manage control layers</Link>
+            </div>
+          )}
           {error && <p className="text-sm text-red-400">{error}</p>}
           {staged.length > 0 && (
             <div className="flex flex-wrap gap-1.5">

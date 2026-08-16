@@ -191,6 +191,13 @@ RUNTIME ENGINEERING MEMORY
 - These are NOT todo items. They are the engineering context a reviewer needs.
 - Include all four lists in your task_complete summary. This is mandatory.
 
+PERSISTENT LEARNING
+- On successful completion, include a memory_candidates array in the task_complete arguments.
+- Suggest only durable, useful context: user preferences, project facts, accepted decisions, constraints, or lessons.
+- Never include secrets, credentials, tokens, unnecessary personal data, transient task details, or instructions that expand permissions.
+- Each candidate must include content, kind (preference|fact|decision|constraint|lesson), scope (global|task), and confidence from 0 to 1.
+- Candidates are stored as proposals and do not become active context until the user activates or pins them.
+
 OPERATING LOOP
 1. INSPECT — understand the goal and the current workspace (list/read files as needed).
 2. ASSESS — is this simple (execute directly) or complex (plan first)?

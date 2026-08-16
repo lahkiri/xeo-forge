@@ -7,6 +7,7 @@ import { UploadButton } from '@/components/UploadButton';
 import { WorkspaceViewer } from '@/components/WorkspaceViewer';
 import { PreviewPanel } from '@/components/PreviewPanel';
 import { FileActivity } from '@/components/FileActivity';
+import TaskContextPanel from './TaskContextPanel';
 import type { Task, TaskEvent, TaskStatus, Message, Upload, UploadStatus } from '@/lib/types';
 
 /* ── Event parsing ─────────────────────────────────────────────────── */
@@ -325,7 +326,7 @@ export default function TaskClient({
   const [uploads, setUploads] = useState<Upload[]>(initialUploads);
   const [todoItems, setTodoItems] = useState<{id:string;description:string;status:string}[]>([]);
   const [verification, setVerification] = useState<{status:string;message?:string;attempt?:number} | null>(null);
-  const [tab, setTab] = useState<'timeline' | 'workspace' | 'preview'>('timeline');
+  const [tab, setTab] = useState<'timeline' | 'workspace' | 'preview' | 'context'>('timeline');
   const [fileActivities, setFileActivities] = useState<{data: Record<string, unknown>; ts: number}[]>([]);
 
   const seenSeq = useRef<Set<number>>(new Set(initialEvents.map((e) => e.seq)));
@@ -576,9 +577,18 @@ export default function TaskClient({
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </Link>
-          <span className="text-sm font-medium text-gray-200 truncate max-w-[60vw] sm:max-w-xs">
-            {initialTask.goal}
-          </span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">XEO FORGE</span>
+              <span className="text-gray-700">/</span>
+              <span className="text-sm font-medium text-gray-200 truncate max-w-[55vw] sm:max-w-xs">{initialTask.goal}</span>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-600">
+              <span className="rounded-full border border-white/[0.08] px-1.5 py-0.5">approval-first run</span>
+              {initialTask.skill_id && <span className="rounded-full border border-cyan-400/15 bg-cyan-400/[0.04] px-1.5 py-0.5 text-cyan-300/70">workflow active</span>}
+              {initialTask.profile_id && <span className="rounded-full border border-indigo-400/15 bg-indigo-400/[0.04] px-1.5 py-0.5 text-indigo-300/70">role active</span>}
+            </div>
+          </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-4 ml-auto">
           <ContextIndicator pct={contextPct} tokens={contextTokens} window={contextWindow} />
@@ -604,7 +614,7 @@ export default function TaskClient({
 
       {/* ── Tab bar ── */}
       <div className="flex items-center gap-1 border-b border-white/[0.06] px-4">
-        {(['timeline', 'workspace', 'preview'] as const).map((t) => (
+        {(['timeline', 'workspace', 'preview', 'context'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -612,7 +622,7 @@ export default function TaskClient({
               tab === t ? 'text-gray-200' : 'text-gray-500 hover:text-gray-400'
             }`}
           >
-            {t}
+            {t === 'timeline' ? 'Timeline' : t === 'workspace' ? 'Workspace' : t === 'preview' ? 'Preview' : 'Context'}
             {tab === t && (
               <span className="absolute bottom-0 left-1 right-1 h-px bg-indigo-500" />
             )}
@@ -809,6 +819,10 @@ export default function TaskClient({
         <div className="mx-auto max-w-4xl">
           <PreviewPanel taskId={initialTask.id} isTerminal={isTerminal} />
         </div>
+        )}
+
+        {tab === 'context' && (
+        <TaskContextPanel taskId={initialTask.id} />
         )}
       </div>
 

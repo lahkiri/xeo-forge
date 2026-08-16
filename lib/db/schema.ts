@@ -79,6 +79,8 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
       plan TEXT,
       approved_plan TEXT,
       plan_version INTEGER NOT NULL DEFAULT 0,
+      profile_id TEXT,
+      skill_id TEXT,
       result_summary TEXT,
       credits_spent INTEGER NOT NULL DEFAULT 0,
       error TEXT,
@@ -138,6 +140,80 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
     )
   `);
 
+  // User-editable instruction layers. These are configuration, not platform
+  // policy: the runtime compiler places them below immutable safety rules.
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS agent_instructions (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      task_id TEXT,
+      scope TEXT NOT NULL DEFAULT 'global',
+      name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 100,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault}
+    )
+  `);
+
+  // Reusable user-owned operating profiles. Profiles shape task behavior but
+  // remain below immutable platform policy and tool permissions.
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS agent_profiles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'custom',
+      description TEXT NOT NULL DEFAULT '',
+      instructions TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault}
+    )
+  `);
+
+  // Reusable workflow templates. Skills define intent and operating guidance;
+  // they do not grant permissions or bypass approval gates.
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS agent_skills (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'custom',
+      description TEXT NOT NULL DEFAULT '',
+      instructions TEXT NOT NULL,
+      profile_id TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault}
+    )
+  `);
+
+  // Persistent learning. Proposed memories are stored but are not loaded into
+  // the agent context until the user activates or pins them.
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS agent_memories (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      task_id TEXT,
+      scope TEXT NOT NULL DEFAULT 'global',
+      kind TEXT NOT NULL DEFAULT 'lesson',
+      content TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'proposed',
+      confidence REAL NOT NULL DEFAULT 0.5,
+      source_task_id TEXT,
+      source_message_id TEXT,
+      pinned INTEGER NOT NULL DEFAULT 0,
+      expires_at ${ts},
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault}
+    )
+  `);
+
   // Uploads ingested for a task. Files live under the task workspace
   // (_uploads/<id>) — the same realpath-confined sandbox the agent file tools
   // use. Uploaded content is untrusted DATA; status gates agent exposure.
@@ -161,11 +237,17 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
 
   // Indexes for the hot lookups.
   statements.push(`CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_profiles_user ON agent_profiles(user_id, enabled, updated_at)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_skills_user ON agent_skills(user_id, enabled, updated_at)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_events_task ON task_events(task_id, seq)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id, id)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_ledger_user ON credit_ledger(user_id)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_sessions_user ON auth_sessions(user_id)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_uploads_task ON uploads(task_id, created_at)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_agent_instructions_user ON agent_instructions(user_id, scope, enabled, priority)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_agent_instructions_task ON agent_instructions(task_id, enabled, priority)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_agent_memories_user ON agent_memories(user_id, scope, status, updated_at)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_agent_memories_task ON agent_memories(task_id, status, updated_at)`);
 
   return statements;
 }
@@ -179,6 +261,8 @@ const TASK_MODE_COLUMNS: Array<{ name: string; ddl: string }> = [
   { name: 'mode', ddl: `ADD COLUMN mode TEXT NOT NULL DEFAULT 'build'` },
   { name: 'approved_plan', ddl: `ADD COLUMN approved_plan TEXT` },
   { name: 'plan_version', ddl: `ADD COLUMN plan_version INTEGER NOT NULL DEFAULT 0` },
+  { name: 'profile_id', ddl: `ADD COLUMN profile_id TEXT` },
+  { name: 'skill_id', ddl: `ADD COLUMN skill_id TEXT` },
 ];
 
 /**
