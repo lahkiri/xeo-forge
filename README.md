@@ -51,15 +51,23 @@ The short version is:
 
 ## V3 product preview
 
-These previews reflect the current V3 product direction and replace the earlier V2 screenshots.
+These previews are captured from the running V3 application after authenticating as an operator and configuring the Builder Sentinel profile, Governed Ship Loop skill, Evidence First instruction, and persistent product memory.
 
 | Command center | Prompt Studio |
 |---|---|
-| ![Xeo Forge V3 command center](docs/screenshots/dashboard-v3.svg) | ![Xeo Forge V3 Prompt Studio](docs/screenshots/context-studio-v3.svg) |
+| ![Xeo Forge V3 command center](docs/screenshots/dashboard-v3.png) | ![Xeo Forge V3 Prompt Studio](docs/screenshots/context-studio-v3.png) |
 
 | Governed run |
 |---|
-| ![Xeo Forge V3 governed run](docs/screenshots/governed-run-v3.svg) |
+| ![Xeo Forge V3 governed run](docs/screenshots/governed-run-v3.png) |
+
+### Product tour
+
+The launch cut below is a real browser recording of the local product flow, with a cinematic treatment, product captions, and an original background score. It moves from the control center to Prompt Studio and then into a governed task with the Plan → Approve → Build contract.
+
+[![Watch the Xeo Forge product tour](docs/screenshots/dashboard-v3.png)](docs/xeo-forge-launch.mp4)
+
+[Download the Xeo Forge product tour](docs/xeo-forge-launch.mp4).
 
 ## Core workflow
 
