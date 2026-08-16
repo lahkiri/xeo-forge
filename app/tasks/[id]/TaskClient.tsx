@@ -7,6 +7,7 @@ import { UploadButton } from '@/components/UploadButton';
 import { WorkspaceViewer } from '@/components/WorkspaceViewer';
 import { PreviewPanel } from '@/components/PreviewPanel';
 import { FileActivity } from '@/components/FileActivity';
+import TaskContextPanel from './TaskContextPanel';
 import type { Task, TaskEvent, TaskStatus, Message, Upload, UploadStatus } from '@/lib/types';
 
 /* ── Event parsing ─────────────────────────────────────────────────── */
@@ -325,7 +326,7 @@ export default function TaskClient({
   const [uploads, setUploads] = useState<Upload[]>(initialUploads);
   const [todoItems, setTodoItems] = useState<{id:string;description:string;status:string}[]>([]);
   const [verification, setVerification] = useState<{status:string;message?:string;attempt?:number} | null>(null);
-  const [tab, setTab] = useState<'timeline' | 'workspace' | 'preview'>('timeline');
+  const [tab, setTab] = useState<'timeline' | 'workspace' | 'preview' | 'context'>('timeline');
   const [fileActivities, setFileActivities] = useState<{data: Record<string, unknown>; ts: number}[]>([]);
 
   const seenSeq = useRef<Set<number>>(new Set(initialEvents.map((e) => e.seq)));
@@ -604,7 +605,7 @@ export default function TaskClient({
 
       {/* ── Tab bar ── */}
       <div className="flex items-center gap-1 border-b border-white/[0.06] px-4">
-        {(['timeline', 'workspace', 'preview'] as const).map((t) => (
+        {(['timeline', 'workspace', 'preview', 'context'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -809,6 +810,10 @@ export default function TaskClient({
         <div className="mx-auto max-w-4xl">
           <PreviewPanel taskId={initialTask.id} isTerminal={isTerminal} />
         </div>
+        )}
+
+        {tab === 'context' && (
+        <TaskContextPanel taskId={initialTask.id} />
         )}
       </div>
 

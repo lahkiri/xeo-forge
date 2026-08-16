@@ -62,6 +62,7 @@ export interface Task {
   plan: string | null; // latest proposed plan (planning output)
   approved_plan: string | null; // immutable snapshot frozen at approval
   plan_version: number; // increments each time a plan is approved
+  profile_id: string | null; // reusable agent profile selected at task creation
   result_summary: string | null;
   credits_spent: number;
   error: string | null;
@@ -118,6 +119,61 @@ export interface Message {
    */
   active: number;
   created_at: string;
+}
+
+/** User-configured instructions compiled into a run without source edits. */
+export type AgentInstructionScope = 'global' | 'task';
+
+export interface AgentInstruction {
+  id: string;
+  user_id: string;
+  task_id: string | null;
+  scope: AgentInstructionScope;
+  name: string;
+  content: string;
+  priority: number;
+  enabled: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Persistent agent memory. Memory is context data, never a permission grant. */
+export type AgentMemoryScope = 'global' | 'task';
+export type AgentMemoryKind = 'preference' | 'fact' | 'decision' | 'constraint' | 'lesson';
+export type AgentMemoryStatus = 'proposed' | 'active' | 'archived';
+
+export interface AgentMemory {
+  id: string;
+  user_id: string;
+  task_id: string | null;
+  scope: AgentMemoryScope;
+  kind: AgentMemoryKind;
+  content: string;
+  status: AgentMemoryStatus;
+  confidence: number;
+  source_task_id: string | null;
+  source_message_id: string | null;
+  pinned: number;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Reusable user-owned operating profile for a class of tasks. */
+export type AgentProfileKind = 'builder' | 'researcher' | 'analyst' | 'operator' | 'custom';
+
+export interface AgentProfile {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: AgentProfileKind;
+  description: string;
+  instructions: string;
+  enabled: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
 }
 
 /**
@@ -186,6 +242,7 @@ export type AgentEventType =
   | 'upload' // upload lifecycle: { upload_id, filename, kind, status, file_count, extracted_bytes, error? }
   | 'file_activity' // live filesystem action: { action: 'created'|'edited'|'deleted'|'listed', path, size?, ts }
   | 'todo_update' // agent todo list snapshot: { items: [{id, description, status}] }
+  | 'memory' // persistent learning proposal/status: { memory_id, status, scope, kind }
   | 'verification' // pre-completion verification: { status: 'pass'|'fail', message?, attempt? }
   | 'error'
   | 'done';

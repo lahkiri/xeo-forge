@@ -45,6 +45,9 @@ import { CREDITS_PER_TOOL_CALL } from '../credits/pricing';
 import { computeContextUsage, shouldCompact, type ContextUsage } from './context';
 import { summarizeMessages } from './compaction';
 import { canStartAgentRun } from './build-policy';
+import { compileAgentContext } from './context-pack';
+import { createAgentMemory } from '../db/queries';
+import type { AgentMemoryKind, AgentMemoryScope } from '../types';
 
 /**
  * Adaptive execution boundary — replaces hardcoded iteration limits.
@@ -200,6 +203,11 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
   } else {
     systemPrompt = AGENT_SYSTEM_PROMPT;
   }
+
+  // Compile user-controlled prompt layers before ephemeral runtime context.
+  // The compiler explicitly frames memory as data and never changes tool policy.
+  const compiledContext = await compileAgentContext({ userId, taskId, baseSystemPrompt: systemPrompt });
+  systemPrompt = compiledContext.systemPrompt;
 
   // Inject runtime context: detected language + engineering memory instructions.
   // This is ephemeral — appended to the in-memory prompt, not persisted.
@@ -595,7 +603,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
           if (textBuf.trim()) {
             // Planning mode: text without <action> is acceptable.
             if (mode === 'planning') {
-              await finalizeComplete(taskId, mode, textBuf.trim(), planBuffer);
+              await finalizeComplete(taskId, userId, mode, textBuf.trim(), planBuffer);
               return;
             }
             // Build mode: text without task_complete is suspicious.
@@ -673,7 +681,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
             });
             continue;
           }
-          await finalizeComplete(taskId, mode, summary, planBuffer);
+          await finalizeComplete(taskId, userId, mode, summary, planBuffer, action.args.memory_candidates);
           return;
         }
         if (action.tool === 'todo_update') {
@@ -802,7 +810,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
               continue;
             }
             messages.push({ role: 'tool', tool_call_id: call.id, content: 'completed' });
-            await finalizeComplete(taskId, mode, summary, planBuffer);
+            await finalizeComplete(taskId, userId, mode, summary, planBuffer, args.memory_candidates);
             return;
           }
           if (call.name === 'todo_update') {
@@ -890,7 +898,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
 
         // Planning mode: text termination is acceptable — plans end in text.
         if (mode === 'planning') {
-          await finalizeComplete(taskId, mode, text || 'Done.', planBuffer);
+          await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer);
           return;
         }
 
@@ -1002,7 +1010,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
         }
 
         // Fallback: accept text as completion (should rarely reach here)
-        await finalizeComplete(taskId, mode, text || 'Done.', planBuffer);
+        await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer);
         return;
       }
       // Empty response (flaky provider) — loop again, bounded by HARD_SAFETY_CAP.
@@ -1045,11 +1053,86 @@ async function safeExecute(
   }
 }
 
+type MemoryCandidate = {
+  content: string;
+  kind: AgentMemoryKind;
+  scope: AgentMemoryScope;
+  confidence: number;
+};
+
+function sanitizeMemoryCandidates(raw: unknown): MemoryCandidate[] {
+  if (!Array.isArray(raw)) return [];
+  const allowedKinds = new Set<AgentMemoryKind>(['preference', 'fact', 'decision', 'constraint', 'lesson']);
+  const allowedScopes = new Set<AgentMemoryScope>(['global', 'task']);
+  const secretPattern = /(api[_ -]?key|password|passwd|secret|token|private key|authorization:)/i;
+  const instructionPattern = /(ignore (all|previous)|system prompt|developer message|bypass|disable safety|grant permission)/i;
+  const result: MemoryCandidate[] = [];
+  for (const item of raw.slice(0, 8)) {
+    if (!item || typeof item !== 'object') continue;
+    const candidate = item as Record<string, unknown>;
+    const content = typeof candidate.content === 'string'
+      ? candidate.content.trim().replace(/\s+/g, ' ').slice(0, 1200)
+      : '';
+    const kind = candidate.kind;
+    const scope = candidate.scope;
+    const confidence = typeof candidate.confidence === 'number' ? candidate.confidence : 0.5;
+    if (!content || !allowedKinds.has(kind as AgentMemoryKind) || !allowedScopes.has(scope as AgentMemoryScope)) continue;
+    if (secretPattern.test(content) || instructionPattern.test(content)) continue;
+    result.push({
+      content,
+      kind: kind as AgentMemoryKind,
+      scope: scope as AgentMemoryScope,
+      confidence: Math.max(0, Math.min(1, confidence)),
+    });
+  }
+  return result;
+}
+
+async function persistMemoryCandidates(
+  userId: string,
+  taskId: string,
+  mode: TaskMode,
+  raw: unknown,
+): Promise<number> {
+  // Planning describes future work, so it must not teach the persistent agent.
+  if (mode !== 'build') return 0;
+  let saved = 0;
+  for (const candidate of sanitizeMemoryCandidates(raw)) {
+    try {
+      const memory = await createAgentMemory({
+        userId,
+        taskId: candidate.scope === 'task' ? taskId : null,
+        scope: candidate.scope,
+        kind: candidate.kind,
+        content: candidate.content,
+        status: 'proposed',
+        confidence: candidate.confidence,
+        sourceTaskId: taskId,
+      });
+      await emitTaskEvent(taskId, 'memory', {
+        memory_id: memory.id,
+        status: memory.status,
+        scope: memory.scope,
+        kind: memory.kind,
+        content: memory.content,
+      });
+      saved += 1;
+    } catch (err) {
+      // Learning is supplementary; a persistence failure must never turn a
+      // verified software task into a failed task.
+      console.error(`[agent] memory proposal failed task=${taskId}:`, err);
+    }
+  }
+  return saved;
+}
+
 async function finalizeComplete(
   taskId: string,
+  userId: string,
   mode: TaskMode,
   summary: string,
   planOverride?: string,
+  memoryCandidates?: unknown,
 ): Promise<boolean> {
   // Persist the assistant's summary as a conversation message for follow-up context.
   await appendMessage(taskId, 'assistant', summary);
@@ -1072,8 +1155,9 @@ async function finalizeComplete(
     return true;
   }
   await updateTaskStatus(taskId, 'completed', { resultSummary: summary });
-  await emitTaskEvent(taskId, 'task_status', { status: 'completed' });
-  await emitTaskEvent(taskId, 'done', { status: 'completed', summary });
+  const memoryCount = await persistMemoryCandidates(userId, taskId, mode, memoryCandidates);
+  await emitTaskEvent(taskId, 'task_status', { status: 'completed', memory_proposals: memoryCount });
+  await emitTaskEvent(taskId, 'done', { status: 'completed', summary, memory_proposals: memoryCount });
   return true;
 }
 

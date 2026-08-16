@@ -142,7 +142,24 @@ export const TOOL_SCHEMAS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       description: 'Finish the task with a concise summary. Call exactly once.',
       parameters: {
         type: 'object',
-        properties: { summary: { type: 'string' } },
+        properties: {
+          summary: { type: 'string' },
+          memory_candidates: {
+            type: 'array',
+            maxItems: 8,
+            description: 'Optional durable learning proposals. Stored as user-reviewable memories, never as permissions.',
+            items: {
+              type: 'object',
+              properties: {
+                content: { type: 'string', maxLength: 1200 },
+                kind: { type: 'string', enum: ['preference', 'fact', 'decision', 'constraint', 'lesson'] },
+                scope: { type: 'string', enum: ['global', 'task'] },
+                confidence: { type: 'number', minimum: 0, maximum: 1 },
+              },
+              required: ['content', 'kind', 'scope', 'confidence'],
+            },
+          },
+        },
         required: ['summary'],
       },
     },
@@ -217,7 +234,15 @@ const toolArgSchemas: Record<string, z.ZodTypeAny> = {
     headers: z.record(z.string()).optional(),
     body: z.string().optional(),
   }),
-  task_complete: z.object({ summary: z.string().min(1) }),
+  task_complete: z.object({
+    summary: z.string().min(1),
+    memory_candidates: z.array(z.object({
+      content: z.string().min(1).max(1200),
+      kind: z.enum(['preference', 'fact', 'decision', 'constraint', 'lesson']),
+      scope: z.enum(['global', 'task']),
+      confidence: z.number().min(0).max(1),
+    })).max(8).optional(),
+  }),
   todo_update: z.object({
     items: z.array(z.object({
       id: z.string().min(1),
