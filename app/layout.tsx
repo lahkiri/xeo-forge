@@ -2,8 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Xeo Forge',
-  description: 'Xeo Forge — Autonomous AI Agent Platform. Describe your goal and let the agent execute it.',
+  title: 'Xeo Forge — Control Plane for Agentic Work',
+  description: 'Run governed AI agents with approval-first execution, persistent context, reusable profiles, skills, and auditable results.',
 };
 
 export const viewport: Viewport = {

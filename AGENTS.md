@@ -1,25 +1,27 @@
-# Xeo Forge V2 — Agent & Architecture Rules
+# Xeo Forge V3 — Agent & Architecture Rules
 
 This file is the contract for working in this repo. Keep it short, keep it enforced.
 If a change violates a rule here, the change is wrong — not the rule.
 
 ## 1. What this product is
 
-One AI agent with dual execution modes:
+One governed AI agent with reusable execution context:
 1. **Planning mode** — read-only inspection, produces a structured plan for approval.
 2. **Build mode** — executes an immutable approved plan with full tool access.
+3. **Context layers** — Prompt Studio instructions, approved memories, Agent Profiles, and Agent Skills are compiled into the run context.
 
 The agent:
 1. receives a task from a user (defaults to planning mode),
-2. inspects and analyzes (planning) or executes (build),
-3. returns a final result,
-4. persists full history,
-5. consumes credits per run.
+2. loads policy, profile, skill, task context, and approved memories,
+3. inspects and analyzes (planning) or executes (build),
+4. returns a final result and bounded memory candidates,
+5. persists full history and audit events,
+6. consumes credits per run.
 
-Plus the minimum around it: auth, per-user credits, admin user management,
-ONE global model configuration, and an inspectable audit trail.
+Plus auth, per-user credits, admin controls, ONE global model configuration,
+reusable profiles and skills, context management, and an inspectable audit trail.
 
-Nothing else. If a feature is not part of that sentence, it does not belong in V2.
+New capabilities must preserve the approval gate, task-scoped authorization, single source of truth, and end-to-end UI-to-persistence behavior.
 
 ## 2. Hard architecture rules (non-negotiable)
 
@@ -42,9 +44,9 @@ Nothing else. If a feature is not part of that sentence, it does not belong in V
    Every balance change writes a `credit_ledger` row with `balance_after`.
    No read-then-write race.
 7. **Authz on every task-scoped route.** Owner-or-admin check, always.
-8. **No feature creep.** No subagents, teams, conductor, clarification
-   pause/resume, marketplace, plugins, analytics platform, monitoring platform,
-   approval workflows, or permission framework. If tempted, stop.
+8. **No ungoverned feature creep.** Do not add subagents, teams, connectors,
+   schedules, marketplaces, plugins, analytics, or permission frameworks without
+   a written V3 design, explicit authorization boundaries, and an end-to-end path.
 9. **No dead code.** Don't scaffold for "future features". Delete what isn't used.
 10. **Typecheck stays clean.** `tsc --noEmit` has zero errors. Never hide errors
     behind `ignoreBuildErrors`.
@@ -79,7 +81,7 @@ Nothing else. If a feature is not part of that sentence, it does not belong in V
   context usage % that triggers automatic compaction (1–100, default 80).
 - `admin_actions` — id, admin_id, target_user_id, action, detail, created_at.
 
-Do not add tables without a real, present use.
+Do not add tables without a real, present use. V3 tables must have an end-to-end API, agent, persistence, and UI path.
 
 **Design note: execution_cursor.** There is no persisted step list or cursor.
 The agent loop is model-driven — the LLM decides what to do each iteration.
