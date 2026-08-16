@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Card } from '@/components/ui';
 import type { AgentInstruction, AgentMemory, AuthUser } from '@/lib/types';
 import ProfileStudio from './ProfileStudio';
+import SkillStudio from './SkillStudio';
 
 const MEMORY_KINDS = ['preference', 'fact', 'decision', 'constraint', 'lesson'] as const;
 
@@ -142,6 +143,7 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
         )}
 
         <ProfileStudio />
+        <SkillStudio />
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="space-y-6">

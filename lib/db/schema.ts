@@ -80,6 +80,7 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
       approved_plan TEXT,
       plan_version INTEGER NOT NULL DEFAULT 0,
       profile_id TEXT,
+      skill_id TEXT,
       result_summary TEXT,
       credits_spent INTEGER NOT NULL DEFAULT 0,
       error TEXT,
@@ -174,6 +175,24 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
     )
   `);
 
+  // Reusable workflow templates. Skills define intent and operating guidance;
+  // they do not grant permissions or bypass approval gates.
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS agent_skills (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'custom',
+      description TEXT NOT NULL DEFAULT '',
+      instructions TEXT NOT NULL,
+      profile_id TEXT,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      version INTEGER NOT NULL DEFAULT 1,
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault}
+    )
+  `);
+
   // Persistent learning. Proposed memories are stored but are not loaded into
   // the agent context until the user activates or pins them.
   statements.push(`
@@ -219,6 +238,7 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
   // Indexes for the hot lookups.
   statements.push(`CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_profiles_user ON agent_profiles(user_id, enabled, updated_at)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_skills_user ON agent_skills(user_id, enabled, updated_at)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_events_task ON task_events(task_id, seq)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_messages_task ON messages(task_id, id)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_ledger_user ON credit_ledger(user_id)`);
@@ -242,6 +262,7 @@ const TASK_MODE_COLUMNS: Array<{ name: string; ddl: string }> = [
   { name: 'approved_plan', ddl: `ADD COLUMN approved_plan TEXT` },
   { name: 'plan_version', ddl: `ADD COLUMN plan_version INTEGER NOT NULL DEFAULT 0` },
   { name: 'profile_id', ddl: `ADD COLUMN profile_id TEXT` },
+  { name: 'skill_id', ddl: `ADD COLUMN skill_id TEXT` },
 ];
 
 /**

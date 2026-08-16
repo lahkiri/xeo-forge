@@ -14,6 +14,7 @@ const CreateTaskSchema = z.object({
   goal: z.string().min(1).max(20000),
   mode: z.enum(['planning', 'build']).optional(),
   profileId: z.string().uuid().nullable().optional(),
+  skillId: z.string().uuid().nullable().optional(),
 });
 
 export async function GET() {
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     // Every new task starts in planning mode. Build mode is entered only by
     // the atomic approveTaskPlan transition, which freezes approved_plan.
     const mode = 'planning' as const;
-    const task = await createTask({ userId: user.id, goal: parsed.data.goal, mode, profileId: parsed.data.profileId });
+    const task = await createTask({ userId: user.id, goal: parsed.data.goal, mode, profileId: parsed.data.profileId, skillId: parsed.data.skillId });
 
     // Debit creation cost atomically. If insufficient, mark the task failed so
     // history stays truthful (no orphan pending row) and return 402.

@@ -101,3 +101,10 @@ The next product boundary is Slice B: durable workspaces and reusable skills. Th
 The `feat/v3` branch now also includes reusable Agent Profiles. A profile is a user-owned, versioned operating role (`builder`, `researcher`, `analyst`, `operator`, or `custom`) with editable instructions and description. Users can create, enable, disable, and delete profiles in Profile Studio, select an enabled profile when creating a task, and the runtime compiles the selected profile into the task context below immutable policy and tool permissions. Existing tasks remain compatible with a null profile.
 
 This is intentionally a guidance layer, not a permission layer. Profiles cannot bypass the Plan → Approve → Build transition, alter sandbox boundaries, reveal secrets, or authorize dangerous actions. The next major implementation boundary remains durable workspaces and reusable skills, where profiles can become workspace-scoped roles instead of only user-scoped presets.
+
+
+## Implementation status — Slice B foundation
+
+The first Skills foundation is now implemented. Users can create reusable workflow templates with a type, description, instructions, and optional profile. Skills are listed, enabled, disabled, deleted, selected from the dashboard, persisted on the task, and compiled into the runtime context. This makes repeatable processes such as shipping a feature, researching a topic, auditing a repository, or preparing an analysis selectable instead of being re-described in every task.
+
+The current implementation deliberately keeps skills user-scoped and task-rooted. The next step is the durable Workspace model: a workspace should own persistent files, instructions, memories, skills, memberships, and policy defaults, while a task becomes an execution run inside that workspace. Until then, skills remain a safe reusable layer over the existing task sandbox.

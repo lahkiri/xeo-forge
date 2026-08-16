@@ -63,6 +63,7 @@ export interface Task {
   approved_plan: string | null; // immutable snapshot frozen at approval
   plan_version: number; // increments each time a plan is approved
   profile_id: string | null; // reusable agent profile selected at task creation
+  skill_id: string | null; // reusable workflow selected at task creation
   result_summary: string | null;
   credits_spent: number;
   error: string | null;
@@ -163,6 +164,8 @@ export interface AgentMemory {
 /** Reusable user-owned operating profile for a class of tasks. */
 export type AgentProfileKind = 'builder' | 'researcher' | 'analyst' | 'operator' | 'custom';
 
+export type AgentSkillKind = 'build' | 'research' | 'analysis' | 'operations' | 'content' | 'custom';
+
 export interface AgentProfile {
   id: string;
   user_id: string;
@@ -170,6 +173,21 @@ export interface AgentProfile {
   kind: AgentProfileKind;
   description: string;
   instructions: string;
+  enabled: number;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Reusable workflow template that compiles into a task's context. */
+export interface AgentSkill {
+  id: string;
+  user_id: string;
+  name: string;
+  kind: AgentSkillKind;
+  description: string;
+  instructions: string;
+  profile_id: string | null;
   enabled: number;
   version: number;
   created_at: string;

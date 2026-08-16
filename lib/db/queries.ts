@@ -32,6 +32,8 @@ import type {
   AgentMemoryStatus,
   AgentProfile,
   AgentProfileKind,
+  AgentSkill,
+  AgentSkillKind,
 } from '../types';
 
 function nowIso(): string {
@@ -147,21 +149,32 @@ export async function createTask(input: {
   goal: string;
   mode: TaskMode;
   profileId?: string | null;
+  skillId?: string | null;
 }): Promise<Task> {
   const id = uuidv4();
   const ts = nowIso();
   let profileId: string | null = null;
+  let skillId: string | null = null;
   if (input.profileId) {
     const profile = await getAgentProfileById(input.profileId, input.userId);
     if (!profile || !profile.enabled) throw new Error('Selected agent profile is not available.');
     profileId = profile.id;
   }
+  if (input.skillId) {
+    const skill = await getAgentSkillById(input.skillId, input.userId);
+    if (!skill || !skill.enabled) throw new Error('Selected agent skill is not available.');
+    skillId = skill.id;
+    if (!profileId && skill.profile_id) {
+      const skillProfile = await getAgentProfileById(skill.profile_id, input.userId);
+      if (skillProfile?.enabled) profileId = skillProfile.id;
+    }
+  }
   await db
     .prepare(
-      `INSERT INTO tasks (id, user_id, goal, status, mode, plan_version, profile_id, credits_spent, created_at, updated_at)
-       VALUES (?, ?, ?, 'pending', ?, 0, ?, 0, ?, ?)`,
+      `INSERT INTO tasks (id, user_id, goal, status, mode, plan_version, profile_id, skill_id, credits_spent, created_at, updated_at)
+       VALUES (?, ?, ?, 'pending', ?, 0, ?, ?, 0, ?, ?)`,
     )
-    .run(id, input.userId, input.goal, input.mode, profileId, ts, ts);
+    .run(id, input.userId, input.goal, input.mode, profileId, skillId, ts, ts);
   const task = await getTaskById(id);
   if (!task) throw new Error('createTask: task not found after insert');
   return task;
@@ -1048,5 +1061,87 @@ export async function updateAgentProfile(
 
 export async function deleteAgentProfile(id: string, userId: string): Promise<boolean> {
   const result = await db.prepare(`DELETE FROM agent_profiles WHERE id = ? AND user_id = ?`).run(id, userId);
+  return result.changes > 0;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Agent skills                                                       */
+/* ------------------------------------------------------------------ */
+
+export async function listAgentSkills(userId: string, includeDisabled = false): Promise<AgentSkill[]> {
+  const enabledFilter = includeDisabled ? '' : ' AND enabled = 1';
+  return db
+    .prepare<AgentSkill>(
+      `SELECT * FROM agent_skills WHERE user_id = ?${enabledFilter} ORDER BY enabled DESC, updated_at DESC`,
+    )
+    .all(userId);
+}
+
+export async function getAgentSkillById(id: string, userId: string): Promise<AgentSkill | undefined> {
+  return db.prepare<AgentSkill>(`SELECT * FROM agent_skills WHERE id = ? AND user_id = ?`).get(id, userId);
+}
+
+export async function createAgentSkill(input: {
+  userId: string;
+  name: string;
+  kind: AgentSkillKind;
+  description?: string;
+  instructions: string;
+  profileId?: string | null;
+}): Promise<AgentSkill> {
+  const id = uuidv4();
+  const ts = nowIso();
+  let profileId: string | null = null;
+  if (input.profileId) {
+    const profile = await getAgentProfileById(input.profileId, input.userId);
+    if (!profile || !profile.enabled) throw new Error('Skill profile is not available.');
+    profileId = profile.id;
+  }
+  await db
+    .prepare(
+      `INSERT INTO agent_skills (id, user_id, name, kind, description, instructions, profile_id, enabled, version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)`,
+    )
+    .run(id, input.userId, input.name.trim(), input.kind, (input.description ?? '').trim(), input.instructions.trim(), profileId, ts, ts);
+  const row = await getAgentSkillById(id, input.userId);
+  if (!row) throw new Error('createAgentSkill: row not found after insert');
+  return row;
+}
+
+export async function updateAgentSkill(
+  id: string,
+  userId: string,
+  input: Partial<Pick<AgentSkill, 'name' | 'kind' | 'description' | 'instructions' | 'profile_id'>> & { enabled?: number },
+): Promise<AgentSkill | undefined> {
+  const existing = await getAgentSkillById(id, userId);
+  if (!existing) return undefined;
+  let profileId = input.profile_id === undefined ? existing.profile_id : input.profile_id;
+  if (profileId) {
+    const profile = await getAgentProfileById(profileId, userId);
+    if (!profile || !profile.enabled) throw new Error('Skill profile is not available.');
+  }
+  await db
+    .prepare(
+      `UPDATE agent_skills
+       SET name = ?, kind = ?, description = ?, instructions = ?, profile_id = ?, enabled = ?, version = version + 1, updated_at = ?
+       WHERE id = ? AND user_id = ?`,
+    )
+    .run(
+      input.name?.trim() || existing.name,
+      input.kind || existing.kind,
+      input.description === undefined ? existing.description : input.description.trim(),
+      input.instructions?.trim() || existing.instructions,
+      profileId,
+      input.enabled === undefined ? existing.enabled : input.enabled ? 1 : 0,
+      nowIso(),
+      id,
+      userId,
+    );
+  return getAgentSkillById(id, userId);
+}
+
+export async function deleteAgentSkill(id: string, userId: string): Promise<boolean> {
+  const result = await db.prepare(`DELETE FROM agent_skills WHERE id = ? AND user_id = ?`).run(id, userId);
   return result.changes > 0;
 }
