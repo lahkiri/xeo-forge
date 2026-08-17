@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Button, Card } from '@/components/ui';
+import AppShell from '@/components/AppShell';
+import { Button, Card, Eyebrow } from '@/components/ui';
 import type { AgentInstruction, AgentMemory, AuthUser } from '@/lib/types';
 import ProfileStudio from './ProfileStudio';
 import SkillStudio from './SkillStudio';
@@ -123,17 +124,12 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
   };
 
   return (
-    <main className="min-h-screen bg-[#0b0d10] text-gray-100">
-      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <header className="mb-8 flex flex-wrap items-start justify-between gap-4 border-b border-white/[0.06] pb-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-400">XEO FORGE / PROMPT STUDIO</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight">Agent control center</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500">
-              Configure durable behavior and approve what your agent learns. These settings are compiled into future runs without editing source code.
-            </p>
-          </div>
-          <a href="/dashboard" className="text-sm text-gray-400 transition hover:text-white">Back to dashboard</a>
+    <AppShell user={user} title="Control Center" subtitle="Shape how agents think, what they remember, and which workflows they can reuse—without editing source code.">
+      <div className="space-y-8">
+        <header className="max-w-3xl">
+          <Eyebrow>Prompt Studio</Eyebrow>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Make agent behavior explicit.</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-400">Persistent instructions, reusable roles, skills, and memory are compiled into future runs as visible control layers. You decide what is active.</p>
         </header>
 
         {notice && (
@@ -232,8 +228,8 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
           </section>
         </div>
 
-        <p className="mt-8 text-xs leading-5 text-gray-600">Signed in as {user.displayName || user.email || 'user'}. Task-scoped instructions, memories, and reusable profiles can be managed from the task control surface and dashboard.</p>
+        <p className="pt-2 text-xs leading-5 text-gray-600">Signed in as {user.displayName || user.email || 'user'}. Task-scoped instructions, memories, and reusable profiles can be managed from the task control surface and dashboard.</p>
       </div>
-    </main>
+    </AppShell>
   );
 }

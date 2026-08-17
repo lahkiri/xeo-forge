@@ -63,11 +63,11 @@ These previews are captured from the running V3 application after authenticating
 
 ### Product tour
 
-The launch cut below is a real browser recording of the local product flow, with a cinematic treatment, product captions, and an original background score. It moves from the control center to Prompt Studio and then into a governed task with the Plan → Approve → Build contract.
+The launch film below is a cinematic product advertisement rather than a UI recording. It expresses the product promise—turning agentic acceleration into visible control—without relying on a live model run or exposing operational error states.
 
 [![Watch the Xeo Forge product tour](docs/screenshots/dashboard-v3.png)](docs/xeo-forge-launch.mp4)
 
-[Download the Xeo Forge product tour](docs/xeo-forge-launch.mp4).
+[Download the Xeo Forge launch film](docs/xeo-forge-launch.mp4).
 
 ## Core workflow
 
@@ -117,6 +117,30 @@ The next product layers are intentionally separate from the current core:
 4. Model routing and connector permissions for browsers, repositories, documents, and external services.
 5. Schedules, resumable jobs, richer verification artifacts, and evaluation dashboards.
 
+## Windows desktop
+
+Xeo Forge also ships a thin Windows desktop shell for teams that prefer an installable local workspace. The shell starts the production Next.js control plane on loopback, opens it in a hardened Electron window, and supervises local preview or worker processes through the native Go runtime broker.
+
+The desktop build deliberately shares the same product surface as the web app. It does not fork task governance, context compilation, authentication, or persistence into a second implementation.
+
+```bash
+npm ci
+npm run desktop:dev
+
+# Produce an NSIS installer on a Windows CI runner
+npm run desktop:build:win
+```
+
+The Windows installer workflow is available under `.github/workflows/windows-desktop.yml`. A Windows runner is used for the final installer step because Electron Builder requires the Windows signing/packaging toolchain for a native NSIS artifact. The native broker itself is standard-library Go and can be cross-compiled from Linux.
+
+## Multi-language architecture
+
+Xeo Forge is intentionally polyglot by boundary, not by fashion. TypeScript remains the control plane because UI, API routes, agent orchestration, context compilation, and product policy benefit from one strict domain model. Go owns the narrow native runtime boundary where a small compiled process supervisor is useful for local workers and previews. SQL remains the persistence contract, and shell scripts are limited to build and packaging automation.
+
+> Do not move agent reasoning or approval policy into Go until profiling shows a real bottleneck. The project gains more from explicit boundaries and better observability than from rewriting stable application code.
+
+The first native component is documented in [`native/runtime-broker`](native/runtime-broker/README.md), while the Windows lifecycle is documented in [`desktop/README.md`](desktop/README.md).
+
 ## Quick start
 
 ### Local development with SQLite
@@ -159,6 +183,8 @@ The `init` service creates the schema, seeds the root admin, and stores the init
 | `npm test` | Run the Vitest suite. |
 | `npm run build` | Build the production application. |
 | `npm run db:init` | Create the schema and seed the initial admin and model settings. |
+| `npm run desktop:dev` | Build the standalone app, prepare the native broker, and open the desktop shell. |
+| `npm run desktop:build:win` | Produce the Windows NSIS installer on a Windows runner. |
 
 ## Architecture at a glance
 
@@ -172,9 +198,15 @@ lib/
   db/                adapter, schema, and the single query writer layer
   sse/               persisted event replay and live delivery
   types.ts           domain types and agent event contracts
+native/
+  runtime-broker/    Go process supervisor for local native workers
+desktop/
+  electron/          thin Windows/Linux desktop shell
+  native/            generated broker binaries for packaging
 docs/
   screenshots/       current V3 product previews
   xeo-forge-v3-vision.md  product and architecture direction
+  architecture-and-product-audit.md  product, runtime, and language-boundary audit
 ```
 
 ## Contributing

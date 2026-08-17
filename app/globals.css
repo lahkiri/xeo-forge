@@ -4,6 +4,11 @@
 
 :root {
   color-scheme: dark;
+  --xeo-bg: #080c14;
+  --xeo-panel: rgba(255, 255, 255, 0.035);
+  --xeo-border: rgba(255, 255, 255, 0.08);
+  --xeo-cyan: #67e8f9;
+  --xeo-violet: #a78bfa;
 }
 
 html {
@@ -14,7 +19,8 @@ html,
 body {
   padding: 0;
   margin: 0;
-  background: #0b0d12;
+  min-height: 100%;
+  background: var(--xeo-bg);
   color: #e6e8ec;
   font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
@@ -27,6 +33,56 @@ body {
 a {
   color: inherit;
   text-decoration: none;
+}
+
+.app-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    radial-gradient(circle at 80% -10%, rgba(103, 232, 249, 0.09), transparent 28rem),
+    radial-gradient(circle at 16% 20%, rgba(167, 139, 250, 0.06), transparent 24rem),
+    var(--xeo-bg);
+}
+
+.app-shell::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.16;
+  background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, black, transparent 76%);
+}
+
+.brand-mark {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(103, 232, 249, 0.35);
+  border-radius: 0.75rem;
+  background: linear-gradient(135deg, rgba(103,232,249,0.18), rgba(167,139,250,0.18));
+  box-shadow: 0 0 24px rgba(103, 232, 249, 0.12);
+}
+
+.brand-mark span {
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 2px solid var(--xeo-cyan);
+  border-radius: 0.2rem;
+  transform: rotate(45deg);
+}
+
+.nav-dot {
+  display: block;
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  transition: background-color 200ms ease;
 }
 
 /* Accessible focus styles */

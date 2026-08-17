@@ -7,6 +7,8 @@ out/
 
 # Build
 build/
+dist/
+desktop/native/
 *.tsbuildinfo
 next-env.d.ts
 

@@ -29,7 +29,7 @@ const skill = page.locator('#agent-skill');
 if (await profile.count()) await profile.selectOption({ label: 'Builder Sentinel · builder' });
 if (await skill.count()) await skill.selectOption({ label: 'Governed Ship Loop · build' });
 await page.waitForTimeout(250);
-await page.locator('textarea[placeholder*="Describe what you want"]').fill('Ship a small, well-tested improvement with an explicit approval checkpoint.');
+  await page.locator('textarea').first().fill('Ship a small, well-tested improvement with an explicit approval checkpoint.');
 await page.screenshot({ path: `${outputDir}/dashboard-v3.png`, fullPage: true });
 
 await page.goto(`${baseURL}/settings`, { waitUntil: 'networkidle' });

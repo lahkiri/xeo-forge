@@ -568,9 +568,10 @@ export default function TaskClient({
   // ── Render ──
 
   return (
-    <div className="flex h-screen flex-col bg-[#0b0d12]">
+    <div className="flex h-screen flex-col bg-[#080c14] text-gray-100">
       {/* ── Header ── */}
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/[0.06] px-4 py-3">
+      <header className="border-b border-white/[0.07] bg-[#080c14]/90 px-4 py-3 backdrop-blur-xl sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-3">
           <Link href="/dashboard" className="text-gray-500 hover:text-gray-300 transition-colors shrink-0">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -579,14 +580,15 @@ export default function TaskClient({
           </Link>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
+              <span className="brand-mark h-7 w-7 rounded-lg" aria-hidden="true"><span /></span>
               <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">XEO FORGE</span>
               <span className="text-gray-700">/</span>
-              <span className="text-sm font-medium text-gray-200 truncate max-w-[55vw] sm:max-w-xs">{initialTask.goal}</span>
+              <span className="text-sm font-semibold text-white truncate max-w-[55vw] sm:max-w-xs">{initialTask.goal}</span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-600">
-              <span className="rounded-full border border-white/[0.08] px-1.5 py-0.5">approval-first run</span>
-              {initialTask.skill_id && <span className="rounded-full border border-cyan-400/15 bg-cyan-400/[0.04] px-1.5 py-0.5 text-cyan-300/70">workflow active</span>}
-              {initialTask.profile_id && <span className="rounded-full border border-indigo-400/15 bg-indigo-400/[0.04] px-1.5 py-0.5 text-indigo-300/70">role active</span>}
+              <span className="rounded-full border border-amber-300/15 bg-amber-300/[0.05] px-2 py-0.5 text-amber-200/80">approval boundary</span>
+              {initialTask.skill_id && <span className="rounded-full border border-cyan-400/15 bg-cyan-400/[0.04] px-2 py-0.5 text-cyan-300/80">workflow active</span>}
+              {initialTask.profile_id && <span className="rounded-full border border-violet-400/15 bg-violet-400/[0.04] px-2 py-0.5 text-violet-300/80">role active</span>}
             </div>
           </div>
         </div>
@@ -610,21 +612,22 @@ export default function TaskClient({
             </a>
           )}
         </div>
+        </div>
       </header>
 
       {/* ── Tab bar ── */}
-      <div className="flex items-center gap-1 border-b border-white/[0.06] px-4">
+      <div className="flex items-center gap-1 border-b border-white/[0.07] bg-black/10 px-4 sm:px-6">
         {(['timeline', 'workspace', 'preview', 'context'] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`relative px-3 py-2 text-[11px] font-medium transition-colors ${
-              tab === t ? 'text-gray-200' : 'text-gray-500 hover:text-gray-400'
-            }`}
+              className={`relative rounded-t-lg px-3 py-2.5 text-[11px] font-semibold transition-colors ${
+                tab === t ? 'bg-white/[0.04] text-cyan-100' : 'text-gray-500 hover:bg-white/[0.03] hover:text-gray-300'
+              }`}
           >
             {t === 'timeline' ? 'Timeline' : t === 'workspace' ? 'Workspace' : t === 'preview' ? 'Preview' : 'Context'}
             {tab === t && (
-              <span className="absolute bottom-0 left-1 right-1 h-px bg-indigo-500" />
+              <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.7)]" />
             )}
           </button>
         ))}
