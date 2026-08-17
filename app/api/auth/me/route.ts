@@ -2,12 +2,14 @@ import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/session';
 import { getCredits } from '@/lib/db/queries';
 import { errorResponse } from '../../_lib/respond';
+import { ensureSchema } from '@/lib/db/bootstrap';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    await ensureSchema();
     const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ user: null }, { status: 200 });

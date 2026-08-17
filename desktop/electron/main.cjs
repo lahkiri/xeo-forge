@@ -32,8 +32,17 @@ function startRuntimeBroker() {
 function startNextServer() {
   const serverPath = resourcePath('app', 'server.js');
   if (!existsSync(serverPath)) throw new Error(`Packaged Next server is missing: ${serverPath}`);
+  const localDbPath = path.join(app.getPath('userData'), 'data', 'xeo.db');
   nextProcess = spawn(process.execPath, [serverPath], {
-    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', NODE_ENV: 'production', PORT: String(APP_PORT), HOSTNAME: '127.0.0.1' },
+    env: {
+      ...process.env,
+      ELECTRON_RUN_AS_NODE: '1',
+      NODE_ENV: 'production',
+      XEO_DESKTOP_LOCAL: '1',
+      DB_PATH: process.env.DB_PATH || localDbPath,
+      PORT: String(APP_PORT),
+      HOSTNAME: '127.0.0.1',
+    },
     stdio: 'ignore',
     windowsHide: true,
   });

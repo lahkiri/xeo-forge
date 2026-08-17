@@ -40,6 +40,7 @@ export interface Database {
 }
 
 const isProd = process.env.NODE_ENV === 'production';
+const isDesktopLocal = process.env.XEO_DESKTOP_LOCAL === '1';
 
 /* ------------------------------------------------------------------ */
 /* PG helpers                                                          */
@@ -181,7 +182,7 @@ let _db: Database | null = null;
 export function getDb(): Database {
   if (_db) return _db;
   const hasUrl = !!process.env.DATABASE_URL;
-  if (!hasUrl && isProd) {
+  if (!hasUrl && isProd && !isDesktopLocal) {
     throw new Error('DATABASE_URL is required in production (refusing to use SQLite).');
   }
   _db = hasUrl ? createPg() : createSqlite();

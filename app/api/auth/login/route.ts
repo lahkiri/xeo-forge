@@ -6,6 +6,7 @@ import { createSession } from '@/lib/auth/session';
 import { ensureUserCredits } from '@/lib/credits/engine';
 import { errorResponse } from '../../_lib/respond';
 import { rateLimit, clientIp } from '../../_lib/ratelimit';
+import { ensureSchema } from '@/lib/db/bootstrap';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,7 @@ const LoginSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    await ensureSchema();
     // Throttle by IP: 10 login attempts per 5 minutes.
     const limited = rateLimit(`login:${clientIp(req)}`, 10, 5 * 60 * 1000);
     if (!limited.ok) {
