@@ -16,7 +16,7 @@
     "db:init": "tsx scripts/db-init.ts",
     "desktop:prepare": "npm run build && node scripts/prepare-desktop.mjs",
     "desktop:dev": "npm run build && node scripts/prepare-desktop.mjs && electron .",
-    "desktop:build:win": "npm run desktop:prepare && electron-builder --win nsis --x64"
+    "desktop:build:win": "npm run desktop:prepare && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "better-sqlite3": "11.1.2",
