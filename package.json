@@ -1,6 +1,6 @@
 {
   "name": "xeo-forge",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "The control plane for governed agentic work: approval-first execution, persistent context, reusable profiles and skills.",
   "author": "Xeo Forge",
   "private": true,
