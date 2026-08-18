@@ -23,18 +23,25 @@ if (!existsSync(join(standalone, 'server.js'))) {
  * database request fails with ERR_DLOPEN_FAILED.
  */
 const electronVersion = process.env.ELECTRON_VERSION || (await import('electron/package.json', { with: { type: 'json' } })).default.version;
-const rebuildCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const rebuildCommand = join(
+  root,
+  'node_modules',
+  '.bin',
+  process.platform === 'win32' ? 'electron-rebuild.cmd' : 'electron-rebuild',
+);
+if (!existsSync(rebuildCommand)) {
+  throw new Error(`Missing local electron-rebuild executable: ${rebuildCommand}`);
+}
 const rebuild = spawnSync(rebuildCommand, [
-  '--no-install',
-  'electron-rebuild',
   '--version',
   electronVersion,
   '--force',
   '--only',
   'better-sqlite3',
-], { cwd: root, env: process.env, stdio: 'inherit' });
-if (rebuild.status !== 0) {
-  throw new Error(`Could not rebuild better-sqlite3 for Electron ${electronVersion}`);
+], { cwd: root, env: process.env, stdio: 'inherit', shell: process.platform === 'win32' });
+if (rebuild.error || rebuild.status !== 0) {
+  const detail = rebuild.error?.message || `exit code ${rebuild.status}`;
+  throw new Error(`Could not rebuild better-sqlite3 for Electron ${electronVersion}: ${detail}`);
 }
 
 const sqliteSource = join(root, 'node_modules', 'better-sqlite3');
