@@ -29,7 +29,12 @@ const env = {
   PORT: String(port),
   HOSTNAME: '127.0.0.1',
 };
-const server = spawn(electronBinary, [serverPath], { cwd: root, env, stdio: ['ignore', 'pipe', 'pipe'] });
+const server = spawn(electronBinary, [serverPath], {
+  cwd: root,
+  env,
+  stdio: ['ignore', 'pipe', 'pipe'],
+  shell: process.platform === 'win32',
+});
 const broker = spawn(brokerBinary, [], {
   cwd: root,
   env: { ...process.env, XEO_RUNTIME_ADDR: `127.0.0.1:${brokerPort}` },
