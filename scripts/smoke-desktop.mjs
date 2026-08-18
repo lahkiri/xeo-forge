@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -17,7 +17,20 @@ if (!existsSync(serverPath)) throw new Error('Missing standalone server. Run npm
 if (!existsSync(electronBinary)) throw new Error(`Missing Electron binary: ${electronBinary}`);
 if (!existsSync(brokerBinary)) throw new Error(`Missing runtime broker: ${brokerBinary}`);
 
-await rm(dbPath, { force: true });
+async function removeDatabase() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      await rm(dbPath, { force: true });
+      return;
+    } catch (error) {
+      if (error.code !== 'EBUSY' && error.code !== 'EPERM') throw error;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+  await rm(dbPath, { force: true });
+}
+
+await removeDatabase();
 
 const env = {
   ...process.env,
@@ -41,10 +54,23 @@ const broker = spawn(brokerBinary, [], {
   stdio: ['ignore', 'pipe', 'pipe'],
 });
 
-const stop = () => {
-  if (!server.killed) server.kill();
-  if (!broker.killed) broker.kill();
-};
+function stopChild(child) {
+  if (!child || child.exitCode !== null) return Promise.resolve();
+  const exited = new Promise((resolve) => child.once('exit', resolve));
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore', windowsHide: true });
+  } else {
+    child.kill('SIGTERM');
+  }
+  return Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(resolve, 3000)),
+  ]);
+}
+
+async function stop() {
+  await Promise.all([stopChild(server), stopChild(broker)]);
+}
 
 async function waitFor(url, label, attempts = 80) {
   let lastError;
@@ -97,6 +123,6 @@ try {
     electronVersion,
   }, null, 2));
 } finally {
-  stop();
-  await rm(dbPath, { force: true });
+  await stop();
+  await removeDatabase();
 }
