@@ -147,11 +147,12 @@ export interface RunAgentArgs {
   userId: string;
   goal: string;
   mode: TaskMode;
+  projectPath?: string | null;
   /** Frozen, user-approved plan. Required for build runs that came from a plan. */
   approvedPlan?: string | null;
 }
 
-export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: RunAgentArgs): Promise<void> {
+export async function runAgent({ taskId, userId, goal, mode, projectPath, approvedPlan }: RunAgentArgs): Promise<void> {
   const model = await resolveModel();
   if (!model) {
     await updateTaskStatus(taskId, 'failed', { error: 'No global model is configured.' });
@@ -177,7 +178,7 @@ export async function runAgent({ taskId, userId, goal, mode, approvedPlan }: Run
   await emitTaskEvent(taskId, 'task_status', { status: 'running' });
 
   const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS });
-  const ctx = createToolContext(taskId, mode);
+  const ctx = createToolContext(taskId, mode, projectPath);
   const toolSchemas = schemasForMode(mode);
 
   // Detected language from the user's first message.

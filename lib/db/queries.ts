@@ -148,6 +148,7 @@ export async function createTask(input: {
   userId: string;
   goal: string;
   mode: TaskMode;
+  projectPath?: string | null;
   profileId?: string | null;
   skillId?: string | null;
 }): Promise<Task> {
@@ -171,10 +172,10 @@ export async function createTask(input: {
   }
   await db
     .prepare(
-      `INSERT INTO tasks (id, user_id, goal, status, mode, plan_version, profile_id, skill_id, credits_spent, created_at, updated_at)
-       VALUES (?, ?, ?, 'pending', ?, 0, ?, ?, 0, ?, ?)`,
+      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, plan_version, profile_id, skill_id, credits_spent, created_at, updated_at)
+       VALUES (?, ?, ?, 'pending', ?, ?, 0, ?, ?, 0, ?, ?)`,
     )
-    .run(id, input.userId, input.goal, input.mode, profileId, skillId, ts, ts);
+    .run(id, input.userId, input.goal, input.mode, input.projectPath ?? null, profileId, skillId, ts, ts);
   const task = await getTaskById(id);
   if (!task) throw new Error('createTask: task not found after insert');
   return task;

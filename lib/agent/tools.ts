@@ -27,12 +27,19 @@ export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'http_request',
 export interface ToolContext {
   taskId: string;
   mode: TaskMode;
+  projectPath: string | null;
   files: FileTool;
   code: CodeTool;
 }
 
-export function createToolContext(taskId: string, mode: TaskMode): ToolContext {
-  return { taskId, mode, files: new FileTool(taskId), code: new CodeTool(taskId) };
+export function createToolContext(taskId: string, mode: TaskMode, projectPath?: string | null): ToolContext {
+  return {
+    taskId,
+    mode,
+    projectPath: projectPath ?? null,
+    files: new FileTool(taskId, projectPath),
+    code: new CodeTool(taskId, projectPath),
+  };
 }
 
 /**

@@ -51,7 +51,7 @@ export type TaskStatus =
  * - 'build': execution. Writes are allowed, but only against the immutable
  *   approved_plan snapshot taken at approval time.
  */
-export type TaskMode = 'planning' | 'build';
+export type TaskMode = 'chat' | 'planning' | 'build';
 
 export interface Task {
   id: string;
@@ -59,6 +59,8 @@ export interface Task {
   goal: string;
   status: TaskStatus;
   mode: TaskMode;
+  /** Absolute local project root selected for this run, when applicable. */
+  project_path: string | null;
   plan: string | null; // latest proposed plan (planning output)
   approved_plan: string | null; // immutable snapshot frozen at approval
   plan_version: number; // increments each time a plan is approved

@@ -1,6 +1,6 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const { spawn } = require('node:child_process');
-const { existsSync } = require('node:fs');
+const { existsSync, readFileSync, writeFileSync, mkdirSync } = require('node:fs');
 const path = require('node:path');
 
 const APP_PORT = Number(process.env.XEO_APP_PORT || 3100);
@@ -8,6 +8,42 @@ const BROKER_PORT = Number(process.env.XEO_RUNTIME_PORT || 4317);
 const projectRoot = path.resolve(__dirname, '..', '..');
 let nextProcess;
 let brokerProcess;
+
+function projectConfigPath() {
+  return path.join(app.getPath('userData'), 'project.json');
+}
+
+function readStoredProjectPath() {
+  try {
+    const value = JSON.parse(readFileSync(projectConfigPath(), 'utf8'));
+    return typeof value.path === 'string' && existsSync(value.path) ? value.path : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveProjectPath(projectPath) {
+  mkdirSync(app.getPath('userData'), { recursive: true });
+  writeFileSync(projectConfigPath(), JSON.stringify({ path: projectPath }, null, 2), 'utf8');
+  return { path: projectPath };
+}
+
+ipcMain.handle('project:get', () => ({ path: readStoredProjectPath() }));
+ipcMain.handle('project:set', (_event, projectPath) => {
+  if (typeof projectPath !== 'string' || !existsSync(projectPath)) return { path: null, error: 'Project folder does not exist.' };
+  return saveProjectPath(path.resolve(projectPath));
+});
+ipcMain.handle('project:choose', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Choose a project folder',
+    defaultPath: readStoredProjectPath() || app.getPath('documents'),
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (result.canceled || result.filePaths.length === 0) return { path: readStoredProjectPath() };
+  const project = saveProjectPath(result.filePaths[0]);
+  BrowserWindow.getAllWindows().forEach((window) => window.webContents.send('project:changed', project));
+  return project;
+});
 
 function resourcePath(...parts) {
   const root = app.isPackaged ? process.resourcesPath : projectRoot;
@@ -40,6 +76,7 @@ function startNextServer() {
       NODE_ENV: 'production',
       XEO_DESKTOP_LOCAL: '1',
       DB_PATH: process.env.DB_PATH || localDbPath,
+      XEO_PROJECT_ROOT: readStoredProjectPath() || '',
       PORT: String(APP_PORT),
       HOSTNAME: '127.0.0.1',
     },
@@ -78,6 +115,7 @@ async function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: path.join(__dirname, 'preload.cjs'),
     },
   });
   window.webContents.setWindowOpenHandler(({ url: target }) => {

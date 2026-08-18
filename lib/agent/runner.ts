@@ -25,6 +25,7 @@ export function startAgentRun(args: {
   userId: string;
   goal: string;
   mode: TaskMode;
+  projectPath?: string | null;
   approvedPlan?: string | null;
 }): void {
   runAgent(args).catch(async (err) => {

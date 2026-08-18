@@ -119,8 +119,8 @@ async function run(command: string, workDir: string): Promise<ExecResult> {
 export class CodeTool {
   private workDir: string;
 
-  constructor(taskId: string) {
-    this.workDir = workspaceFor(taskId);
+  constructor(taskId: string, projectPath?: string | null) {
+    this.workDir = workspaceFor(taskId, projectPath);
   }
 
   async bash(command: string): Promise<ExecResult> {

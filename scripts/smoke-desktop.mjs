@@ -108,6 +108,16 @@ try {
     throw new Error(`Expected local register to be disabled, got HTTP ${register.status}`);
   }
 
+  const chat = await fetch(`http://127.0.0.1:${port}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ goal: 'Smoke chat: answer briefly without planning.', mode: 'chat', projectPath: root }),
+  });
+  const chatBody = await chat.json();
+  if (chat.status !== 201 || chatBody.task?.mode !== 'chat' || chatBody.task?.project_path !== root) {
+    throw new Error(`Expected a local chat thread with project path, got HTTP ${chat.status}: ${JSON.stringify(chatBody)}`);
+  }
+
   const runtime = await waitFor(`http://127.0.0.1:${brokerPort}/healthz`, 'Runtime broker');
   if (runtime.status !== 200) throw new Error(`Runtime broker health check returned HTTP ${runtime.status}`);
   const runtimeApi = await fetch(`http://127.0.0.1:${port}/api/runtime`);
@@ -118,7 +128,7 @@ try {
 
   console.log(JSON.stringify({
     ok: true,
-    checks: ['local-root-redirect', 'implicit-local-owner', 'register-disabled', 'native-runtime-health'],
+    checks: ['local-root-redirect', 'implicit-local-owner', 'register-disabled', 'chat-mode-with-project-path', 'native-runtime-health'],
     dbPath,
     electronVersion,
   }, null, 2));

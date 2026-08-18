@@ -76,6 +76,7 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
       goal TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'pending',
       mode TEXT NOT NULL DEFAULT 'build',
+      project_path TEXT,
       plan TEXT,
       approved_plan TEXT,
       plan_version INTEGER NOT NULL DEFAULT 0,
@@ -259,6 +260,7 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
  */
 const TASK_MODE_COLUMNS: Array<{ name: string; ddl: string }> = [
   { name: 'mode', ddl: `ADD COLUMN mode TEXT NOT NULL DEFAULT 'build'` },
+  { name: 'project_path', ddl: `ADD COLUMN project_path TEXT` },
   { name: 'approved_plan', ddl: `ADD COLUMN approved_plan TEXT` },
   { name: 'plan_version', ddl: `ADD COLUMN plan_version INTEGER NOT NULL DEFAULT 0` },
   { name: 'profile_id', ddl: `ADD COLUMN profile_id TEXT` },

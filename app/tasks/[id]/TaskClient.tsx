@@ -481,7 +481,8 @@ export default function TaskClient({
   // ── Derived state ──
 
   const isTerminal = status === 'completed' || status === 'failed';
-  const isPlanned = status === 'planned';
+  const isChat = initialTask.mode === 'chat';
+  const isPlanned = !isChat && status === 'planned';
   const isRunning = status === 'running' || status === 'pending';
   const canFollowUp = isTerminal;
 
@@ -512,7 +513,12 @@ export default function TaskClient({
   // Build timeline
   let assistantIdx = 0;
   const timeline = useMemo(() => {
-    const turns = messages.map((msg, i) => {
+    // Older threads may have been created before the API persisted the opening
+    // turn. Keep them readable instead of rendering an apparently empty chat.
+    const sourceMessages = messages.length > 0
+      ? messages
+      : [{ id: -2, role: 'user' as const, content: initialTask.goal }];
+    const turns = sourceMessages.map((msg, i) => {
       let content = msg.content;
       // Strip <user_task> framing tags (added by agent loop for LLM safety)
       content = content.replace(/^<user_task>\n?/, '').replace(/\n?<\/user_task>$/, '');
@@ -535,7 +541,7 @@ export default function TaskClient({
       }
     }
     return turns;
-  }, [messages, runToolEvents]);
+  }, [messages, runToolEvents, initialTask.goal]);
 
   // Append streaming assistant turn
   if (isRunning && (currentRunText || currentRunToolEvents.length > 0)) {
@@ -546,6 +552,8 @@ export default function TaskClient({
   }
 
   const errorEvent = events.find((e) => e.type === 'error');
+  const errorMessage = errorEvent ? String(errorEvent.data.message ?? 'An error occurred') : '';
+  const modelSetupError = errorMessage.toLowerCase().includes('no global model') || errorMessage.toLowerCase().includes('model is not configured');
 
   // Derive Plan→Execute→Verify phase PURELY from existing state/events (visual only).
   const hasCurrentToolActivity = currentRunToolEvents.length > 0;
@@ -558,7 +566,7 @@ export default function TaskClient({
     if (hasCurrentToolActivity) return 'execute';
     return 'plan';
   })();
-  const showPhase = (isRunning || isTerminal) && timeline.length > 0;
+  const showPhase = !isChat && (isRunning || isTerminal) && timeline.length > 0;
 
   const reasoningDeltas = events
     .filter((e) => e.type === 'reasoning')
@@ -586,24 +594,24 @@ export default function TaskClient({
               <span className="text-sm font-semibold text-white truncate max-w-[55vw] sm:max-w-xs">{initialTask.goal}</span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] text-gray-600">
-              <span className="rounded-full border border-amber-300/15 bg-amber-300/[0.05] px-2 py-0.5 text-amber-200/80">approval boundary</span>
+              <span className={`rounded-full border px-2 py-0.5 ${isChat ? 'border-cyan-300/15 bg-cyan-300/[0.05] text-cyan-200/80' : 'border-violet-300/15 bg-violet-300/[0.05] text-violet-200/80'}`}>{isChat ? 'conversation' : 'governed task'}</span>
+              {initialTask.project_path && <span className="max-w-[20rem] truncate rounded-full border border-white/[0.07] px-2 py-0.5 text-gray-500" title={initialTask.project_path}>{initialTask.project_path}</span>}
               {initialTask.skill_id && <span className="rounded-full border border-cyan-400/15 bg-cyan-400/[0.04] px-2 py-0.5 text-cyan-300/80">workflow active</span>}
               {initialTask.profile_id && <span className="rounded-full border border-violet-400/15 bg-violet-400/[0.04] px-2 py-0.5 text-violet-300/80">role active</span>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3 sm:gap-4 ml-auto">
-          <ContextIndicator pct={contextPct} tokens={contextTokens} window={contextWindow} />
-          <span className="text-[11px] text-gray-500">{creditsSpent} cr</span>
+          {!isChat && <ContextIndicator pct={contextPct} tokens={contextTokens} window={contextWindow} />}
           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
             status === 'running' ? 'bg-blue-500/15 text-blue-400' :
             status === 'completed' ? 'bg-green-500/15 text-green-400' :
-            status === 'failed' ? 'bg-red-500/15 text-red-400' :
+            status === 'failed' ? (isChat ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-400') :
             status === 'planned' ? 'bg-amber-500/15 text-amber-400' :
             'bg-white/5 text-gray-400'
           }`}>
             {status === 'running' && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />}
-            {status}
+            {isChat && status === 'failed' ? 'needs setup' : status}
           </span>
           {isTerminal && (
             <a href={`/api/tasks/${initialTask.id}/export`}
@@ -791,19 +799,21 @@ export default function TaskClient({
           {/* Error — inline in timeline, with recovery hint, never breaks flow */}
           {errorEvent && (
             <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-3">
-                <div className="flex items-center gap-2 text-xs font-medium text-red-400">
+                  <div className={`max-w-xl rounded-xl border px-4 py-3 ${modelSetupError && isChat ? 'border-amber-400/20 bg-amber-400/[0.07]' : 'border-red-500/20 bg-red-500/[0.07]'}`}>
+                <div className={`flex items-center gap-2 text-xs font-medium ${modelSetupError && isChat ? 'text-amber-300' : 'text-red-400'}`}>
                   <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z" />
                   </svg>
-                  execution error
+                  {modelSetupError && isChat ? 'chat setup required' : isChat ? 'chat unavailable' : 'execution error'}
                 </div>
-                <p className="mt-1 text-[11px] leading-relaxed text-red-400/80 break-words">
-                  {String(errorEvent.data.message ?? 'An error occurred')}
+                <p className={`mt-1 text-[11px] leading-relaxed break-words ${modelSetupError && isChat ? 'text-amber-200/80' : 'text-red-400/80'}`}>
+                  {modelSetupError && isChat
+                    ? 'No AI model is configured for this local workspace. Configure a local or remote model, then send a message again.'
+                    : errorMessage}
                 </p>
                 {isTerminal && (
                   <p className="mt-1.5 text-[10px] text-gray-500">
-                    Send a follow-up message below to retry or adjust the task.
+                    {modelSetupError && isChat ? 'Your conversation is preserved. Configure the model, then continue below.' : 'Send a follow-up message below to retry or adjust the task.'}
                   </p>
                 )}
               </div>
@@ -829,62 +839,31 @@ export default function TaskClient({
         )}
       </div>
 
-      {/* ── Bottom bar: plan approval + follow-up ── */}
-      <div className="border-t border-white/[0.06] px-4 py-3">
-        <div className="mx-auto max-w-2xl">
-
-          {/* Plan approval (if planned) */}
-          {isPlanned && proposedPlan && (
-            <div className="mb-3 rounded-lg bg-amber-500/[0.06] border border-amber-500/20 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[11px] uppercase tracking-widest text-amber-400/80">proposed plan</span>
+      {/* ── Bottom bar: approval + conversation composer ── */}
+      <div className="border-t border-white/[0.08] bg-[#080c14]/95 px-4 py-4 backdrop-blur-xl sm:px-6">
+        <div className="mx-auto max-w-3xl">
+          {!isChat && isPlanned && proposedPlan && (
+            <div className="mb-3 rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-200/70">Review before execution</p><p className="mt-1 text-xs text-gray-400">The agent prepared this plan. Approve it to let the build run begin.</p></div>
                 <div className="flex gap-2">
-                  <button
-                    onClick={handleApprove} disabled={approving || rejecting}
-                    className="rounded-md bg-green-500/15 text-green-400 text-[11px] font-medium px-3 py-1 hover:bg-green-500/25 transition disabled:opacity-50"
-                  >
-                    {approving ? '…' : 'approve'}
-                  </button>
-                  <button
-                    onClick={handleReject} disabled={approving || rejecting}
-                    className="rounded-md bg-white/5 text-gray-400 text-[11px] font-medium px-3 py-1 hover:bg-white/10 transition disabled:opacity-50"
-                  >
-                    {rejecting ? '…' : 'revise'}
-                  </button>
+                  <button onClick={handleApprove} disabled={approving || rejecting} className="rounded-xl bg-emerald-300/[0.12] px-3 py-2 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-300/[0.2] disabled:opacity-50">{approving ? 'Approving…' : 'Approve plan'}</button>
+                  <button onClick={handleReject} disabled={approving || rejecting} className="rounded-xl border border-white/[0.08] px-3 py-2 text-xs font-semibold text-gray-400 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50">{rejecting ? 'Revising…' : 'Ask for revision'}</button>
                 </div>
               </div>
-              <p className="text-xs text-gray-400 leading-relaxed line-clamp-3">{proposedPlan}</p>
+              <p className="mt-3 max-h-28 overflow-y-auto whitespace-pre-wrap rounded-xl border border-white/[0.06] bg-black/20 p-3 text-xs leading-5 text-gray-300">{proposedPlan}</p>
             </div>
           )}
 
-          {/* Follow-up input */}
           {canFollowUp ? (
-            <div>
-              <form onSubmit={handleFollowUp} className="flex gap-2">
-                <UploadButton taskId={initialTask.id} onUploaded={mergeUpload} />
-                <input
-                  type="text" value={followUp}
-                  onChange={(e) => setFollowUp(e.target.value)}
-                  placeholder="Send a follow-up message…"
-                  className="flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-gray-200 placeholder-gray-600 outline-none focus:border-white/20 transition"
-                />
-                <button
-                  type="submit" disabled={sending || !followUp.trim()}
-                  className="rounded-lg bg-indigo-600 text-white text-sm font-medium px-4 py-2.5 hover:bg-indigo-500 transition disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {sending ? '…' : 'send'}
-                </button>
-              </form>
-            </div>
+            <form onSubmit={handleFollowUp} className="rounded-2xl border border-white/[0.11] bg-white/[0.035] p-2 shadow-2xl shadow-black/20 focus-within:border-cyan-300/30">
+              <textarea rows={2} value={followUp} onChange={(e) => setFollowUp(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder={isChat ? 'Continue the conversation…' : 'Send a follow-up or adjustment…'} className="w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 text-gray-200 outline-none placeholder:text-gray-600" />
+              <div className="flex items-center justify-between gap-3 px-1 pt-1"><UploadButton taskId={initialTask.id} onUploaded={mergeUpload} label="Attach" /><div className="flex items-center gap-3"><span className="hidden text-[10px] text-gray-600 sm:inline">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={sending || !followUp.trim()} className="rounded-xl bg-cyan-300 px-4 py-2 text-xs font-bold text-[#071018] transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button></div></div>
+            </form>
           ) : isRunning ? (
-            <div className="flex items-center gap-2 text-[11px] text-gray-500">
-              <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
-              agent running…
-            </div>
+            <div className="flex items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-xs text-gray-500"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />{isChat ? 'Xeo is composing a reply…' : 'Agent is working…'}</div>
           ) : (
-            <div>
-              <UploadButton taskId={initialTask.id} onUploaded={mergeUpload} label="attach file" />
-            </div>
+            <div className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3"><span className="text-xs text-gray-600">This thread is ready for a follow-up.</span><UploadButton taskId={initialTask.id} onUploaded={mergeUpload} label="Attach file" /></div>
           )}
         </div>
       </div>

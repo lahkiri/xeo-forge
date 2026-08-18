@@ -23,7 +23,15 @@ export class AccessDeniedError extends Error {
   }
 }
 
-export function workspaceFor(taskId: string): string {
+export function workspaceFor(taskId: string, projectPath?: string | null): string {
+  const selected = typeof projectPath === 'string' ? projectPath.trim() : '';
+  if (selected && process.env.XEO_DESKTOP_LOCAL === '1' && path.isAbsolute(selected)) {
+    const root = path.resolve(selected);
+    if (!fs.existsSync(root) || !fs.statSync(root).isDirectory()) {
+      throw new AccessDeniedError('Selected project folder does not exist or is not a directory.');
+    }
+    return root;
+  }
   return path.join(WORK_ROOT, taskId);
 }
 
@@ -53,8 +61,8 @@ export function resolveWithin(root: string, rel: string): string {
 export class FileTool {
   readonly root: string;
 
-  constructor(taskId: string) {
-    this.root = workspaceFor(taskId);
+  constructor(taskId: string, projectPath?: string | null) {
+    this.root = workspaceFor(taskId, projectPath);
     fs.mkdirSync(this.root, { recursive: true });
   }
 

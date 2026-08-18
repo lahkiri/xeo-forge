@@ -43,6 +43,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       userId: task.user_id,
       goal: updated.goal,
       mode: 'build',
+      projectPath: updated.project_path,
       approvedPlan: updated.approved_plan,
     });
 

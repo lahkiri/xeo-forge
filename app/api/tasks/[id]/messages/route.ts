@@ -73,6 +73,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       userId: claimed.user_id,
       goal: claimed.goal,
       mode: claimed.mode,
+      projectPath: claimed.project_path,
       approvedPlan: claimed.mode === 'build' ? claimed.approved_plan : undefined,
     });
 
