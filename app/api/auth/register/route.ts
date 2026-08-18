@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getUserByEmail, createUser } from '@/lib/db/queries';
 import { hashPassword } from '@/lib/auth/password';
-import { createSession } from '@/lib/auth/session';
+import { createSession, isDesktopLocalMode } from '@/lib/auth/session';
 import { ensureUserCredits } from '@/lib/credits/engine';
 import { errorResponse } from '../../_lib/respond';
 import { rateLimit, clientIp } from '../../_lib/ratelimit';
@@ -19,6 +19,12 @@ const RegisterSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    if (isDesktopLocalMode()) {
+      return NextResponse.json(
+        { error: 'Desktop Local Mode does not use accounts. Open the Workbench directly.' },
+        { status: 409 },
+      );
+    }
     await ensureSchema();
     // Throttle by IP: 5 signups per 10 minutes.
     const limited = rateLimit(`register:${clientIp(req)}`, 5, 10 * 60 * 1000);

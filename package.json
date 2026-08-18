@@ -1,6 +1,6 @@
 {
   "name": "xeo-forge",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "The control plane for governed agentic work: approval-first execution, persistent context, reusable profiles and skills.",
   "author": "Xeo Forge",
   "private": true,
@@ -16,6 +16,7 @@
     "db:init": "tsx scripts/db-init.ts",
     "desktop:prepare": "npm run build && node scripts/prepare-desktop.mjs",
     "desktop:dev": "npm run build && node scripts/prepare-desktop.mjs && electron .",
+    "desktop:smoke": "npm run desktop:prepare && node scripts/smoke-desktop.mjs",
     "desktop:build:win": "npm run desktop:prepare && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
@@ -37,13 +38,29 @@
       ".next/standalone/**/*"
     ],
     "extraResources": [
-      { "from": "desktop/native/xeo-forge-runtime-broker.exe", "to": "native/xeo-forge-runtime-broker.exe" },
-      { "from": "desktop/native/xeo-forge-runtime-broker", "to": "native/xeo-forge-runtime-broker" },
-      { "from": ".next/standalone", "to": "app" }
+      {
+        "from": "desktop/native/xeo-forge-runtime-broker.exe",
+        "to": "native/xeo-forge-runtime-broker.exe"
+      },
+      {
+        "from": "desktop/native/xeo-forge-runtime-broker",
+        "to": "native/xeo-forge-runtime-broker"
+      },
+      {
+        "from": ".next/standalone",
+        "to": "app"
+      }
     ],
     "icon": "desktop/assets/icon.ico",
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "artifactName": "Xeo-Forge-Setup-${version}-${arch}.${ext}"
     },
     "nsis": {
@@ -55,6 +72,7 @@
     }
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
     "@types/better-sqlite3": "7.6.11",
     "@types/node": "20.14.10",
     "@types/pg": "8.11.6",

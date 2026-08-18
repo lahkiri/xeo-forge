@@ -29,6 +29,7 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [runtime, setRuntime] = useState<'checking' | 'native' | 'web'>('checking');
+  const isLocalOwner = user?.email === 'local-owner@xeo-forge.local';
 
   useEffect(() => {
     let active = true;
@@ -44,6 +45,7 @@ export default function AppShell({
   }, []);
 
   async function signOut() {
+    if (isLocalOwner) return;
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
     router.refresh();
@@ -91,9 +93,10 @@ export default function AppShell({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <span className="hidden items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-gray-500 sm:inline-flex" title={runtime === 'native' ? 'Go runtime broker connected' : 'Running in web mode'}><span className={`h-1.5 w-1.5 rounded-full ${runtime === 'native' ? 'bg-emerald-300 shadow-[0_0_8px_rgba(110,231,183,0.8)]' : runtime === 'checking' ? 'bg-amber-300/70' : 'bg-gray-600'}`} />{runtime === 'native' ? 'Native runtime' : runtime === 'checking' ? 'Checking runtime' : 'Web runtime'}</span>
-                {typeof balance === 'number' && <span className="hidden rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2 text-xs text-gray-400 sm:inline-flex"><span className="mr-1.5 text-gray-600">Credits</span><span className="font-semibold text-gray-200">{balance}</span></span>}
+                {isLocalOwner && <span className="hidden rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-emerald-200/80 sm:inline-flex">Local workspace</span>}
+                {typeof balance === 'number' && <span className="hidden rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2 text-xs text-gray-400 sm:inline-flex"><span className="mr-1.5 text-gray-600">{isLocalOwner ? 'Local credits' : 'Credits'}</span><span className="font-semibold text-gray-200">{balance}</span></span>}
                 {user?.isAdmin && <Link href="/admin" className="hidden rounded-xl px-3 py-2 text-xs text-gray-500 hover:bg-white/[0.05] hover:text-gray-200 sm:inline-flex">Admin</Link>}
-                {user && <button onClick={signOut} className="rounded-xl border border-white/[0.08] px-3 py-2 text-xs text-gray-400 transition hover:border-white/20 hover:text-white">Sign out</button>}
+                {user && !isLocalOwner && <button onClick={signOut} className="rounded-xl border border-white/[0.08] px-3 py-2 text-xs text-gray-400 transition hover:border-white/20 hover:text-white">Sign out</button>}
               </div>
             </div>
             <nav className="mx-auto mt-4 flex max-w-6xl gap-2 overflow-x-auto lg:hidden" aria-label="Mobile navigation">

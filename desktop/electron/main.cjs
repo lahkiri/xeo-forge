@@ -63,7 +63,7 @@ async function waitForApp(url, attempts = 80) {
 async function createWindow() {
   startRuntimeBroker();
   startNextServer();
-  const url = `http://127.0.0.1:${APP_PORT}/login`;
+  const url = `http://127.0.0.1:${APP_PORT}/`;
   await waitForApp(url);
 
   const window = new BrowserWindow({

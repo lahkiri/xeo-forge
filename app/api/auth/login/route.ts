@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getUserByEmail } from '@/lib/db/queries';
 import { verifyPassword } from '@/lib/auth/password';
-import { createSession } from '@/lib/auth/session';
+import { createSession, isDesktopLocalMode } from '@/lib/auth/session';
 import { ensureUserCredits } from '@/lib/credits/engine';
 import { errorResponse } from '../../_lib/respond';
 import { rateLimit, clientIp } from '../../_lib/ratelimit';
@@ -18,6 +18,12 @@ const LoginSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
+    if (isDesktopLocalMode()) {
+      return NextResponse.json(
+        { error: 'Desktop Local Mode does not use accounts. Open the Workbench directly.' },
+        { status: 409 },
+      );
+    }
     await ensureSchema();
     // Throttle by IP: 10 login attempts per 5 minutes.
     const limited = rateLimit(`login:${clientIp(req)}`, 10, 5 * 60 * 1000);
