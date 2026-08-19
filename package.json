@@ -19,7 +19,8 @@
     "desktop:smoke": "npm run desktop:prepare && node scripts/smoke-desktop.mjs",
     "browser:smoke": "node scripts/smoke-browser-bridge.mjs",
     "desktop:build:win": "npm run desktop:prepare && electron-builder --win nsis --x64 --publish never",
-    "desktop:build:linux": "npm run desktop:prepare && electron-builder --linux AppImage deb --x64 --publish never"
+    "desktop:build:linux": "npm run desktop:prepare && electron-builder --linux AppImage deb --x64 --publish never",
+    "verify:release:artifacts": "node scripts/verify-release-artifacts.mjs"
   },
   "dependencies": {
     "better-sqlite3": "11.1.2",

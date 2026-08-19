@@ -97,3 +97,11 @@ Verification completed for this milestone:
 | `git diff --check` | Passed |
 
 The annotated release title is **`v1.6.0 — Governed Browser Safety`**. Future tags must continue to include a human-readable title, a user-facing description, and verification status.
+
+## v1.6.0 — Release Artifact Integrity Follow-up
+
+The published `v1.6.0` GitHub Release was re-checked after a report that the updater could not find the files required for an update. The release currently contains the Windows NSIS installer, matching blockmap, `latest.yml`, Linux AppImage, deb package, and `latest-linux.yml`. All six assets returned HTTP 200, and the feed metadata matched the downloaded assets' filenames, byte sizes, and SHA-512 values.
+
+To prevent a tag or release from being considered complete without distributable files, the repository now includes `scripts/verify-release-artifacts.mjs` and the package command `npm run verify:release:artifacts`. The Windows and Linux release jobs invoke the validator after electron-builder finishes. It fails when a required installer, package, feed, blockmap, version, size, or SHA-512 entry is missing or inconsistent. The validator can check one platform in CI or both platforms together from a downloaded release directory.
+
+The existing release assets remain the source for OTA discovery; a successful source build or tag alone is not sufficient. A future release is publishable only after the CI artifact gate and a real previous-version upgrade test pass.
