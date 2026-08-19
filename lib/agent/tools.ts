@@ -266,6 +266,7 @@ const toolArgSchemas: Record<string, z.ZodTypeAny> = {
     url: z.string().optional(),
     selector: z.string().optional(),
     text: z.string().optional(),
+    confirmSensitive: z.boolean().optional(),
   }),
   task_complete: z.object({
     summary: z.string().min(1),

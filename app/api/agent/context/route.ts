@@ -38,6 +38,7 @@ const CreateSchema = z.discriminatedUnion('type', [
     status: z.enum(['proposed', 'active', 'archived']).default('active'),
     confidence: z.number().min(0).max(1).default(1),
     pinned: z.boolean().default(true),
+    expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
   }),
 ]);
 
@@ -58,6 +59,7 @@ const UpdateSchema = z.discriminatedUnion('type', [
     status: z.enum(['proposed', 'active', 'archived']).optional(),
     confidence: z.number().min(0).max(1).optional(),
     pinned: z.boolean().optional(),
+    expiresAt: z.string().datetime({ offset: true }).nullable().optional(),
   }),
 ]);
 
@@ -119,6 +121,7 @@ export async function POST(req: NextRequest) {
       status: input.status,
       confidence: input.confidence,
       pinned: input.pinned,
+      expiresAt: input.expiresAt,
     });
     return NextResponse.json({ memory }, { status: 201 });
   } catch (err) {
@@ -145,6 +148,7 @@ export async function PATCH(req: NextRequest) {
           status: input.status,
           confidence: input.confidence,
           pinned: input.pinned === undefined ? undefined : (input.pinned ? 1 : 0),
+          expires_at: input.expiresAt,
         });
     if (!result) return NextResponse.json({ error: 'Context item not found.' }, { status: 404 });
     return NextResponse.json(input.type === 'instruction' ? { instruction: result } : { memory: result });

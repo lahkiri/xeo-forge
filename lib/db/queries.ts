@@ -982,6 +982,7 @@ export async function createAgentMemory(input: {
   sourceTaskId?: string | null;
   sourceMessageId?: string | null;
   pinned?: boolean;
+  expiresAt?: string | null;
 }): Promise<AgentMemory> {
   const content = input.content.trim().replace(/\s+/g, ' ');
   if (!content) throw new Error('Memory content cannot be empty');
@@ -1025,7 +1026,7 @@ export async function createAgentMemory(input: {
     .prepare(
       `INSERT INTO agent_memories
        (id, user_id, task_id, scope, kind, content, status, confidence, source_task_id, source_message_id, pinned, expires_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(
       id,
@@ -1039,6 +1040,7 @@ export async function createAgentMemory(input: {
       input.sourceTaskId ?? null,
       input.sourceMessageId ?? null,
       input.pinned ? 1 : 0,
+      input.expiresAt ?? null,
       ts,
       ts,
     );
@@ -1050,7 +1052,7 @@ export async function createAgentMemory(input: {
 export async function updateAgentMemory(
   id: string,
   userId: string,
-  input: Partial<Pick<AgentMemory, 'content' | 'kind' | 'status' | 'confidence' | 'pinned'>>,
+  input: Partial<Pick<AgentMemory, 'content' | 'kind' | 'status' | 'confidence' | 'pinned' | 'expires_at'>>,
 ): Promise<AgentMemory | undefined> {
   const existing = await db
     .prepare<AgentMemory>(`SELECT * FROM agent_memories WHERE id = ? AND user_id = ?`)
@@ -1060,7 +1062,7 @@ export async function updateAgentMemory(
   await db
     .prepare(
       `UPDATE agent_memories
-       SET content = ?, kind = ?, status = ?, confidence = ?, pinned = ?, updated_at = ?
+       SET content = ?, kind = ?, status = ?, confidence = ?, pinned = ?, expires_at = ?, updated_at = ?
        WHERE id = ? AND user_id = ?`,
     )
     .run(
@@ -1069,6 +1071,7 @@ export async function updateAgentMemory(
       input.status ?? existing.status,
       input.confidence == null ? existing.confidence : Math.max(0, Math.min(1, input.confidence)),
       input.pinned == null ? existing.pinned : input.pinned ? 1 : 0,
+      input.expires_at === undefined ? existing.expires_at : input.expires_at,
       ts,
       id,
       userId,

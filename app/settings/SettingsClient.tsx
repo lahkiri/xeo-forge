@@ -49,6 +49,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
   const [instructionPriority, setInstructionPriority] = useState('100');
   const [memoryContent, setMemoryContent] = useState('');
   const [memoryKind, setMemoryKind] = useState<(typeof MEMORY_KINDS)[number]>('lesson');
+  const [memoryExpiresAt, setMemoryExpiresAt] = useState('');
   const [browserState, setBrowserState] = useState<DesktopBrowserState | null>(null);
   const [browserPolicy, setBrowserPolicy] = useState<DesktopBrowserPolicy | null>(null);
   const [showBrowserToken, setShowBrowserToken] = useState(false);
@@ -260,8 +261,10 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
       status: 'active',
       confidence: 1,
       pinned: true,
+      expiresAt: memoryExpiresAt ? new Date(memoryExpiresAt).toISOString() : null,
     }, 'Memory pinned globally.');
     setMemoryContent('');
+    setMemoryExpiresAt('');
   };
 
   return (
@@ -472,6 +475,8 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
                   {MEMORY_KINDS.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
                 </select>
                 <textarea value={memoryContent} onChange={(e) => setMemoryContent(e.target.value)} placeholder="The project uses a dark, dense developer dashboard..." rows={4} className="w-full resize-y rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm leading-6 outline-none placeholder:text-gray-600 focus:border-blue-400/50" />
+                <label className="block text-xs text-gray-500">Optional expiry <input type="datetime-local" value={memoryExpiresAt} onChange={(e) => setMemoryExpiresAt(e.target.value)} className="mt-1 w-full rounded-md border border-white/10 bg-[#111419] px-3 py-2 text-sm text-gray-300 outline-none focus:border-blue-400/50" /></label>
+                <p className="text-[11px] leading-5 text-gray-600">Use expiry for temporary project facts. Expired memories stay in the inbox but are excluded from future agent context.</p>
                 <Button type="submit" disabled={busy || !memoryContent.trim()}>Pin memory</Button>
               </form>
             </Card>
@@ -487,7 +492,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
                     <div key={memory.id} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-4">
                       <div className="flex items-center justify-between gap-3"><span className="text-[10px] uppercase tracking-wider text-gray-600">{memory.kind}</span><span className={`rounded-full px-2 py-1 text-[10px] ${statusTone(memory.status)}`}>{memory.status}</span></div>
                       <p className="mt-3 text-sm leading-6 text-gray-300">{memory.content}</p>
-                      <p className="mt-2 text-[11px] text-gray-600">{memory.scope} · {Math.round(memory.confidence * 100)}% confidence{memory.pinned ? ' · pinned' : ''}</p>
+                      <p className="mt-2 text-[11px] text-gray-600">{memory.scope} · {Math.round(memory.confidence * 100)}% confidence{memory.pinned ? ' · pinned' : ''}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ''}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {memory.status !== 'active' && <Button variant="ghost" disabled={busy} onClick={() => patch({ type: 'memory', id: memory.id, status: 'active', pinned: true }, 'Memory activated.')}>Activate</Button>}
                         {memory.status === 'active' && <Button variant="ghost" disabled={busy} onClick={() => patch({ type: 'memory', id: memory.id, status: 'archived', pinned: false }, 'Memory archived.')}>Archive</Button>}
