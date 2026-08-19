@@ -33,6 +33,7 @@ export async function summarizeMessages(
     apiKey: model.apiKey,
     baseURL: model.baseUrl,
     timeout: 300_000,
+    maxRetries: 0,
   });
 
   const conversationText = messages

@@ -28,6 +28,15 @@ export function isPlaceholderApiKey(apiKey: string | null | undefined): boolean 
     || normalized.endsWith('holder');
 }
 
+export function normalizeMaxTokens(value: number): number {
+  if (!Number.isFinite(value)) return 4000;
+  return Math.min(200000, Math.max(256, Math.round(value)));
+}
+
+export function normalizeBaseUrl(value: string): string {
+  return value.trim().replace(/\/+$/, '');
+}
+
 function safeKeyState(apiKey: string | null | undefined): Pick<ModelSettingsSafe, 'api_key_set' | 'api_key_issue'> {
   const present = Boolean(apiKey?.trim());
   return {
@@ -57,11 +66,11 @@ export function modelFromEnv(): ResolvedModel | null {
   if (!baseUrl || !apiKey || !modelId) return null;
   return {
     name: process.env.MODEL_NAME || modelId,
-    baseUrl,
-    apiKey,
-    modelId,
+    baseUrl: normalizeBaseUrl(baseUrl),
+    apiKey: apiKey.trim(),
+    modelId: modelId.trim(),
     temperature: Number(process.env.MODEL_TEMPERATURE || '0.7'),
-    maxTokens: Number(process.env.MODEL_MAX_TOKENS || '4000'),
+    maxTokens: normalizeMaxTokens(Number(process.env.MODEL_MAX_TOKENS || '4000')),
     contextWindow: Number(process.env.MODEL_CONTEXT_WINDOW || '128000'),
     autoCompactThreshold: Number(process.env.MODEL_AUTO_COMPACT_THRESHOLD || '80'),
   };
@@ -77,11 +86,11 @@ export async function resolveModel(): Promise<ResolvedModel | null> {
   if (row) {
     return {
       name: row.name,
-      baseUrl: row.base_url,
-      apiKey: row.api_key,
-      modelId: row.model_id,
+      baseUrl: normalizeBaseUrl(row.base_url),
+      apiKey: row.api_key.trim(),
+      modelId: row.model_id.trim(),
       temperature: row.temperature,
-      maxTokens: row.max_tokens,
+      maxTokens: normalizeMaxTokens(row.max_tokens),
       contextWindow: row.context_window,
       autoCompactThreshold: row.auto_compact_threshold,
     };
@@ -91,7 +100,13 @@ export async function resolveModel(): Promise<ResolvedModel | null> {
 
 export function toSafe(row: ModelSettings): ModelSettingsSafe {
   const { api_key, ...rest } = row;
-  return { ...rest, ...safeKeyState(api_key) };
+  return {
+    ...rest,
+    base_url: normalizeBaseUrl(rest.base_url),
+    model_id: rest.model_id.trim(),
+    max_tokens: normalizeMaxTokens(rest.max_tokens),
+    ...safeKeyState(api_key),
+  };
 }
 
 export async function getModelSafe(): Promise<ModelSettingsSafe | null> {
@@ -131,12 +146,12 @@ export async function updateModel(input: {
     apiKey = existing?.api_key || process.env.MODEL_API_KEY || '';
   }
   await upsertModelSettings({
-    name: input.name,
-    baseUrl: input.baseUrl,
-    apiKey,
-    modelId: input.modelId,
+    name: input.name.trim(),
+    baseUrl: normalizeBaseUrl(input.baseUrl),
+    apiKey: apiKey.trim(),
+    modelId: input.modelId.trim(),
     temperature: input.temperature,
-    maxTokens: input.maxTokens,
+    maxTokens: normalizeMaxTokens(input.maxTokens),
     contextWindow: input.contextWindow,
     autoCompactThreshold: input.autoCompactThreshold,
   });

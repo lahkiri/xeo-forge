@@ -100,9 +100,12 @@ export function classifyModelError(error: unknown): ModelErrorInfo {
 
 export function publicModelErrorMessage(error: unknown, operation = 'model request'): string {
   const info = classifyModelError(error);
+  const waitHint = info.retryAfterMs !== null
+    ? ` The provider asked Xeo to wait about ${Math.max(1, Math.ceil(info.retryAfterMs / 1000))} seconds.`
+    : '';
   switch (info.kind) {
     case 'rate_limit':
-      return 'The model provider rate-limited this request (HTTP 429). Xeo retries briefly with exponential backoff; if it still fails, wait a little or use a provider/model with available quota.';
+      return `The provider accepted the connection but rate-limited this completion (HTTP 429). Your key may still be valid; Xeo retries with controlled backoff.${waitHint} Wait for the provider window to reset or choose a model/provider with available quota.`;
     case 'authentication':
       return 'The model provider rejected the API key (HTTP 401/403). Open Settings → Local model and replace any placeholder or expired key.';
     case 'not_found':

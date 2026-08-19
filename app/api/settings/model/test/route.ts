@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/guard';
 import { isDesktopLocalMode } from '@/lib/auth/session';
-import { resolveModel } from '@/lib/model/config';
+import { normalizeBaseUrl, resolveModel } from '@/lib/model/config';
 import { classifyModelError, publicModelErrorMessage } from '@/lib/model/errors';
 import { errorResponse } from '../../../_lib/respond';
 
@@ -46,19 +46,25 @@ export async function POST(req: NextRequest) {
     }
 
     const startedAt = Date.now();
-    const client = new OpenAI({ apiKey, baseURL: parsed.data.baseUrl, timeout: 30_000 });
+    const baseUrl = normalizeBaseUrl(parsed.data.baseUrl);
+    const modelId = parsed.data.modelId.trim();
+    const client = new OpenAI({ apiKey, baseURL: baseUrl, timeout: 30_000, maxRetries: 0 });
     await client.chat.completions.create({
-      model: parsed.data.modelId,
+      model: modelId,
       messages: [{ role: 'user', content: 'Reply with OK.' }],
       temperature: 0,
-      max_tokens: 1,
+      // Some reasoning/free models spend output budget before emitting visible text.
+      // max_tokens=1 can be rejected as an upstream rate-limit/empty-budget edge case.
+      max_tokens: 256,
       stream: false,
     });
 
     return NextResponse.json({
       ok: true,
-      model_id: parsed.data.modelId,
-      base_url: parsed.data.baseUrl,
+      model_id: modelId,
+      base_url: baseUrl,
+      provider_reachable: true,
+      completion_available: true,
       latency_ms: Date.now() - startedAt,
       message: 'Provider connection succeeded. The model accepted a test completion.',
     });

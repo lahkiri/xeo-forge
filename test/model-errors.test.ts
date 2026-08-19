@@ -14,6 +14,7 @@ describe('model provider errors', () => {
     expect(info.retryAfterMs).toBe(1500);
     expect(shouldRetryModelError(error)).toBe(true);
     expect(publicModelErrorMessage(error)).toContain('HTTP 429');
+    expect(publicModelErrorMessage(error)).toContain('about 2 seconds');
   });
 
   it('classifies invalid provider keys as authentication errors without retrying', () => {

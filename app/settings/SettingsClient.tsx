@@ -12,7 +12,15 @@ const MEMORY_KINDS = ['preference', 'fact', 'decision', 'constraint', 'lesson'] 
 type ContextResponse = { instructions: AgentInstruction[]; memories: AgentMemory[] };
 
 type ModelResponse = { model: ModelSettingsSafe | null };
-type ModelTestResponse = { ok: true; message: string; latency_ms: number; model_id: string };
+type ModelTestResponse = {
+  ok: true;
+  message: string;
+  latency_ms: number;
+  model_id: string;
+  base_url?: string;
+  provider_reachable?: boolean;
+  completion_available?: boolean;
+};
 
 async function requestContext(init?: RequestInit): Promise<ContextResponse | { ok: true }> {
   const response = await fetch('/api/agent/context', {
@@ -332,11 +340,11 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">API key</span><input value={modelApiKey} onChange={(e) => setModelApiKey(e.target.value)} type="password" placeholder={model?.api_key_set ? 'Leave unchanged' : 'Required by provider'} className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
                 <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Temperature</span><input value={modelTemperature} onChange={(e) => setModelTemperature(e.target.value)} type="number" min="0" max="2" step="0.1" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
-                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Max output tokens</span><input value={modelMaxTokens} onChange={(e) => setModelMaxTokens(e.target.value)} type="number" min="1" max="200000" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
+                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Max output tokens</span><input value={modelMaxTokens} onChange={(e) => setModelMaxTokens(e.target.value)} type="number" min="256" max="200000" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
                 <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Context compact at %</span><input value={modelCompactThreshold} onChange={(e) => setModelCompactThreshold(e.target.value)} type="number" min="10" max="95" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[11px] leading-5 text-gray-500">Context window: <span className="text-gray-300">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this local workspace. Test the connection before saving if you are unsure about the key or model ID.</p>
+                <p className="text-[11px] leading-5 text-gray-500">Context window: <span className="text-gray-300">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this local workspace. Use at least 256 output tokens; reasoning models can reject tiny budgets. Test the connection before saving if you are unsure about the key or model ID.</p>
                 <div className="flex items-center gap-2"><input value={modelContextWindow} onChange={(e) => setModelContextWindow(e.target.value)} aria-label="Context window" type="number" min="1024" max="10000000" className="w-32 rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /><Button type="button" variant="ghost" disabled={testingModel || !modelBaseUrl.trim() || !modelId.trim()} onClick={testModelConnection}>{testingModel ? 'Testing…' : 'Test connection'}</Button><Button type="submit" disabled={busy || !modelName.trim() || !modelBaseUrl.trim() || !modelId.trim()}>Save model</Button></div>
               </div>
             </form>

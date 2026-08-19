@@ -205,7 +205,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   await emitTaskEvent(taskId, 'mode', { mode });
   await emitTaskEvent(taskId, 'task_status', { status: 'running' });
 
-  const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS });
+  const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
   const ctx = createToolContext(taskId, mode, projectPath);
   const toolSchemas = schemasForMode(mode);
 

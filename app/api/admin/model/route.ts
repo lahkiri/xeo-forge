@@ -26,7 +26,7 @@ const UpdateSchema = z.object({
   baseUrl: z.string().url(),
   modelId: z.string().min(1).max(200),
   temperature: z.number().min(0).max(2),
-  maxTokens: z.number().int().min(1).max(200000),
+  maxTokens: z.number().int().min(256).max(200000),
   // Optional: only sent when the admin wants to change the key.
   apiKey: z.string().min(1).optional(),
   // Context management fields.
@@ -43,7 +43,7 @@ export async function PUT(req: NextRequest) {
     const parsed = UpdateSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json(
-        { error: 'name, baseUrl, modelId, temperature, and maxTokens are required.' },
+        { error: 'name, baseUrl, modelId, temperature, and maxTokens (at least 256) are required.' },
         { status: 400 },
       );
     }
