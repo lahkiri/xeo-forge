@@ -26,3 +26,31 @@ Expected artifact: `dist/*.exe` uploaded as `xeo-forge-windows-installer`.
 - CSS/Tailwind: visual system and responsive presentation layer.
 - YAML: GitHub Actions Windows build workflow.
 - Python: development utility that generates the Windows ICO asset; not a runtime dependency.
+
+## v1.5.0 — Surface-Aware Workbench
+
+v1.5.0 separates the two supported product surfaces without removing the SaaS implementation. Web SaaS retains authentication, credits, hosted persistence, multi-user administration, and admin inspection. Desktop Local enters the workbench directly and hides account, billing, credits, multi-user, and admin concepts from its navigation and server responses.
+
+The Local runtime now rejects Desktop Local access to `/api/credits` and `/api/admin/*`, skips local credit enforcement during task creation and agent execution, and keeps the internal Local Owner only for owner-scoping and persistence compatibility. The release also documents the minimum OTA Bootstrap version as v1.3.1 and keeps the unattended Windows restart path introduced in v1.4.1.
+
+Verification completed on the release candidate:
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | Passed |
+| `npm test -- --run` | Passed |
+| `npm run build` | Passed |
+| `npm run desktop:smoke` | Passed: local redirect, implicit owner, disabled registration, Chat/Work decision flow, native runtime health |
+| `npm run browser:smoke` | Passed: loopback auth, profile registration/selection/routing, explicit switching, fail-closed disconnect |
+| `git diff --check` | Passed |
+
+The release tag should use the annotated title **`v1.5.0 — Surface-Aware Workbench`** and the description above. Future release tags must always include both a human-readable title and a concise description of user-facing changes and verification status.
+
+## Languages and boundaries
+
+- TypeScript/React/Next.js: product UI, App Router pages, API routes, auth, database queries, agent orchestration, context compiler, SSE, and CRUD flows.
+- Go: local runtime broker with health/contract endpoints and cross-platform native process boundary.
+- JavaScript/CommonJS/ESM: Electron desktop shell and packaging preparation scripts.
+- CSS/Tailwind: visual system and responsive presentation layer.
+- YAML: GitHub Actions Windows build workflow.
+- Python: development utility that generates the Windows ICO asset; not a runtime dependency.

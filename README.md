@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.4.0-blue.svg" alt="Xeo Forge v1.4.0">
+  <img src="https://img.shields.io/badge/release-v1.5.0-blue.svg" alt="Xeo Forge v1.5.0">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
@@ -24,6 +24,17 @@ Xeo Forge is a **local-first control plane for agentic work**. It gives software
 The product is built around one principle:
 
 > **Give your agent a forge, not a blank check.**
+
+## What changed in v1.5.0
+
+v1.5.0 — **Surface-Aware Workbench** — makes the product boundary explicit. Xeo Forge remains a SaaS control plane on the web, while the installed desktop application is a Local-First workbench: it opens directly into local projects, uses an internal local owner only for persistence compatibility, and does not expose credits, billing, account sign-in, multi-user administration, or SaaS navigation.
+
+| Surface | Product identity |
+|---|---|
+| **Web SaaS** | Login, accounts, credits, multi-user administration, hosted persistence, and the existing operator controls remain available. |
+| **Desktop Local** | Direct local workspace entry, project context, selected Browser Profile, local history, Control Center, and OTA updates without SaaS account chrome. |
+
+The separation is enforced at both UI and server boundaries. Desktop Local hides SaaS navigation and returns a not-found response from credits and admin routes; local task creation and the agent loop bypass credit enforcement while hosted Web behavior remains unchanged.
 
 ## What changed in v1.4.0
 
@@ -39,7 +50,7 @@ Xeo Forge started as an approval-first coding agent. v1.4.0 turns that foundatio
 | **Context compiler** | Deterministic assembly of system policy, instructions, profile, skill, task context, and approved memories. |
 | **Live audit trail** | Sequence-ordered events are persisted and streamed over SSE, so reloads preserve the same history. |
 | **Sandbox and preview** | Per-task file boundaries, guarded code execution, preview health checks, and workspace inspection. |
-| **Operator controls** | Authentication, credits, user administration, global model configuration, and task inspection. |
+| **Operator controls** | Web SaaS authentication, credits, user administration, global model configuration, and task inspection; Desktop Local keeps only controls that operate locally. |
 | **Intent Gate** | Separates ordinary Chat from Work intent and offers a short direct-versus-plan decision when a Work request asks for immediate execution. |
 | **Browser Profiles** | Connect a Chromium extension to the browser profile the user chooses, persist that selection locally, and keep read-only browser inspection fail-closed. |
 | **Desktop continuity** | Windows OTA Bootstrap from v1.3.1 onward, unattended restart installation in v1.4.0, and Linux AppImage/deb packages. |
@@ -110,7 +121,7 @@ The same principle applies to memory. Xeo Forge does not silently treat every co
 
 ## Current scope and honest boundaries
 
-v1.4.0 is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, and a read-only Browser Bridge with explicit profile selection.
+v1.5.0 is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, and a read-only Browser Bridge with explicit profile selection.
 
 The next product layers are intentionally separate from the current core:
 
@@ -124,7 +135,7 @@ The next product layers are intentionally separate from the current core:
 
 Xeo Forge ships a thin Windows/Linux desktop shell for users who prefer an installable local workspace. The shell starts the production Next.js control plane on loopback, opens it in a hardened Electron window, and supervises local preview or worker processes through the native Go runtime broker.
 
-The desktop build deliberately shares the same product surface as the web app. It does not fork task governance, context compilation, authentication, or persistence into a second implementation.
+The desktop build shares the same task governance, context compilation, and persistence contracts as the web app, but it is intentionally **surface-aware**. Desktop Local opens without a login wall and does not render or call SaaS-only credits, account, billing, or admin surfaces; Web SaaS retains those capabilities.
 
 ```bash
 npm ci
@@ -138,7 +149,7 @@ npm run desktop:build:win
 npm run desktop:build:linux
 ```
 
-The minimum recommended installed version for receiving air updates is **v1.3.1**, the OTA Bootstrap. Users should always update to the latest release. In v1.4.0, Windows `Restart to update` uses an unattended per-user NSIS install and should launch the new version directly. Linux AppImage is the preferred Linux package when air updates matter; deb is available for native package workflows.
+The minimum recommended installed version for receiving air updates is **v1.3.1**, the OTA Bootstrap. Users should always update to the latest release. In v1.4.0 and later, Windows `Restart to update` uses an unattended per-user NSIS install and should launch the new version directly. Linux AppImage is the preferred Linux package when air updates matter; deb is available for native package workflows.
 
 The optional Browser Bridge connects the extension installed in the browser profile chosen by the user. Control Center lists connected profiles, persists the selected profile for Work, and never silently switches browsers when the selected profile disconnects. Read-only `state`, `read_page`, and `screenshot` are included; write-capable browser actions remain separately gated.
 
@@ -170,7 +181,7 @@ npm run db:init
 npm run dev
 ```
 
-Open <http://localhost:3000>, sign in as the root admin, and create a planning task. A task starts in read-only Planning mode. Approve its plan before Build mode can write or execute.
+Open <http://localhost:3000> for the Web SaaS surface, sign in as the root admin, and create a planning task. For the Desktop Local surface, use `npm run desktop:dev`; it enters the local workbench directly without an account login. A task starts in read-only Planning mode. Approve its plan before Build mode can write or execute.
 
 ### Self-hosting with Docker
 
