@@ -36,6 +36,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate tag and package version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
+            $tagVersion = $env:GITHUB_REF_NAME -replace '^v', ''
+            $packageVersion = node -p "require('./package.json').version"
+            if ($tagVersion -ne $packageVersion) { throw "Tag $tagVersion does not match package version $packageVersion" }
+          }
+
       - name: Run required checks
         run: |
           npm run typecheck
@@ -93,6 +102,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Validate tag and package version
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            tag_version="${GITHUB_REF_NAME#v}"
+            package_version="$(node -p "require('./package.json').version")"
+            test "$tag_version" = "$package_version" || { echo "Tag $tag_version does not match package version $package_version"; exit 1; }
+          fi
+
       - name: Run required checks
         run: |
           npm run typecheck
@@ -127,7 +144,7 @@ jobs:
           path: |
             dist/*.AppImage
             dist/*.deb
-            dist/latest-linux.yml
+            dist/${{ startsWith(github.ref_name, 'v') && contains(github.ref_name, '-') && 'beta' || 'latest' }}-linux.yml
           if-no-files-found: error
 
   publish-release:
