@@ -23,7 +23,11 @@
     "desktop:build:win:preview": "npm run desktop:prepare && electron-builder --win nsis --x64 --config.publish.channel=beta --publish never",
     "desktop:build:linux:preview": "npm run desktop:prepare && electron-builder --linux AppImage deb --x64 --config.publish.channel=beta --publish never",
     "verify:release:artifacts": "node scripts/verify-release-artifacts.mjs",
-    "verify:release:artifacts:preview": "node scripts/verify-release-artifacts.mjs dist all beta"
+    "verify:release:artifacts:stable:windows": "node scripts/verify-release-artifacts.mjs dist windows latest",
+    "verify:release:artifacts:stable:linux": "node scripts/verify-release-artifacts.mjs dist linux latest",
+    "verify:release:artifacts:preview": "node scripts/verify-release-artifacts.mjs dist all beta",
+    "verify:release:artifacts:preview:windows": "node scripts/verify-release-artifacts.mjs dist windows beta",
+    "verify:release:artifacts:preview:linux": "node scripts/verify-release-artifacts.mjs dist linux beta"
   },
   "dependencies": {
     "better-sqlite3": "11.1.2",
