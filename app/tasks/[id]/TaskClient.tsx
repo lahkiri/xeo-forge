@@ -618,7 +618,7 @@ export default function TaskClient({
   // ── Render ──
 
   return (
-    <div className="flex h-screen flex-col bg-[#080c14] text-gray-100">
+    <div className="app-shell flex h-screen flex-col text-gray-100">
       {/* ── Header ── */}
       <header className="border-b border-white/[0.07] bg-[#080c14]/90 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -667,7 +667,7 @@ export default function TaskClient({
       </header>
 
       {/* ── Tab bar ── */}
-      <div className="flex items-center gap-1 border-b border-white/[0.07] bg-black/10 px-4 sm:px-6">
+      <div className="flex items-center gap-1 border-b border-white/[0.07] bg-black/10 px-4 sm:px-6" role="tablist" aria-label="Task surfaces">
         {(['timeline', 'workspace', 'preview', 'context'] as const).map((t) => (
           <button
             key={t}
@@ -676,7 +676,7 @@ export default function TaskClient({
                 tab === t ? 'bg-white/[0.04] text-cyan-100' : 'text-gray-500 hover:bg-white/[0.03] hover:text-gray-300'
               }`}
           >
-            {t === 'timeline' ? 'Timeline' : t === 'workspace' ? 'Workspace' : t === 'preview' ? 'Preview' : 'Context'}
+            {t === 'timeline' ? 'Activity' : t === 'workspace' ? 'Project' : t === 'preview' ? 'Preview' : 'Context'}
             {tab === t && (
               <span className="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.7)]" />
             )}
@@ -925,13 +925,13 @@ export default function TaskClient({
 
           {canFollowUp ? (
             <form onSubmit={handleFollowUp} className="rounded-2xl border border-white/[0.11] bg-white/[0.035] p-2 shadow-2xl shadow-black/20 focus-within:border-cyan-300/30">
-              <textarea rows={2} value={followUp} onChange={(e) => setFollowUp(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder={isChat ? 'Continue the conversation…' : 'Send a follow-up or adjustment…'} className="w-full resize-none bg-transparent px-2 py-1 text-sm leading-6 text-gray-200 outline-none placeholder:text-gray-600" />
+              <textarea rows={2} value={followUp} onChange={(e) => setFollowUp(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} placeholder={isChat ? 'Continue the conversation…' : 'Send a follow-up or adjustment…'} className="workbench-input w-full resize-none rounded-xl border-0 bg-transparent px-3 py-2 text-sm leading-6 text-gray-200 outline-none placeholder:text-gray-600" />
               <div className="flex items-center justify-between gap-3 px-1 pt-1"><UploadButton taskId={initialTask.id} onUploaded={mergeUpload} label="Attach" /><div className="flex items-center gap-3"><span className="hidden text-[10px] text-gray-600 sm:inline">Enter to send · Shift+Enter for a new line</span><button type="submit" disabled={sending || !followUp.trim()} className="rounded-xl bg-cyan-300 px-4 py-2 text-xs font-bold text-[#071018] transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{sending ? 'Sending…' : 'Send'}</button></div></div>
             </form>
           ) : isRunning ? (
             <div className="flex items-center gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-xs text-gray-500"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />{isChat ? 'Xeo is composing a reply…' : 'Agent is working…'}</div>
           ) : (
-            <div className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3"><span className="text-xs text-gray-600">This thread is ready for a follow-up.</span><UploadButton taskId={initialTask.id} onUploaded={mergeUpload} label="Attach file" /></div>
+            <div className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3"><span className="text-xs text-gray-600">Ready for your next move.</span><UploadButton taskId={initialTask.id} onUploaded={mergeUpload} label="Attach file" /></div>
           )}
         </div>
       </div>

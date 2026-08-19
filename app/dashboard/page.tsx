@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/lib/auth/session';
+import { getCurrentUser, isDesktopLocalMode } from '@/lib/auth/session';
 import { getTasksByUser, getCredits } from '@/lib/db/queries';
 import DashboardClient from './DashboardClient';
 
@@ -9,13 +9,18 @@ export default async function DashboardPage() {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
-  const [tasks, credits] = await Promise.all([getTasksByUser(user.id), getCredits(user.id)]);
+  const localMode = isDesktopLocalMode();
+  const [tasks, credits] = await Promise.all([
+    getTasksByUser(user.id),
+    localMode ? Promise.resolve(null) : getCredits(user.id),
+  ]);
 
   return (
     <DashboardClient
       user={user}
       initialTasks={tasks}
-      initialBalance={credits?.balance ?? 0}
+      initialBalance={localMode ? undefined : credits?.balance ?? 0}
+      localMode={localMode}
     />
   );
 }

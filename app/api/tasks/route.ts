@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/guard';
+import { isDesktopLocalMode } from '@/lib/auth/session';
 import { getTasksByUser, createTask, updateTaskStatus, appendMessage, appendTaskEvent } from '@/lib/db/queries';
 import { tryDebit } from '@/lib/credits/engine';
 import { TASK_CREATE_COST } from '@/lib/credits/pricing';
@@ -97,7 +98,7 @@ export async function POST(req: NextRequest) {
     // Ordinary chat is not a billable SaaS task and must not be blocked by a
     // local credit balance. Planning/build requests retain the explicit budget
     // guard until a cloud usage ledger is connected.
-    if (mode !== 'chat') {
+    if (mode !== 'chat' && !isDesktopLocalMode()) {
       const debited = await tryDebit(user.id, TASK_CREATE_COST, 'task_create', task.id);
       if (!debited.ok) {
         await updateTaskStatus(task.id, 'failed', {

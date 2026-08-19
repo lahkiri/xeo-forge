@@ -46,6 +46,7 @@ import { computeContextUsage, shouldCompact, type ContextUsage } from './context
 import { attachAssistantReasoning } from './message-normalize';
 import { summarizeMessages } from './compaction';
 import { canStartAgentRun } from './build-policy';
+import { isDesktopLocalMode } from '../auth/session';
 import { compileAgentContext } from './context-pack';
 import { createAgentMemory } from '../db/queries';
 import type { AgentMemoryKind, AgentMemoryScope } from '../types';
@@ -285,6 +286,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   let planBuffer = '';
 
   const debitForTool = async (): Promise<boolean> => {
+    if (isDesktopLocalMode()) return true;
     try {
       await debit(userId, CREDITS_PER_TOOL_CALL, 'tool_call', taskId);
       creditsSpent += CREDITS_PER_TOOL_CALL;

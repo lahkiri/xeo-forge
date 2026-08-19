@@ -27,7 +27,7 @@ function statusTone(status: AgentMemory['status']): string {
   return 'bg-white/10 text-gray-400';
 }
 
-export default function SettingsClient({ user }: { user: AuthUser }) {
+export default function SettingsClient({ user, localMode }: { user: AuthUser; localMode: boolean }) {
   const [data, setData] = useState<ContextResponse>({ instructions: [], memories: [] });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -136,7 +136,7 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
   };
 
   return (
-    <AppShell user={user} title="Control Center" subtitle="Shape how agents think, what they remember, and which workflows they can reuse—without editing source code.">
+    <AppShell user={user} localMode={localMode} title={localMode ? 'Control Center' : 'Workspace Control Center'} subtitle={localMode ? 'Shape how Xeo works locally—without accounts, billing, or source-code edits.' : 'Shape how agents think, what they remember, and which workflows they can reuse—without editing source code.'}>
       <div className="space-y-8">
         <header className="max-w-3xl">
           <Eyebrow>Prompt Studio</Eyebrow>
@@ -290,7 +290,7 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
           </section>
         </div>
 
-        <p className="pt-2 text-xs leading-5 text-gray-600">Signed in as {user.displayName || user.email || 'user'}. Task-scoped instructions, memories, and reusable profiles can be managed from the task control surface and dashboard.</p>
+        <p className="pt-2 text-xs leading-5 text-gray-600">{localMode ? 'Local Owner workspace. Instructions, memories, browser profiles, and reusable roles stay on this device.' : `Signed in as ${user.displayName || user.email || 'user'}. Task-scoped instructions, memories, and reusable profiles can be managed from the task control surface and dashboard.`}</p>
       </div>
     </AppShell>
   );

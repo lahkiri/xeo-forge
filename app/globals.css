@@ -9,6 +9,11 @@
   --xeo-border: rgba(255, 255, 255, 0.08);
   --xeo-cyan: #67e8f9;
   --xeo-violet: #a78bfa;
+  --xeo-text: #e6e8ec;
+  --xeo-muted: #8b93a4;
+  --xeo-dim: #5f6878;
+  --xeo-radius-panel: 1.25rem;
+  --xeo-shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.24);
 }
 
 html {
@@ -74,6 +79,42 @@ a {
   border: 2px solid var(--xeo-cyan);
   border-radius: 0.2rem;
   transform: rotate(45deg);
+}
+
+.workbench-panel {
+  border: 1px solid var(--xeo-border);
+  border-radius: var(--xeo-radius-panel);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
+  box-shadow: var(--xeo-shadow-panel);
+}
+
+.workbench-kicker {
+  color: var(--xeo-dim);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.workbench-input {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(5, 8, 14, 0.78);
+  color: var(--xeo-text);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.workbench-input::placeholder { color: #596274; }
+.workbench-input:focus {
+  border-color: rgba(103, 232, 249, 0.48);
+  background: rgba(5, 8, 14, 0.92);
+  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
+  outline: none;
+}
+
+::selection {
+  background: rgba(103, 232, 249, 0.24);
+  color: white;
 }
 
 .nav-dot {
@@ -189,6 +230,15 @@ a {
 
 .animate-pulse {
   animation: pulse 1.5s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ── Syntax highlighting (workspace viewer) ── */

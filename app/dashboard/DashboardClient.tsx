@@ -14,12 +14,15 @@ function modeLabel(mode: TaskMode): string {
 
 export default function DashboardClient({
   user,
-  initialTasks,
-}: {
-  user: AuthUser;
-  initialTasks: Task[];
-  initialBalance?: number;
-}) {
+    initialTasks,
+    initialBalance,
+    localMode,
+  }: {
+    user: AuthUser;
+    initialTasks: Task[];
+    initialBalance?: number;
+    localMode: boolean;
+  }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [goal, setGoal] = useState('');
@@ -113,7 +116,7 @@ export default function DashboardClient({
   const activeRuns = tasks.filter((task) => task.status === 'running' || task.status === 'pending' || task.status === 'planned').length;
 
   return (
-    <AppShell user={user} title="Local Workbench" subtitle="Talk to your agent, or explicitly start a governed task when you want it to inspect and change a project.">
+    <AppShell user={user} balance={initialBalance} localMode={localMode} title="Workbench" subtitle="Chat with your agent, or start governed Work when you want it to inspect and change a project.">
       <div className="space-y-7">
         <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
           <Card className="relative overflow-hidden border-cyan-300/10 bg-gradient-to-br from-cyan-300/[0.08] via-white/[0.035] to-violet-400/[0.06] p-6 sm:p-8">
@@ -123,9 +126,9 @@ export default function DashboardClient({
                 <div>
                   <Eyebrow>New interaction</Eyebrow>
                   <h2 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight text-white sm:text-3xl">Start with the right level of agency.</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-400">Chat stays conversational. Work understands your intent, asks when needed, and only plans or changes the project when you choose that path.</p>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-400">{localMode ? 'Chat stays conversational. Work understands your intent, asks when needed, and only plans or changes the selected local project when you choose that path.' : 'Chat stays conversational. Work understands your intent, asks when needed, and only plans or changes a hosted project when you choose that path.'}</p>
                 </div>
-                <span className="rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.07] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/80">Local-first</span>
+                <span className={`rounded-2xl border px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] ${localMode ? 'border-emerald-300/15 bg-emerald-300/[0.07] text-emerald-200/80' : 'border-violet-300/15 bg-violet-300/[0.07] text-violet-200/80'}`}>{localMode ? 'Local-first' : 'Hosted workspace'}</span>
               </div>
 
               <div className="mt-7 grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.08] bg-black/20 p-1.5">
@@ -154,14 +157,16 @@ export default function DashboardClient({
           </Card>
 
           <Card className="p-5">
-            <Eyebrow tone="violet">Project context</Eyebrow>
-            <h3 className="mt-3 text-lg font-semibold text-white">Where should the agent work?</h3>
-            <p className="mt-2 text-xs leading-5 text-gray-500">Choose one folder. Tasks and tools stay inside this project boundary instead of using an invisible temporary workspace.</p>
-            <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">Active project</p>
-              <p className="mt-2 break-all text-xs leading-5 text-gray-300">{projectPath || 'No folder selected yet'}</p>
-            </div>
-            <button type="button" onClick={chooseProject} disabled={choosingProject} className="mt-3 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] px-3 py-2.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/[0.13] disabled:opacity-50">{choosingProject ? 'Opening folder picker…' : projectPath ? 'Change project folder' : 'Choose project folder'}</button>
+            <Eyebrow tone="violet">{localMode ? 'Project context' : 'Workspace context'}</Eyebrow>
+            <h3 className="mt-3 text-lg font-semibold text-white">{localMode ? 'Where should the agent work?' : 'Keep each run focused.'}</h3>
+            <p className="mt-2 text-xs leading-5 text-gray-500">{localMode ? 'Choose one folder. Tasks and tools stay inside this project boundary instead of using an invisible temporary workspace.' : 'Hosted tasks keep their project context with the task. Account, billing, and team controls remain on the web surface.'}</p>
+            {localMode ? <>
+              <div className="mt-5 rounded-xl border border-white/[0.08] bg-black/20 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">Active project</p>
+                <p className="mt-2 break-all text-xs leading-5 text-gray-300">{projectPath || 'No folder selected yet'}</p>
+              </div>
+              <button type="button" onClick={chooseProject} disabled={choosingProject} className="mt-3 w-full rounded-xl border border-cyan-300/20 bg-cyan-300/[0.07] px-3 py-2.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-300/[0.13] disabled:opacity-50">{choosingProject ? 'Opening folder picker…' : projectPath ? 'Change project folder' : 'Choose project folder'}</button>
+            </> : <div className="mt-5 rounded-xl border border-violet-300/10 bg-violet-300/[0.05] p-3"><p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-200/60">Hosted surface</p><p className="mt-2 text-xs leading-5 text-gray-400">Project selection and team context are managed by the hosted workspace.</p></div>}
             <div className="mt-6 grid grid-cols-2 gap-2">
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"><p className="text-[10px] uppercase tracking-[0.14em] text-gray-600">Active</p><p className="mt-1 text-lg font-semibold text-white">{activeRuns}</p></div>
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"><p className="text-[10px] uppercase tracking-[0.14em] text-gray-600">Threads</p><p className="mt-1 text-lg font-semibold text-white">{tasks.length}</p></div>
@@ -170,7 +175,7 @@ export default function DashboardClient({
         </section>
 
         <section>
-          <div className="mb-4 flex items-end justify-between gap-3"><div><Eyebrow>Local history</Eyebrow><h2 className="mt-2 text-xl font-semibold text-white">Conversations and tasks</h2></div><button onClick={refresh} className="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-white/[0.05] hover:text-gray-200">Refresh</button></div>
+          <div className="mb-4 flex items-end justify-between gap-3"><div><Eyebrow>{localMode ? 'Local history' : 'Workspace history'}</Eyebrow><h2 className="mt-2 text-xl font-semibold text-white">Conversations and tasks</h2></div><button onClick={refresh} className="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-white/[0.05] hover:text-gray-200">Refresh</button></div>
           {tasks.length === 0 ? <Card className="border-dashed py-14 text-center"><p className="text-sm font-medium text-gray-300">Nothing here yet.</p><p className="mt-1 text-xs text-gray-500">Start a chat for answers, or use Work when you want governed project action.</p></Card> : <div className="grid gap-3">{tasks.map((task) => <Link key={task.id} href={`/tasks/${task.id}`}><Card interactive className="p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${task.mode === 'chat' ? 'bg-cyan-300/[0.08] text-cyan-200/80' : 'bg-violet-300/[0.08] text-violet-200/80'}`}>{modeLabel(task.mode)}</span>{task.project_path && <span className="max-w-[18rem] truncate text-[10px] text-gray-600">{task.project_path}</span>}</div><p className="line-clamp-2 text-sm font-medium text-gray-200">{task.goal}</p><div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500"><span>{new Date(task.created_at).toLocaleString()}</span><span>{task.status}</span></div></div><StatusBadge status={task.status} /></div></Card></Link>)}</div>}
         </section>
       </div>
