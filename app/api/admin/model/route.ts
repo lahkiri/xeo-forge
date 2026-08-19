@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth/guard';
+import { isDesktopLocalMode } from '@/lib/auth/session';
 import { getModelSafe, updateModel } from '@/lib/model/config';
 import { recordAdminAction } from '@/lib/db/queries';
 import { errorResponse } from '../../_lib/respond';
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
 /** GET /api/admin/model — current global model config (api_key masked). */
 export async function GET() {
   try {
+    if (isDesktopLocalMode()) return NextResponse.json({ error: 'Admin is unavailable in Desktop Local mode.' }, { status: 404 });
     await requireAdmin();
     const model = await getModelSafe();
     return NextResponse.json({ model });
@@ -35,6 +37,7 @@ const UpdateSchema = z.object({
 /** PUT /api/admin/model — update the single global model config. */
 export async function PUT(req: NextRequest) {
   try {
+    if (isDesktopLocalMode()) return NextResponse.json({ error: 'Admin is unavailable in Desktop Local mode.' }, { status: 404 });
     const admin = await requireAdmin();
     const body = await req.json();
     const parsed = UpdateSchema.safeParse(body);

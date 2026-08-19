@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireAdmin } from '@/lib/auth/guard';
+import { isDesktopLocalMode } from '@/lib/auth/session';
 import {
   listUsersWithStats,
   getUserByEmail,
@@ -23,6 +24,7 @@ const CreateUserSchema = z.object({
 
 export async function GET() {
   try {
+    if (isDesktopLocalMode()) return NextResponse.json({ error: 'Admin is unavailable in Desktop Local mode.' }, { status: 404 });
     await requireAdmin();
     const users = await listUsersWithStats();
     // Never leak password hashes to the client.
@@ -35,6 +37,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    if (isDesktopLocalMode()) return NextResponse.json({ error: 'Admin is unavailable in Desktop Local mode.' }, { status: 404 });
     const admin = await requireAdmin();
     const body = await req.json();
     const parsed = CreateUserSchema.safeParse(body);
