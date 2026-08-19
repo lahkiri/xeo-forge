@@ -15,6 +15,27 @@
 import { getModelSettings, upsertModelSettings } from '../db/queries';
 import type { ModelSettings, ModelSettingsSafe } from '../types';
 
+/** Values commonly used by local setup files and must not be presented as a valid provider key. */
+export function isPlaceholderApiKey(apiKey: string | null | undefined): boolean {
+  if (!apiKey) return false;
+  const normalized = apiKey.trim().toLowerCase();
+  return normalized.includes('placeholder')
+    || normalized === 'local-key'
+    || normalized === 'local-placeholder'
+    || normalized === 'change-me'
+    || normalized === 'your-api-key'
+    || normalized.startsWith('<')
+    || normalized.endsWith('holder');
+}
+
+function safeKeyState(apiKey: string | null | undefined): Pick<ModelSettingsSafe, 'api_key_set' | 'api_key_issue'> {
+  const present = Boolean(apiKey?.trim());
+  return {
+    api_key_set: present && !isPlaceholderApiKey(apiKey),
+    api_key_issue: present && isPlaceholderApiKey(apiKey) ? 'placeholder' : null,
+  };
+}
+
 export interface ResolvedModel {
   name: string;
   baseUrl: string;
@@ -70,7 +91,7 @@ export async function resolveModel(): Promise<ResolvedModel | null> {
 
 export function toSafe(row: ModelSettings): ModelSettingsSafe {
   const { api_key, ...rest } = row;
-  return { ...rest, api_key_set: !!api_key };
+  return { ...rest, ...safeKeyState(api_key) };
 }
 
 export async function getModelSafe(): Promise<ModelSettingsSafe | null> {
@@ -89,7 +110,7 @@ export async function getModelSafe(): Promise<ModelSettingsSafe | null> {
     context_window: env.contextWindow,
     auto_compact_threshold: env.autoCompactThreshold,
     updated_at: '',
-    api_key_set: !!env.apiKey,
+    ...safeKeyState(env.apiKey),
   };
 }
 

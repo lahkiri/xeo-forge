@@ -12,6 +12,7 @@ const MEMORY_KINDS = ['preference', 'fact', 'decision', 'constraint', 'lesson'] 
 type ContextResponse = { instructions: AgentInstruction[]; memories: AgentMemory[] };
 
 type ModelResponse = { model: ModelSettingsSafe | null };
+type ModelTestResponse = { ok: true; message: string; latency_ms: number; model_id: string };
 
 async function requestContext(init?: RequestInit): Promise<ContextResponse | { ok: true }> {
   const response = await fetch('/api/agent/context', {
@@ -33,6 +34,17 @@ async function requestModel(init?: RequestInit): Promise<ModelResponse> {
   return body;
 }
 
+async function requestModelTest(payload: Record<string, unknown>): Promise<ModelTestResponse> {
+  const response = await fetch('/api/settings/model/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Model connection test failed');
+  return body;
+}
+
 function statusTone(status: AgentMemory['status']): string {
   if (status === 'active') return 'bg-green-500/15 text-green-300';
   if (status === 'proposed') return 'bg-amber-500/15 text-amber-300';
@@ -43,6 +55,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
   const [data, setData] = useState<ContextResponse>({ instructions: [], memories: [] });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [testingModel, setTestingModel] = useState(false);
   const [notice, setNotice] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
   const [instructionName, setInstructionName] = useState('');
   const [instructionContent, setInstructionContent] = useState('');
@@ -194,6 +207,23 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
     }
   };
 
+  const testModelConnection = async () => {
+    setTestingModel(true);
+    setNotice(null);
+    try {
+      const result = await requestModelTest({
+        baseUrl: modelBaseUrl.trim(),
+        modelId: modelId.trim(),
+        ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
+      });
+      setNotice({ type: 'ok', text: `${result.message} (${result.latency_ms} ms).` });
+    } catch (err) {
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Model connection test failed.' });
+    } finally {
+      setTestingModel(false);
+    }
+  };
+
   const saveModel = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -271,9 +301,10 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
     <AppShell user={user} localMode={localMode} title={localMode ? 'Control Center' : 'Workspace Control Center'} subtitle={localMode ? 'Shape how Xeo works locally—without accounts, billing, or source-code edits.' : 'Shape how agents think, what they remember, and which workflows they can reuse—without editing source code.'}>
       <div className="space-y-8">
         <header className="max-w-3xl">
-          <Eyebrow>Prompt Studio</Eyebrow>
-          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Make agent behavior explicit.</h2>
-          <p className="mt-3 text-sm leading-6 text-gray-400">Persistent instructions, reusable roles, skills, and memory are compiled into future runs as visible control layers. You decide what is active.</p>
+          <Eyebrow>{localMode ? 'Control Center' : 'Agent controls'}</Eyebrow>
+          <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Make Xeo work the way you expect.</h2>
+          <p className="mt-3 text-sm leading-6 text-gray-400">Configure the model, browser permissions, reusable instructions, and memory from one clear workspace. Changes are visible, local where applicable, and never require source-code edits.</p>
+          <div className="mt-5 flex flex-wrap gap-2 text-[11px]"><span className="rounded-full border border-violet-300/15 bg-violet-300/[0.06] px-2.5 py-1 text-violet-200/80">Model</span><span className="rounded-full border border-cyan-300/15 bg-cyan-300/[0.06] px-2.5 py-1 text-cyan-200/80">Browser</span><span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.06] px-2.5 py-1 text-emerald-200/80">Memory</span><span className="rounded-full border border-white/[0.1] bg-white/[0.035] px-2.5 py-1 text-gray-400">Updates</span></div>
         </header>
 
         {notice && (
@@ -290,7 +321,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
                 <h2 className="mt-2 font-semibold text-white">Choose how Xeo thinks</h2>
                 <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Connect an OpenAI-compatible local or remote model for this device. The API key is stored locally and is never returned to the interface.</p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] ${model?.api_key_set ? 'bg-emerald-400/10 text-emerald-300' : 'bg-amber-400/10 text-amber-300'}`}>{model?.api_key_set ? 'provider configured' : 'setup required'}</span>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] ${model?.api_key_set ? 'bg-emerald-400/10 text-emerald-300' : 'bg-amber-400/10 text-amber-300'}`}>{model?.api_key_issue === 'placeholder' ? 'replace placeholder key' : model?.api_key_set ? 'provider configured' : 'setup required'}</span>
             </div>
             <form onSubmit={saveModel} className="mt-5 space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
@@ -305,8 +336,8 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
                 <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Context compact at %</span><input value={modelCompactThreshold} onChange={(e) => setModelCompactThreshold(e.target.value)} type="number" min="10" max="95" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[11px] leading-5 text-gray-500">Context window: <span className="text-gray-300">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this local workspace.</p>
-                <div className="flex items-center gap-2"><input value={modelContextWindow} onChange={(e) => setModelContextWindow(e.target.value)} aria-label="Context window" type="number" min="1024" max="10000000" className="w-32 rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /><Button type="submit" disabled={busy || !modelName.trim() || !modelBaseUrl.trim() || !modelId.trim()}>Save model</Button></div>
+                <p className="text-[11px] leading-5 text-gray-500">Context window: <span className="text-gray-300">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this local workspace. Test the connection before saving if you are unsure about the key or model ID.</p>
+                <div className="flex items-center gap-2"><input value={modelContextWindow} onChange={(e) => setModelContextWindow(e.target.value)} aria-label="Context window" type="number" min="1024" max="10000000" className="w-32 rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /><Button type="button" variant="ghost" disabled={testingModel || !modelBaseUrl.trim() || !modelId.trim()} onClick={testModelConnection}>{testingModel ? 'Testing…' : 'Test connection'}</Button><Button type="submit" disabled={busy || !modelName.trim() || !modelBaseUrl.trim() || !modelId.trim()}>Save model</Button></div>
               </div>
             </form>
           </section>
@@ -355,6 +386,23 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
             </div>
             <span className={`rounded-full px-2.5 py-1 text-[10px] ${browserState?.connected ? 'bg-emerald-400/10 text-emerald-300' : browserState?.selection === 'selected_disconnected' ? 'bg-amber-400/10 text-amber-300' : 'bg-white/[0.06] text-gray-500'}`}>{browserState?.connected ? 'selected · connected' : browserState?.selection === 'selected_disconnected' ? 'selected · disconnected' : 'connect a profile'}</span>
           </div>
+          <div className="mt-5 rounded-xl border border-cyan-300/10 bg-cyan-300/[0.025] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-white">Install the browser extension</p>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-500">The extension is loaded locally and connects only to Xeo Forge on <code className="text-cyan-200">127.0.0.1</code>. It does not upload cookies or browsing content.</p>
+              </div>
+              <Button variant="ghost" disabled={!localMode || !window.xeoDesktop} onClick={() => window.xeoDesktop?.openBrowserExtension().catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not open extension folder.' }))}>Open extension folder</Button>
+            </div>
+            <ol className="mt-4 grid gap-3 text-xs leading-5 text-gray-400 sm:grid-cols-2">
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">1</span><span>Click <strong className="font-medium text-gray-200">Open extension folder</strong>, or locate <code className="text-cyan-200">desktop/browser-extension</code> in the Xeo Forge project.</span></li>
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">2</span><span>In Chrome or Chromium, open <code className="text-cyan-200">chrome://extensions</code> and turn on <strong className="font-medium text-gray-200">Developer mode</strong>.</span></li>
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">3</span><span>Choose <strong className="font-medium text-gray-200">Load unpacked</strong>, then select the <code className="text-cyan-200">browser-extension</code> folder itself, not its parent folder.</span></li>
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">4</span><span>Open the extension’s <strong className="font-medium text-gray-200">Options</strong>, paste the token shown below, keep port <code className="text-cyan-200">4321</code>, name the profile, then click <strong className="font-medium text-gray-200">Save and connect</strong>.</span></li>
+            </ol>
+            <p className="mt-4 border-t border-white/[0.06] pt-3 text-[11px] leading-5 text-gray-600">After connecting, return here and select the profile. For navigation, clicking, or typing, also add the domain to the allowlist and enable the interaction policy below.</p>
+          </div>
+
           {browserState && (
             <div className="mt-5 space-y-4">
               {browserPolicy && (

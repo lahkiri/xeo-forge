@@ -418,7 +418,7 @@ export default function TaskClient({
     if (status === 'completed' || status === 'failed') return;
     const es = new EventSource(`/api/tasks/${initialTask.id}/stream`);
     esRef.current = es;
-    const types = ['task_status','mode','intent','plan','text','reasoning','tool_call','tool_result','credits','context','compaction','error','done','upload','todo_update','verification','file_activity'];
+    const types = ['task_status','mode','intent','plan','text','reasoning','tool_call','tool_result','credits','context','compaction','model_retry','error','done','upload','todo_update','verification','file_activity'];
     const handler = (e: MessageEvent) => {
       const seq = Number(e.lastEventId);
       if (!Number.isFinite(seq)) return;
@@ -593,9 +593,13 @@ export default function TaskClient({
     });
   }
 
-  const errorEvent = events.find((e) => e.type === 'error');
+  const errorEvent = [...events].reverse().find((e) => e.type === 'error');
   const errorMessage = errorEvent ? String(errorEvent.data.message ?? 'An error occurred') : '';
-  const modelSetupError = errorMessage.toLowerCase().includes('no global model') || errorMessage.toLowerCase().includes('model is not configured');
+  const normalizedError = errorMessage.toLowerCase();
+  const modelRetryEvent = [...events].reverse().find((e) => e.type === 'model_retry');
+  const rateLimitError = normalizedError.includes('429') || normalizedError.includes('rate-limit') || normalizedError.includes('rate limit');
+  const modelAuthError = normalizedError.includes('401') || normalizedError.includes('403') || normalizedError.includes('api key') || normalizedError.includes('authentication');
+  const modelSetupError = normalizedError.includes('no global model') || normalizedError.includes('model is not configured');
 
   // Derive Plan→Execute→Verify phase PURELY from existing state/events (visual only).
   const hasCurrentToolActivity = currentRunToolEvents.length > 0;
@@ -620,7 +624,7 @@ export default function TaskClient({
   return (
     <div className="app-shell flex h-screen flex-col text-gray-100">
       {/* ── Header ── */}
-      <header className="border-b border-white/[0.07] bg-[#080c14]/90 px-4 py-3 backdrop-blur-xl sm:px-6">
+      <header className="border-b border-white/[0.1] bg-[#0c1320]/92 px-4 py-3 backdrop-blur-xl sm:px-6">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-3">
           <Link href="/dashboard" className="text-gray-500 hover:text-gray-300 transition-colors shrink-0">
@@ -864,24 +868,43 @@ export default function TaskClient({
             </div>
           )}
 
+          {modelRetryEvent && isRunning && (
+            <div className="flex justify-start">
+              <div className="max-w-xl rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] px-4 py-3 text-cyan-100/80">
+                <div className="flex items-center gap-2 text-xs font-medium text-cyan-200">
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-300" />
+                  Reconnecting to the model provider
+                </div>
+                <p className="mt-1 text-[11px] leading-relaxed text-cyan-100/65">
+                  {String(modelRetryEvent.data.message ?? 'Retrying the model request…')} This does not create a duplicate task.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Error — inline in timeline, with recovery hint, never breaks flow */}
           {errorEvent && (
             <div className="flex justify-start">
-                  <div className={`max-w-xl rounded-xl border px-4 py-3 ${modelSetupError && isChat ? 'border-amber-400/20 bg-amber-400/[0.07]' : 'border-red-500/20 bg-red-500/[0.07]'}`}>
-                <div className={`flex items-center gap-2 text-xs font-medium ${modelSetupError && isChat ? 'text-amber-300' : 'text-red-400'}`}>
+                  <div className={`max-w-xl rounded-xl border px-4 py-3 ${rateLimitError ? 'border-cyan-400/20 bg-cyan-400/[0.07]' : (modelSetupError || modelAuthError) && isChat ? 'border-amber-400/20 bg-amber-400/[0.07]' : 'border-red-500/20 bg-red-500/[0.07]'}`}>
+                <div className={`flex items-center gap-2 text-xs font-medium ${rateLimitError ? 'text-cyan-300' : (modelSetupError || modelAuthError) && isChat ? 'text-amber-300' : 'text-red-400'}`}>
                   <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.33 16a2 2 0 001.74 3z" />
                   </svg>
-                  {modelSetupError && isChat ? 'chat setup required' : isChat ? 'chat unavailable' : 'execution error'}
+                  {rateLimitError ? 'provider rate limit' : modelAuthError ? 'model key rejected' : modelSetupError && isChat ? 'chat setup required' : isChat ? 'chat unavailable' : 'execution error'}
                 </div>
-                <p className={`mt-1 text-[11px] leading-relaxed break-words ${modelSetupError && isChat ? 'text-amber-200/80' : 'text-red-400/80'}`}>
+                <p className={`mt-1 text-[11px] leading-relaxed break-words ${rateLimitError ? 'text-cyan-100/80' : (modelSetupError || modelAuthError) && isChat ? 'text-amber-200/80' : 'text-red-400/80'}`}>
                   {modelSetupError && isChat
                     ? 'No AI model is configured for this local workspace. Configure a local or remote model, then send a message again.'
-                    : errorMessage}
+                    : modelAuthError
+                      ? 'The provider rejected the stored API key. Open Settings → Local model, replace the key, test the connection, and save it.'
+                      : rateLimitError
+                        ? 'The provider is temporarily busy or the account quota is exhausted. Xeo already retried with backoff; wait briefly, check provider quota, or switch model/provider in Settings.'
+                        : errorMessage}
                 </p>
+                {(rateLimitError || modelAuthError || (modelSetupError && isChat)) && <Link href="/settings" className="mt-3 inline-flex rounded-lg border border-cyan-300/20 bg-cyan-300/[0.06] px-2.5 py-1.5 text-[10px] font-semibold text-cyan-100 transition hover:bg-cyan-300/[0.12]">Open Control Center →</Link>}
                 {isTerminal && (
                   <p className="mt-1.5 text-[10px] text-gray-500">
-                    {modelSetupError && isChat ? 'Your conversation is preserved. Configure the model, then continue below.' : 'Send a follow-up message below to retry or adjust the task.'}
+                    {modelSetupError && isChat ? 'Your conversation is preserved. Configure the model, then continue below.' : rateLimitError ? 'Your conversation is preserved. Fix provider availability, then send a follow-up to retry.' : 'Send a follow-up message below to retry or adjust the task.'}
                   </p>
                 )}
               </div>
@@ -908,7 +931,7 @@ export default function TaskClient({
       </div>
 
       {/* ── Bottom bar: approval + conversation composer ── */}
-      <div className="border-t border-white/[0.08] bg-[#080c14]/95 px-4 py-4 backdrop-blur-xl sm:px-6">
+      <div className="border-t border-white/[0.1] bg-[#0c1320]/96 px-4 py-4 backdrop-blur-xl sm:px-6">
         <div className="mx-auto max-w-3xl">
           {!isChat && isPlanned && proposedPlan && (
             <div className="mb-3 rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] p-4">

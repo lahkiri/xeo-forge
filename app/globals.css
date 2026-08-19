@@ -4,14 +4,14 @@
 
 :root {
   color-scheme: dark;
-  --xeo-bg: #080c14;
-  --xeo-panel: rgba(255, 255, 255, 0.035);
-  --xeo-border: rgba(255, 255, 255, 0.08);
+  --xeo-bg: #0c1320;
+  --xeo-panel: rgba(24, 35, 54, 0.72);
+  --xeo-border: rgba(180, 205, 230, 0.12);
   --xeo-cyan: #67e8f9;
   --xeo-violet: #a78bfa;
-  --xeo-text: #e6e8ec;
-  --xeo-muted: #8b93a4;
-  --xeo-dim: #5f6878;
+  --xeo-text: #f1f5f9;
+  --xeo-muted: #a5b1c2;
+  --xeo-dim: #718096;
   --xeo-radius-panel: 1.25rem;
   --xeo-shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.24);
 }
@@ -44,9 +44,9 @@ a {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(circle at 80% -10%, rgba(103, 232, 249, 0.09), transparent 28rem),
-    radial-gradient(circle at 16% 20%, rgba(167, 139, 250, 0.06), transparent 24rem),
-    var(--xeo-bg);
+    radial-gradient(circle at 82% -8%, rgba(103, 232, 249, 0.13), transparent 32rem),
+    radial-gradient(circle at 12% 18%, rgba(167, 139, 250, 0.09), transparent 28rem),
+    linear-gradient(140deg, #0c1320 0%, #0b1220 52%, #101827 100%);
 }
 
 .app-shell::before {
@@ -55,7 +55,7 @@ a {
   inset: 0;
   z-index: -1;
   pointer-events: none;
-  opacity: 0.16;
+  opacity: 0.09;
   background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
   background-size: 48px 48px;
   mask-image: linear-gradient(to bottom, black, transparent 76%);
@@ -99,7 +99,7 @@ a {
 
 .workbench-input {
   border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(5, 8, 14, 0.78);
+  background: rgba(12, 19, 32, 0.82);
   color: var(--xeo-text);
   transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
 }
@@ -107,7 +107,7 @@ a {
 .workbench-input::placeholder { color: #596274; }
 .workbench-input:focus {
   border-color: rgba(103, 232, 249, 0.48);
-  background: rgba(5, 8, 14, 0.92);
+  background: rgba(15, 25, 42, 0.96);
   box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
   outline: none;
 }

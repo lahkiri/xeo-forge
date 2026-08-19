@@ -106,7 +106,11 @@ export interface ModelSettings {
 }
 
 /** Model settings with the api_key masked — safe to return to clients. */
-export type ModelSettingsSafe = Omit<ModelSettings, 'api_key'> & { api_key_set: boolean };
+export type ModelSettingsSafe = Omit<ModelSettings, 'api_key'> & {
+  api_key_set: boolean;
+  /** Whether the stored key looks like a local/example placeholder. */
+  api_key_issue: 'placeholder' | null;
+};
 
 export interface AdminAction {
   id: number;

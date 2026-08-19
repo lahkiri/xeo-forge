@@ -50,6 +50,7 @@ import { isDesktopLocalMode } from '../auth/session';
 import { compileAgentContext } from './context-pack';
 import { createAgentMemory } from '../db/queries';
 import type { AgentMemoryKind, AgentMemoryScope } from '../types';
+import { classifyModelError, publicModelErrorMessage, shouldRetryModelError } from '../model/errors';
 
 /**
  * Adaptive execution boundary — replaces hardcoded iteration limits.
@@ -77,6 +78,9 @@ const OPENAI_TIMEOUT_MS = 300_000;
 
 /** Number of most-recent active messages to keep during compaction. */
 const COMPACT_KEEP_COUNT = 8;
+const MODEL_MAX_RETRIES = 2;
+const MODEL_RETRY_BASE_MS = 1_000;
+const MODEL_RETRY_MAX_MS = 30_000;
 
 interface PendingToolCall {
   id: string;
@@ -142,6 +146,28 @@ function detectLanguage(text: string): string {
   if (cyrillicChars / total > 0.15) return 'ru';
   if (frenchIndicators / total > 0.03) return 'fr';
   return 'en';
+}
+
+async function createCompletionWithRetry(
+  client: OpenAI,
+  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
+  onRetry: (info: { attempt: number; maxRetries: number; delayMs: number; kind: string }) => Promise<void>,
+): Promise<any> {
+  for (let attempt = 0; attempt <= MODEL_MAX_RETRIES; attempt += 1) {
+    try {
+      return await client.chat.completions.create(params);
+    } catch (error) {
+      if (attempt >= MODEL_MAX_RETRIES || !shouldRetryModelError(error)) throw error;
+      const info = classifyModelError(error);
+      const exponentialDelay = MODEL_RETRY_BASE_MS * (2 ** attempt);
+      const requestedDelay = info.retryAfterMs ?? exponentialDelay;
+      const jitter = Math.floor(Math.random() * 250);
+      const delayMs = Math.min(MODEL_RETRY_MAX_MS, Math.max(500, requestedDelay + jitter));
+      await onRetry({ attempt: attempt + 1, maxRetries: MODEL_MAX_RETRIES, delayMs, kind: info.kind });
+      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw new Error('Model request retry loop ended unexpectedly.');
 }
 
 export interface RunAgentArgs {
@@ -559,7 +585,15 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
       let stream: Awaited<ReturnType<typeof client.chat.completions.create>>;
       try {
-        stream = await client.chat.completions.create(params);
+        stream = await createCompletionWithRetry(client, params, async ({ attempt, maxRetries, delayMs, kind }) => {
+          await emitTaskEvent(taskId, 'model_retry', {
+            attempt,
+            max_retries: maxRetries,
+            delay_ms: delayMs,
+            reason: kind,
+            message: `Model provider busy or temporarily unreachable. Retrying (${attempt}/${maxRetries})…`,
+          });
+        });
       } catch (err: any) {
         const msg = String(err?.message || err);
         if (!useFallback && /tool|function/i.test(msg) && /support|unknown|invalid/i.test(msg)) {
@@ -1024,8 +1058,9 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
       // Empty response (flaky provider) — loop again, bounded by HARD_SAFETY_CAP.
     }
   } catch (err: any) {
-    console.error(`[agent] run failed task=${taskId}:`, err);
-    await failRun(taskId, err?.message ? String(err.message) : 'Agent run failed.');
+    const info = classifyModelError(err);
+    console.error(`[agent] run failed task=${taskId} kind=${info.kind} status=${info.status ?? 'n/a'}:`, err);
+    await failRun(taskId, publicModelErrorMessage(err, model.modelId));
   }
 }
 

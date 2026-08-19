@@ -105,3 +105,25 @@ The published `v1.6.0` GitHub Release was re-checked after a report that the upd
 To prevent a tag or release from being considered complete without distributable files, the repository now includes `scripts/verify-release-artifacts.mjs` and the package command `npm run verify:release:artifacts`. The Windows and Linux release jobs invoke the validator after electron-builder finishes. It fails when a required installer, package, feed, blockmap, version, size, or SHA-512 entry is missing or inconsistent. The validator can check one platform in CI or both platforms together from a downloaded release directory.
 
 The existing release assets remain the source for OTA discovery; a successful source build or tag alone is not sufficient. A future release is publishable only after the CI artifact gate and a real previous-version upgrade test pass.
+
+## v1.7.1 — Model Reliability, Browser Preview & Workbench UX
+
+v1.7.1 fixes the local model configuration path that could silently prefer a placeholder key stored in SQLite over the configured environment/provider key. Placeholder credentials are now recognized as unusable, API-key values remain masked, and the Control Center can run a non-persistent connection test for the configured base URL and model. Model failures are classified into authentication, rate-limit, network, and setup errors. Rate-limited streaming requests use bounded exponential backoff and respect `Retry-After`; the task timeline shows retry progress and gives the user a direct path back to Control Center.
+
+Preview now includes a governed Browser capability check. It can exercise navigation and read-page inspection, and only attempts click/type when the saved interaction policy, domain allowlist, and explicit sensitive-action confirmation all permit it. Browser regression coverage includes the interaction flow and fail-closed policy behavior.
+
+The Control Center now contains an in-product Chrome/Chromium extension installation guide: open `chrome://extensions`, enable Developer mode, choose Load unpacked, select `desktop/browser-extension`, then paste the local bridge token and connect. The Workbench now has a clearer first-run empty state, starter prompts, explicit Chat versus Work guidance, and a project-folder guard for local Work. The app shell and task view use brighter layered surfaces and clearer recovery states for model failures.
+
+Verification completed for this patch:
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | Passed |
+| `npm test -- --run` | Passed: 17 files, 158 tests |
+| `npm run build` | Passed |
+| `npm run desktop:smoke` | Passed |
+| `npm run browser:smoke` | Passed |
+| `git diff --check` | Passed |
+| Local runtime HTTP check | Passed after rebuilding `better-sqlite3` for Node ABI 127; protected dashboard/settings routes returned expected 307 redirects and `/login` returned 200 |
+
+The annotated release title is **`v1.7.1 — Model Reliability, Browser Preview & Workbench UX`**. Future release tags must continue to include a human-readable title, a user-facing description, and verification status.

@@ -12,6 +12,12 @@ function modeLabel(mode: TaskMode): string {
   return mode === 'chat' ? 'Conversation' : mode === 'planning' ? 'Planned task' : 'Build run';
 }
 
+const STARTER_PROMPTS = [
+  { label: 'Explore an idea', mode: 'chat' as const, prompt: 'Help me think through the next best step for this project.' },
+  { label: 'Review my project', mode: 'planning' as const, prompt: 'Inspect this project and tell me what should be improved first.' },
+  { label: 'Fix a problem', mode: 'planning' as const, prompt: 'Find the cause of this issue, propose a safe fix, and verify it.' },
+];
+
 export default function DashboardClient({
   user,
     initialTasks,
@@ -76,6 +82,10 @@ export default function DashboardClient({
     e.preventDefault();
     setError('');
     if (!goal.trim()) return;
+    if (localMode && mode === 'planning' && !projectPath) {
+      setError('Choose a project folder before starting Work. Chat can run without a project folder.');
+      return;
+    }
     setSubmitting(true);
     try {
       const response = await fetch('/api/tasks', {
@@ -143,7 +153,7 @@ export default function DashboardClient({
               </div>
 
               <form onSubmit={submitRequest} className="mt-4 space-y-4">
-                <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={5} autoFocus placeholder={mode === 'chat' ? 'Ask anything about your project or next decision…' : 'Tell the agent what you want done. It will ask before planning or acting when intent is unclear…'} className="w-full resize-y rounded-2xl border border-white/[0.1] bg-[#070b12]/75 px-4 py-4 text-sm leading-6 text-gray-100 outline-none transition placeholder:text-gray-600 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/[0.08]" />
+                <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={5} autoFocus placeholder={mode === 'chat' ? 'Ask a question, compare options, or explore an idea…' : 'Describe the outcome you want. Xeo will clarify, plan, and ask before acting…'} className="workbench-input w-full resize-y rounded-2xl px-4 py-4 text-sm leading-6 outline-none placeholder:text-gray-500" />
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach files" />
@@ -151,7 +161,8 @@ export default function DashboardClient({
                 </div>
 
                 {staged.length > 0 && <div className="flex flex-wrap gap-2">{staged.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] text-gray-300"><span className="max-w-[13rem] truncate">{file.name}</span><button type="button" onClick={() => setStaged((previous) => previous.filter((_, itemIndex) => itemIndex !== index))} className="text-gray-500 hover:text-white" aria-label={`Remove ${file.name}`}>×</button></span>)}</div>}
-                {error && <p className="rounded-xl border border-red-300/15 bg-red-400/[0.08] px-3 py-2 text-xs text-red-200">{error}</p>}
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-[11px] text-gray-500"><span><strong className="font-medium text-gray-300">{mode === 'chat' ? 'Chat mode' : 'Work mode'}</strong> · {mode === 'chat' ? 'No plan or project changes unless you ask.' : projectPath ? `Working inside ${projectPath}` : 'Choose a project folder to enable execution.'}</span><span className={`rounded-full px-2 py-1 ${mode === 'chat' ? 'bg-cyan-300/10 text-cyan-200' : projectPath ? 'bg-violet-300/10 text-violet-200' : 'bg-amber-300/10 text-amber-200'}`}>{mode === 'chat' ? 'conversational' : projectPath ? 'governed work' : 'folder required'}</span></div>
+                {error && <div role="alert" className="rounded-xl border border-red-300/15 bg-red-400/[0.08] px-3 py-2.5 text-xs leading-5 text-red-100"><strong className="font-semibold">Before you continue: </strong>{error}</div>}
               </form>
             </div>
           </Card>
@@ -176,7 +187,7 @@ export default function DashboardClient({
 
         <section>
           <div className="mb-4 flex items-end justify-between gap-3"><div><Eyebrow>{localMode ? 'Local history' : 'Workspace history'}</Eyebrow><h2 className="mt-2 text-xl font-semibold text-white">Conversations and tasks</h2></div><button onClick={refresh} className="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-white/[0.05] hover:text-gray-200">Refresh</button></div>
-          {tasks.length === 0 ? <Card className="border-dashed py-14 text-center"><p className="text-sm font-medium text-gray-300">Nothing here yet.</p><p className="mt-1 text-xs text-gray-500">Start a chat for answers, or use Work when you want governed project action.</p></Card> : <div className="grid gap-3">{tasks.map((task) => <Link key={task.id} href={`/tasks/${task.id}`}><Card interactive className="p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${task.mode === 'chat' ? 'bg-cyan-300/[0.08] text-cyan-200/80' : 'bg-violet-300/[0.08] text-violet-200/80'}`}>{modeLabel(task.mode)}</span>{task.project_path && <span className="max-w-[18rem] truncate text-[10px] text-gray-600">{task.project_path}</span>}</div><p className="line-clamp-2 text-sm font-medium text-gray-200">{task.goal}</p><div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500"><span>{new Date(task.created_at).toLocaleString()}</span><span>{task.status}</span></div></div><StatusBadge status={task.status} /></div></Card></Link>)}</div>}
+          {tasks.length === 0 ? <Card className="border-dashed border-cyan-300/15 bg-cyan-300/[0.025] p-6 sm:p-8"><div className="mx-auto max-w-2xl text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-200"><span className="text-xl">✦</span></div><p className="mt-4 text-lg font-semibold text-white">Your workspace is ready.</p><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-400">Start with a conversation to explore an idea, or choose Work when you want Xeo to inspect and change a selected project under local safety controls.</p></div><div className="mt-7 grid gap-3 md:grid-cols-3">{STARTER_PROMPTS.map((starter) => <button key={starter.label} type="button" onClick={() => { setMode(starter.mode); setGoal(starter.prompt); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 text-left transition hover:-translate-y-0.5 hover:border-cyan-300/25 hover:bg-cyan-300/[0.06]"><span className="text-sm font-semibold text-gray-100">{starter.label}</span><span className="mt-2 block text-xs leading-5 text-gray-500">{starter.prompt}</span><span className="mt-3 block text-[10px] font-semibold uppercase tracking-[0.14em] text-cyan-200/70">Use starter →</span></button>)}</div></Card> : <div className="grid gap-3">{tasks.map((task) => <Link key={task.id} href={`/tasks/${task.id}`}><Card interactive className="p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${task.mode === 'chat' ? 'bg-cyan-300/[0.08] text-cyan-200/80' : 'bg-violet-300/[0.08] text-violet-200/80'}`}>{modeLabel(task.mode)}</span>{task.project_path && <span className="max-w-[18rem] truncate text-[10px] text-gray-600">{task.project_path}</span>}</div><p className="line-clamp-2 text-sm font-medium text-gray-200">{task.goal}</p><div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500"><span>{new Date(task.created_at).toLocaleString()}</span><span>{task.status}</span></div></div><StatusBadge status={task.status} /></div></Card></Link>)}</div>}
         </section>
       </div>
     </AppShell>
