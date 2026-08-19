@@ -20,7 +20,10 @@
     "browser:smoke": "node scripts/smoke-browser-bridge.mjs",
     "desktop:build:win": "npm run desktop:prepare && electron-builder --win nsis --x64 --publish never",
     "desktop:build:linux": "npm run desktop:prepare && electron-builder --linux AppImage deb --x64 --publish never",
-    "verify:release:artifacts": "node scripts/verify-release-artifacts.mjs"
+    "desktop:build:win:preview": "npm run desktop:prepare && electron-builder --win nsis --x64 --config.publish.channel=beta --publish never",
+    "desktop:build:linux:preview": "npm run desktop:prepare && electron-builder --linux AppImage deb --x64 --config.publish.channel=beta --publish never",
+    "verify:release:artifacts": "node scripts/verify-release-artifacts.mjs",
+    "verify:release:artifacts:preview": "node scripts/verify-release-artifacts.mjs dist all beta"
   },
   "dependencies": {
     "better-sqlite3": "11.1.2",

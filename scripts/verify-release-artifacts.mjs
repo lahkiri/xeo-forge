@@ -6,28 +6,34 @@ import { join, resolve } from 'node:path';
 
 const distDir = resolve(process.argv[2] || 'dist');
 const target = process.argv[3] || 'all';
+const channel = process.argv[4] || 'latest';
 if (!['all', 'windows', 'linux'].includes(target)) throw new Error(`Unknown target: ${target}`);
+if (!['latest', 'beta'].includes(channel)) throw new Error(`Unknown release channel: ${channel}`);
+
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const version = packageJson.version;
 const failures = [];
+const channelLabel = channel === 'beta' ? 'preview' : 'stable';
+const windowsFeedName = `${channel}.yml`;
+const linuxFeedName = `${channel}-linux.yml`;
 
 function fail(message) {
   failures.push(message);
 }
 
 function requiredFile(name) {
-  const path = join(distDir, name);
-  if (!existsSync(path)) {
+  const filePath = join(distDir, name);
+  if (!existsSync(filePath)) {
     fail(`missing artifact: ${name}`);
     return null;
   }
-  return path;
+  return filePath;
 }
 
 function parseFeed(fileName) {
-  const path = requiredFile(fileName);
-  if (!path) return null;
-  const text = readFileSync(path, 'utf8');
+  const filePath = requiredFile(fileName);
+  if (!filePath) return null;
+  const text = readFileSync(filePath, 'utf8');
   const versionMatch = text.match(/^version:\s*(\S+)\s*$/m);
   const pathMatch = text.match(/^path:\s*([^\n]+?)\s*$/m);
   const shaMatch = text.match(/^sha512:\s*([^\n]+?)\s*$/m);
@@ -75,8 +81,8 @@ function verifyEntry(feedName, entry) {
   }
 }
 
-const windowsFeed = target === 'linux' ? null : parseFeed('latest.yml');
-const linuxFeed = target === 'windows' ? null : parseFeed('latest-linux.yml');
+const windowsFeed = target === 'linux' ? null : parseFeed(windowsFeedName);
+const linuxFeed = target === 'windows' ? null : parseFeed(linuxFeedName);
 const distEntries = existsSync(distDir) ? readdirSync(distDir) : [];
 const windowsExe = distEntries.find((name) => /^Xeo-Forge-Setup-.*-x64\.exe$/i.test(name));
 const windowsBlockmap = distEntries.find((name) => /^Xeo-Forge-Setup-.*-x64\.exe\.blockmap$/i.test(name));
@@ -88,22 +94,22 @@ if (target !== 'windows' && !linuxAppImage) fail('missing Linux AppImage');
 if (target !== 'windows' && !linuxDeb) fail('missing Linux deb package');
 
 if (windowsFeed) {
-  if (!windowsExe || windowsFeed.path !== windowsExe) fail(`latest.yml path ${windowsFeed.path} does not match Windows installer ${windowsExe || '(missing)'}`);
-  verifyEntry('latest.yml', { name: windowsFeed.path, sha512: windowsFeed.sha512, size: windowsFeed.size });
-  if (!windowsBlockmap) fail('latest.yml cannot be trusted without the matching Windows blockmap');
+  if (!windowsExe || windowsFeed.path !== windowsExe) fail(`${windowsFeedName} path ${windowsFeed.path} does not match Windows installer ${windowsExe || '(missing)'}`);
+  verifyEntry(windowsFeedName, { name: windowsFeed.path, sha512: windowsFeed.sha512, size: windowsFeed.size });
+  if (!windowsBlockmap) fail(`${windowsFeedName} cannot be trusted without the matching Windows blockmap`);
 }
 if (linuxFeed) {
-  if (!linuxAppImage || linuxFeed.path !== linuxAppImage) fail(`latest-linux.yml path ${linuxFeed.path} does not match AppImage ${linuxAppImage || '(missing)'}`);
-  verifyEntry('latest-linux.yml', { name: linuxFeed.path, sha512: linuxFeed.sha512, size: linuxFeed.size });
-  for (const entry of linuxFeed.files) verifyEntry('latest-linux.yml', entry);
+  if (!linuxAppImage || linuxFeed.path !== linuxAppImage) fail(`${linuxFeedName} path ${linuxFeed.path} does not match AppImage ${linuxAppImage || '(missing)'}`);
+  verifyEntry(linuxFeedName, { name: linuxFeed.path, sha512: linuxFeed.sha512, size: linuxFeed.size });
+  for (const entry of linuxFeed.files) verifyEntry(linuxFeedName, entry);
 }
 
 if (failures.length > 0) {
-  console.error('Release artifact verification failed:');
+  console.error(`Release artifact verification failed for ${channelLabel} channel:`);
   for (const failure of failures) console.error(`- ${failure}`);
   process.exit(1);
 }
 
-console.log(`Release artifacts verified for v${version} (${target}) in ${distDir}`);
-if (target !== 'linux') console.log(`- Windows: ${windowsExe}, ${windowsBlockmap}, latest.yml`);
-if (target !== 'windows') console.log(`- Linux: ${linuxAppImage}, ${linuxDeb}, latest-linux.yml`);
+console.log(`Release artifacts verified for v${version} (${channelLabel}, ${channel}) (${target}) in ${distDir}`);
+if (target !== 'linux') console.log(`- Windows: ${windowsExe}, ${windowsBlockmap}, ${windowsFeedName}`);
+if (target !== 'windows') console.log(`- Linux: ${linuxAppImage}, ${linuxDeb}, ${linuxFeedName}`);

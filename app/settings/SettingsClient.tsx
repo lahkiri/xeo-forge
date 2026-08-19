@@ -318,7 +318,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
               <div>
                 <Eyebrow>Application updates</Eyebrow>
                 <h2 className="mt-2 font-semibold text-white">Keep Xeo Forge current</h2>
-                <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Updates are checked on a deliberate schedule, downloaded separately, and installed only when you choose to restart. Your local database, project path, browser profiles, and settings remain in the user data directory.</p>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Stable is recommended for everyday use. Preview receives prerelease builds for testing. Updates are checked on a deliberate schedule, downloaded separately, and installed only when you choose to restart. Your local database, project path, browser profiles, and settings remain in the user data directory.</p>
               </div>
               <span className={`rounded-full px-2.5 py-1 text-[10px] ${updateState?.status === 'error' ? 'bg-red-400/10 text-red-300' : updateState?.status === 'downloaded' ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.06] text-gray-400'}`}>{updateState?.status || 'loading'}</span>
             </div>
@@ -339,7 +339,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
             {updateSettings && (
               <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/[0.06] pt-4 text-xs text-gray-400">
                 <label className="flex items-center gap-2"><input type="checkbox" checked={updateSettings.autoCheck} onChange={(e) => saveUpdateSettings({ autoCheck: e.target.checked })} /> Automatic checks</label>
-                <label className="flex items-center gap-2">Channel <select value={updateSettings.channel} onChange={(e) => saveUpdateSettings({ channel: e.target.value as DesktopUpdateSettings['channel'] })} className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-gray-200"><option value="latest">Latest stable</option><option value="beta">Beta</option></select></label>
+                <label className="flex items-center gap-2">Release channel <select aria-label="Release channel" value={updateSettings.channel} onChange={(e) => saveUpdateSettings({ channel: e.target.value as DesktopUpdateSettings['channel'] })} className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-gray-200"><option value="latest">Stable</option><option value="beta">Preview</option></select></label>
                 <label className="flex items-center gap-2">Every <input type="number" min="1" max="168" value={updateSettings.intervalHours} onChange={(e) => setUpdateSettings({ ...updateSettings, intervalHours: Number(e.target.value) || 6 })} onBlur={() => saveUpdateSettings({ intervalHours: updateSettings.intervalHours })} className="w-16 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-gray-200" /> hours</label>
               </div>
             )}

@@ -46,16 +46,20 @@ jobs:
         run: npm run desktop:prepare && node scripts/smoke-desktop.mjs
 
       - name: Build Windows installer and update feed
-        run: npx electron-builder --win nsis --x64 --publish never
+        shell: pwsh
+        run: |
+          $channel = if ($env:GITHUB_REF_NAME -match '-') { 'beta' } else { 'latest' }
+          npx electron-builder --win nsis --x64 "--config.publish.channel=$channel" --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - name: Verify Windows artifacts
         shell: pwsh
         run: |
-          if (-not (Test-Path dist/latest.yml)) { throw 'dist/latest.yml was not generated' }
+          $channel = if ($env:GITHUB_REF_NAME -match '-') { 'beta' } else { 'latest' }
+          if (-not (Test-Path "dist/$channel.yml")) { throw "dist/$channel.yml was not generated" }
           if (-not (Get-ChildItem dist/*.exe)) { throw 'Windows installer was not generated' }
-          node scripts/verify-release-artifacts.mjs dist windows
+          node scripts/verify-release-artifacts.mjs dist windows $channel
 
       - name: Upload Windows release artifacts
         uses: actions/upload-artifact@v4
@@ -63,7 +67,7 @@ jobs:
           name: xeo-forge-windows-release
           path: |
             dist/*.exe
-            dist/latest.yml
+            dist/*.yml
             dist/*.blockmap
           if-no-files-found: error
 
@@ -100,16 +104,21 @@ jobs:
         run: npm run desktop:prepare && node scripts/smoke-desktop.mjs
 
       - name: Build Linux AppImage and deb packages
-        run: npx electron-builder --linux AppImage deb --x64 --publish never
+        run: |
+          channel="latest"
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then channel="beta"; fi
+          npx electron-builder --linux AppImage deb --x64 "--config.publish.channel=${channel}" --publish never
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
 
       - name: Verify Linux artifacts
         run: |
-          test -f dist/latest-linux.yml
+          channel="latest"
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then channel="beta"; fi
+          test -f "dist/${channel}-linux.yml"
           test -n "$(find dist -maxdepth 1 -name '*.AppImage' -print -quit)"
           test -n "$(find dist -maxdepth 1 -name '*.deb' -print -quit)"
-          node scripts/verify-release-artifacts.mjs dist linux
+          node scripts/verify-release-artifacts.mjs dist linux "${channel}"
 
       - name: Upload Linux release artifacts
         uses: actions/upload-artifact@v4
@@ -149,15 +158,16 @@ jobs:
           release_title="Xeo Forge ${TAG_NAME} — Local-First Agent Workbench"
           notes_file="docs/release-notes/${TAG_NAME}.md"
           if ! gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            if [ -f "$notes_file" ]; then
-              gh release create "$TAG_NAME" \
-                --repo "$GITHUB_REPOSITORY" \
-                --title "$release_title" \
-                --notes-file "$notes_file"
+            release_args=(--repo "$GITHUB_REPOSITORY" --title "$release_title" --verify-tag)
+            if [[ "$TAG_NAME" == *-* ]]; then
+              release_args+=(--prerelease --latest=false)
             else
-              gh release create "$TAG_NAME" \
-                --repo "$GITHUB_REPOSITORY" \
-                --title "$release_title" \
+              release_args+=(--latest)
+            fi
+            if [ -f "$notes_file" ]; then
+              gh release create "$TAG_NAME" "${release_args[@]}" --notes-file "$notes_file"
+            else
+              gh release create "$TAG_NAME" "${release_args[@]}" \
                 --notes "Xeo Forge ${TAG_NAME} continues the Local-First Agent Workbench. Upgrade from the minimum supported OTA bootstrap version and always use the latest release.\n\nGitHub's generated changelog follows." \
                 --generate-notes
             fi
