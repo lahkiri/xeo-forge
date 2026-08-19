@@ -5,6 +5,7 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { autoUpdater } = require('electron-updater');
 const { startBrowserBridge: createBrowserBridge } = require('./browser-bridge.cjs');
+const { loadUpdateState, saveUpdateState, updateStatePath } = require('./update-state.cjs');
 
 const APP_PORT = Number(process.env.XEO_APP_PORT || 3100);
 const BROKER_PORT = Number(process.env.XEO_RUNTIME_PORT || 4317);
@@ -15,6 +16,7 @@ let brokerProcess;
 let mainWindow;
 let updateTimer;
 let browserBridge;
+let updateStateFile;
 let updateState = { status: 'idle', currentVersion: app.getVersion(), version: null, percent: 0, message: '' };
 
 function projectConfigPath() {
@@ -71,6 +73,7 @@ ipcMain.handle('project:set', (_event, projectPath) => {
 });
 function publishUpdate(status, values = {}) {
   updateState = { ...updateState, status, ...values, currentVersion: app.getVersion() };
+  if (updateStateFile) saveUpdateState(updateStateFile, updateState);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', updateState);
 }
 
@@ -98,18 +101,30 @@ function configureUpdater() {
 ipcMain.handle('update:state', () => updateState);
 ipcMain.handle('update:check', async () => {
   if (!app.isPackaged || !['win32', 'darwin'].includes(process.platform)) return updateState;
-  await autoUpdater.checkForUpdates();
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch (error) {
+    publishUpdate('error', { message: error instanceof Error ? error.message : String(error) });
+  }
   return updateState;
 });
 ipcMain.handle('update:download', async () => {
   if (updateState.status !== 'available') return updateState;
-  await autoUpdater.downloadUpdate();
+  try {
+    await autoUpdater.downloadUpdate();
+  } catch (error) {
+    publishUpdate('error', { message: error instanceof Error ? error.message : String(error) });
+  }
   return updateState;
 });
 ipcMain.handle('update:install', () => {
   if (updateState.status !== 'downloaded') return updateState;
+  publishUpdate('installing', {
+    previousVersion: app.getVersion(),
+    message: 'Restarting to install update…',
+  });
   setImmediate(() => autoUpdater.quitAndInstall(false, true));
-  return { ...updateState, status: 'installing', message: 'Restarting to install update…' };
+  return updateState;
 });
 ipcMain.handle('browser:state', () => browserState());
 ipcMain.handle('browser:open-extension', async () => shell.openPath(resourcePath('browser-extension')));
@@ -216,6 +231,9 @@ function stopChild(child) {
 
 app.whenReady().then(async () => {
   try {
+    updateStateFile = updateStatePath(app.getPath('userData'));
+    updateState = loadUpdateState(updateStateFile, app.getVersion());
+    saveUpdateState(updateStateFile, updateState);
     startBrowserBridge();
     await createWindow();
     configureUpdater();

@@ -11,9 +11,10 @@ declare global {
   };
 
   type DesktopUpdateState = {
-    status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'installing' | 'error';
+    status: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'installing' | 'success' | 'error';
     currentVersion: string;
     version: string | null;
+    previousVersion?: string;
     percent: number;
     message: string;
     size?: number | null;

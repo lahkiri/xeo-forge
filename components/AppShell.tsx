@@ -73,7 +73,7 @@ export default function AppShell({
     setUpdate(state);
   }
 
-  const showUpdate = update && ['available', 'downloading', 'downloaded', 'error'].includes(update.status);
+  const showUpdate = update && ['available', 'downloading', 'downloaded', 'success', 'error'].includes(update.status);
 
   return (
     <div className="app-shell min-h-screen text-gray-100">
@@ -134,7 +134,7 @@ export default function AppShell({
             <div className="border-b border-cyan-300/10 bg-cyan-300/[0.04] px-4 py-2.5 sm:px-6 lg:px-10">
               <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs">
                 <div className="flex min-w-0 items-center gap-2 text-gray-300">
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${update.status === 'error' ? 'bg-red-300' : 'bg-cyan-300 animate-pulse'}`} />
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${update.status === 'error' ? 'bg-red-300' : update.status === 'success' ? 'bg-emerald-300' : 'bg-cyan-300 animate-pulse'}`} />
                   <span className="truncate">{update.message || (update.version ? `Xeo Forge ${update.version} is ready.` : 'Desktop update')}</span>
                   {update.status === 'downloading' && <span className="text-gray-500 tabular-nums">{update.percent}%</span>}
                 </div>
