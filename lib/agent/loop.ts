@@ -43,6 +43,7 @@ import { createToolContext, executeTool, schemasForMode } from './tools';
 import { isArchive } from './uploads';
 import { CREDITS_PER_TOOL_CALL } from '../credits/pricing';
 import { computeContextUsage, shouldCompact, type ContextUsage } from './context';
+import { attachAssistantReasoning } from './message-normalize';
 import { summarizeMessages } from './compaction';
 import { canStartAgentRun } from './build-policy';
 import { compileAgentContext } from './context-pack';
@@ -550,6 +551,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         : { ...baseParams, tools: toolSchemas, tool_choice: 'auto' };
 
       let textBuf = '';
+      let reasoningBuf = '';
       const toolCalls = new Map<number, PendingToolCall>();
       let finishReason: string | null = null;
 
@@ -574,9 +576,11 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           textBuf += delta.content;
           await emitTaskEvent(taskId, 'text', { delta: delta.content });
         }
-        const reasoning = (delta as any).reasoning_content || (delta as any).reasoning;
+        const reasoning = (delta as any).reasoning_content ?? (delta as any).reasoning;
         if (reasoning) {
-          await emitTaskEvent(taskId, 'reasoning', { delta: String(reasoning) });
+          const reasoningDelta = String(reasoning);
+          reasoningBuf += reasoningDelta;
+          await emitTaskEvent(taskId, 'reasoning', { delta: reasoningDelta });
         }
         if (delta.tool_calls) {
           for (const tc of delta.tool_calls) {
@@ -747,15 +751,16 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
       /* ---- Native tool-calling path ---- */
       const calls = [...toolCalls.values()].filter((c) => c.name);
       if (calls.length > 0) {
-        messages.push({
-          role: 'assistant',
+        const assistantToolMessage = {
+          role: 'assistant' as const,
           content: textBuf || null,
           tool_calls: calls.map((c) => ({
             id: c.id || `call_${Math.random().toString(36).slice(2)}`,
             type: 'function' as const,
             function: { name: c.name, arguments: c.arguments || '{}' },
           })),
-        });
+        };
+        messages.push(attachAssistantReasoning(assistantToolMessage, reasoningBuf));
 
         for (const call of calls) {
           const args = parseArgs(call.arguments);
