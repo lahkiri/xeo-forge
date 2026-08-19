@@ -3,6 +3,13 @@ export {};
 declare global {
   type DesktopBrowserTab = { id?: number; url?: string; title?: string } | null;
 
+  type DesktopBrowserPolicy = {
+    interactionEnabled: boolean;
+    allowedDomains: string[];
+    redactSensitiveData: boolean;
+    allowSensitiveActions: boolean;
+  };
+
   type DesktopBrowserProfile = {
     browserId: string;
     profileName: string;
@@ -25,6 +32,7 @@ declare global {
     permissions: string[];
     port: number;
     token: string | null;
+    browserPolicy: DesktopBrowserPolicy | null;
     updatedAt?: string;
   };
 
@@ -65,6 +73,8 @@ declare global {
       installUpdate: () => Promise<DesktopUpdateState>;
       getBrowserState: () => Promise<DesktopBrowserState>;
       selectBrowser: (browserId: string) => Promise<DesktopBrowserState>;
+      getBrowserPolicy: () => Promise<DesktopBrowserPolicy | null>;
+      setBrowserPolicy: (policy: Partial<DesktopBrowserPolicy>) => Promise<DesktopBrowserState>;
       openBrowserExtension: () => Promise<string>;
     };
     xeoDesktopEvents?: {

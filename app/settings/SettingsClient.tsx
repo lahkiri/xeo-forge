@@ -50,6 +50,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
   const [memoryContent, setMemoryContent] = useState('');
   const [memoryKind, setMemoryKind] = useState<(typeof MEMORY_KINDS)[number]>('lesson');
   const [browserState, setBrowserState] = useState<DesktopBrowserState | null>(null);
+  const [browserPolicy, setBrowserPolicy] = useState<DesktopBrowserPolicy | null>(null);
   const [showBrowserToken, setShowBrowserToken] = useState(false);
   const [model, setModel] = useState<ModelSettingsSafe | null>(null);
   const [modelName, setModelName] = useState('');
@@ -94,7 +95,11 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
     const desktop = window.xeoDesktop;
     if (!desktop) return;
     let active = true;
-    const refresh = () => desktop.getBrowserState().then((state) => { if (active) setBrowserState(state); }).catch((error) => console.warn('[desktop] browser state unavailable', error));
+    const refresh = () => desktop.getBrowserState().then((state) => {
+      if (!active) return;
+      setBrowserState(state);
+      setBrowserPolicy((current) => current ?? state.browserPolicy);
+    }).catch((error) => console.warn('[desktop] browser state unavailable', error));
     refresh();
     const timer = window.setInterval(refresh, 3000);
     return () => { active = false; window.clearInterval(timer); };
@@ -173,6 +178,18 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
       setNotice({ type: 'ok', text: 'Update preferences saved locally.' });
     } catch (err) {
       setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not save update preferences.' });
+    }
+  };
+
+  const saveBrowserPolicy = async (patch: Partial<DesktopBrowserPolicy>) => {
+    if (!window.xeoDesktop || !browserPolicy) return;
+    try {
+      const state = await window.xeoDesktop.setBrowserPolicy({ ...browserPolicy, ...patch });
+      setBrowserState(state);
+      setBrowserPolicy(state.browserPolicy);
+      setNotice({ type: 'ok', text: 'Browser safety policy saved locally.' });
+    } catch (err) {
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not save browser policy.' });
     }
   };
 
@@ -337,6 +354,24 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           </div>
           {browserState && (
             <div className="mt-5 space-y-4">
+              {browserPolicy && (
+                <div className="rounded-xl border border-amber-300/10 bg-amber-300/[0.03] p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-white">Interaction policy</p>
+                      <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-500">Read access stays available by default. Navigation, clicks, and typing require this local policy, an allowed domain, and an explicit confirmation for sensitive actions.</p>
+                    </div>
+                    <span className={`rounded-full px-2 py-1 text-[10px] ${browserPolicy.interactionEnabled ? 'bg-amber-400/10 text-amber-200' : 'bg-white/[0.06] text-gray-500'}`}>{browserPolicy.interactionEnabled ? 'interaction enabled' : 'read-only mode'}</span>
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <label className="flex items-start gap-2 text-xs text-gray-300"><input type="checkbox" checked={browserPolicy.interactionEnabled} onChange={(e) => setBrowserPolicy({ ...browserPolicy, interactionEnabled: e.target.checked })} /> <span><strong className="font-medium text-white">Allow interaction</strong><span className="mt-1 block text-gray-600">Enable navigate, click, and type after saving domains.</span></span></label>
+                    <label className="flex items-start gap-2 text-xs text-gray-300"><input type="checkbox" checked={browserPolicy.redactSensitiveData} onChange={(e) => setBrowserPolicy({ ...browserPolicy, redactSensitiveData: e.target.checked })} /> <span><strong className="font-medium text-white">Redact page data</strong><span className="mt-1 block text-gray-600">Mask emails, cards, phones, and token-like strings in text reads.</span></span></label>
+                    <label className="flex items-start gap-2 text-xs text-gray-300"><input type="checkbox" checked={browserPolicy.allowSensitiveActions} onChange={(e) => setBrowserPolicy({ ...browserPolicy, allowSensitiveActions: e.target.checked })} /> <span><strong className="font-medium text-white">Allow sensitive actions</strong><span className="mt-1 block text-gray-600">Still requires explicit confirmation on each click or type call.</span></span></label>
+                  </div>
+                  <label className="mt-4 block space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Allowed domains · one per line</span><textarea value={browserPolicy.allowedDomains.join('\\n')} onChange={(e) => setBrowserPolicy({ ...browserPolicy, allowedDomains: e.target.value.split(/\\r?\\n|,/).map((value) => value.trim()).filter(Boolean) })} rows={3} placeholder="example.com\\nlocalhost" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-xs text-gray-200 outline-none placeholder:text-gray-700 focus:border-amber-300/50" /></label>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-[11px] leading-5 text-gray-600">Subdomains are included. An empty allowlist keeps all write actions blocked.</p><Button variant="ghost" onClick={() => saveBrowserPolicy(browserPolicy)}>Save safety policy</Button></div>
+                </div>
+              )}
               <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
                 <div className="rounded-xl border border-white/[0.07] bg-black/10 p-4">
                   <p className="text-[10px] uppercase tracking-[0.16em] text-gray-600">Local extension token · port {browserState.port}</p>

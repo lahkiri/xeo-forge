@@ -1,6 +1,50 @@
 export type BrowserAction = 'state' | 'read_page' | 'screenshot' | 'navigate' | 'click' | 'type';
 
 const READ_ACTIONS = new Set<BrowserAction>(['state', 'read_page', 'screenshot']);
+const SENSITIVE_ACTIONS = new Set<BrowserAction>(['click', 'type']);
+
+type BrowserPolicy = {
+  interactionEnabled?: boolean;
+  allowedDomains?: string[];
+  redactSensitiveData?: boolean;
+  allowSensitiveActions?: boolean;
+};
+
+type BrowserBridgeState = {
+  tab?: { url?: string } | null;
+  browserPolicy?: BrowserPolicy | null;
+};
+
+function domainAllowed(value: unknown, domains: unknown): boolean {
+  if (typeof value !== 'string' || !value.trim() || !Array.isArray(domains)) return false;
+  let hostname: string;
+  try {
+    hostname = new URL(value).hostname.toLowerCase().replace(/^\.+|\.+$/g, '');
+  } catch {
+    return false;
+  }
+  return domains.some((item) => {
+    if (typeof item !== 'string') return false;
+    const domain = item.trim().toLowerCase().replace(/^\.+|\.+$/g, '');
+    return Boolean(domain) && (hostname === domain || hostname.endsWith(`.${domain}`));
+  });
+}
+
+async function assertInteractionPolicy(action: BrowserAction, args: Record<string, unknown>, token: string, port: number): Promise<void> {
+  if (browserActionIsReadOnly(action)) return;
+  const state = await fetch(`http://127.0.0.1:${port}/state`, { headers: { 'x-xeo-browser-token': token } }).then(async (response) => {
+    const payload = await response.json() as BrowserBridgeState;
+    if (!response.ok) throw new Error(`Browser bridge returned HTTP ${response.status}.`);
+    return payload;
+  });
+  const policy = state.browserPolicy;
+  if (!policy?.interactionEnabled) throw new Error(`Browser action "${action}" requires explicit browser interaction permission.`);
+  const targetUrl = action === 'navigate' ? args.url : state.tab?.url;
+  if (!domainAllowed(targetUrl, policy.allowedDomains)) throw new Error('Browser action blocked: target domain is not in the local allowlist.');
+  if (SENSITIVE_ACTIONS.has(action) && (!policy.allowSensitiveActions || args.confirmSensitive !== true)) {
+    throw new Error(`Browser action "${action}" requires sensitive-action permission and explicit confirmation.`);
+  }
+}
 
 function bridgeConfig() {
   const token = process.env.XEO_BROWSER_TOKEN || '';
@@ -15,9 +59,7 @@ export function browserActionIsReadOnly(action: BrowserAction): boolean {
 export async function browserRequest(action: BrowserAction, args: Record<string, unknown> = {}): Promise<unknown> {
   const { token, port } = bridgeConfig();
   if (!token) throw new Error('Local browser bridge is not configured. Start Xeo Forge Desktop and connect the optional extension.');
-  if (!browserActionIsReadOnly(action) && process.env.XEO_BROWSER_ALLOW_INTERACTION !== '1') {
-    throw new Error(`Browser action "${action}" requires explicit browser interaction permission.`);
-  }
+  await assertInteractionPolicy(action, args, token, port);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 35_000);
   try {

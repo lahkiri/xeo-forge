@@ -156,6 +156,7 @@ export const TOOL_SCHEMAS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           url: { type: 'string', description: 'URL for navigate, if interaction permission is enabled.' },
           selector: { type: 'string', description: 'CSS selector for click/type, if interaction permission is enabled.' },
           text: { type: 'string', description: 'Text for type, if interaction permission is enabled.' },
+          confirmSensitive: { type: 'boolean', description: 'Must be true for click/type actions after the user has explicitly approved the sensitive interaction.' },
         },
         required: ['action'],
       },
@@ -448,7 +449,7 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
       return clamp(await httpRequest(args));
     case 'browser': {
       const action = String(args.action) as Parameters<typeof browserRequest>[0];
-      const browserArgs = { url: args.url, selector: args.selector, text: args.text };
+      const browserArgs = { url: args.url, selector: args.selector, text: args.text, confirmSensitive: args.confirmSensitive === true };
       const result = action === 'state' ? await browserRequest('state') : await browserRequest(action, browserArgs);
       return clamp(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
     }

@@ -75,3 +75,25 @@ Verification completed for this patch:
 | `git diff --check` | Passed |
 
 The annotated release title is **`v1.5.1 — Local Control Center & Update Lifecycle`**. Future tags must continue to include a human-readable title and a concise description of user-facing changes and verification status.
+
+## v1.6.0 — Governed Browser Safety
+
+v1.6.0 makes the local browser capability governed instead of merely connected. Desktop Local keeps browser inspection read-only by default, while the Control Center now exposes an explicit local interaction policy. Navigation, clicks, and typing require interaction to be enabled and the target host to match the saved domain allowlist. Click and type additionally require sensitive-action permission and `confirmSensitive: true` on each tool call. An empty allowlist always fails closed.
+
+Visible page text is redacted by default for common email addresses, payment-card-like numbers, phone numbers, and token-like strings. The policy is persisted under Electron `userData`, passed through the loopback bridge, enforced by the bridge before dispatch, and checked again by the browser extension. Web SaaS remains unchanged; these controls apply to the Desktop Local browser bridge only.
+
+Verification completed for this milestone:
+
+| Check | Result |
+|---|---|
+| Electron and extension `node --check` | Passed |
+| `npm run typecheck` | Passed |
+| Browser policy unit tests | Passed: 2 tests |
+| Browser regression tests | Passed: 2 tests |
+| `npm test -- --run` | Passed |
+| `npm run desktop:smoke` | Passed |
+| `npm run browser:smoke` | Passed: read-only default, allowlist rejection, sensitive-action confirmation, profile routing, fail-closed disconnect |
+| `npm run build` | Passed |
+| `git diff --check` | Passed |
+
+The annotated release title is **`v1.6.0 — Governed Browser Safety`**. Future tags must continue to include a human-readable title, a user-facing description, and verification status.

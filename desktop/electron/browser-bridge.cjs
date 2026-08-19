@@ -5,10 +5,17 @@ const crypto = require('node:crypto');
 const { existsSync, mkdirSync, readFileSync, writeFileSync } = require('node:fs');
 const path = require('node:path');
 const { WebSocketServer } = require('ws');
+const {
+  domainAllowed,
+  loadBrowserPolicy,
+  saveBrowserPolicy,
+} = require('./browser-policy.cjs');
 
 const MAX_PROFILE_NAME_LENGTH = 80;
 const MAX_BROWSER_NAME_LENGTH = 80;
 const MAX_VERSION_LENGTH = 40;
+const READ_ACTIONS = new Set(['state', 'read_page', 'screenshot']);
+const SENSITIVE_ACTIONS = new Set(['click', 'type']);
 
 function cleanLabel(value, fallback, maxLength) {
   if (typeof value !== 'string') return fallback;
@@ -39,8 +46,9 @@ function savePreferredBrowserId(preferencePath, browserId) {
   }
 }
 
-function startBrowserBridge({ port = 4321, token, preferencePath } = {}) {
+function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } = {}) {
   const connections = new Map();
+  let browserPolicy = loadBrowserPolicy(policyPath);
   const pending = new Map();
   let preferredBrowserId = loadPreferredBrowserId(preferencePath);
 
@@ -64,8 +72,9 @@ function startBrowserBridge({ port = 4321, token, preferencePath } = {}) {
     userAgent: connection.userAgent,
     connected: connection.socket.readyState === 1,
     tab: connection.tab,
-    permissions: connection.permissions,
-    updatedAt: connection.updatedAt,
+      permissions: connection.permissions,
+      updatedAt: connection.updatedAt,
+      browserPolicy,
   });
 
   const state = () => {
@@ -78,8 +87,9 @@ function startBrowserBridge({ port = 4321, token, preferencePath } = {}) {
       selectedProfile: selected,
       profiles,
       tab: selected?.tab || null,
-      permissions: selected?.permissions || [],
-      updatedAt: new Date().toISOString(),
+        permissions: selected?.permissions || [],
+        browserPolicy,
+        updatedAt: new Date().toISOString(),
     };
   };
 
@@ -101,10 +111,29 @@ function startBrowserBridge({ port = 4321, token, preferencePath } = {}) {
     return connection;
   }
 
+  function assertBrowserPolicy(action, args, connection) {
+    if (READ_ACTIONS.has(action)) return;
+    if (!browserPolicy.interactionEnabled) {
+      throw new Error(`Browser action "${action}" is disabled. Enable interaction in Control Center first.`);
+    }
+    const targetUrl = action === 'navigate' ? args?.url : connection.tab?.url;
+    if (!domainAllowed(targetUrl, browserPolicy.allowedDomains)) {
+      throw new Error('Browser action blocked: the target domain is not in the local allowlist.');
+    }
+    if (SENSITIVE_ACTIONS.has(action) && (!browserPolicy.allowSensitiveActions || args?.confirmSensitive !== true)) {
+      throw new Error(`Browser action "${action}" requires sensitive-action permission and explicit confirmation.`);
+    }
+  }
+
   function requestExtension(action, args) {
     let connection;
     try {
       connection = selectedConnection();
+    } catch (error) {
+      return Promise.reject(error);
+    }
+    try {
+      assertBrowserPolicy(action, args || {}, connection);
     } catch (error) {
       return Promise.reject(error);
     }
@@ -116,7 +145,7 @@ function startBrowserBridge({ port = 4321, token, preferencePath } = {}) {
       }, 30_000);
       pending.set(id, { resolve, reject, timer, browserId: connection.browserId });
       try {
-        connection.socket.send(JSON.stringify({ type: 'command', id, action, args: args || {} }));
+        connection.socket.send(JSON.stringify({ type: 'command', id, action, args: args || {}, policy: browserPolicy }));
       } catch (error) {
         clearTimeout(timer);
         pending.delete(id);
@@ -131,6 +160,13 @@ function startBrowserBridge({ port = 4321, token, preferencePath } = {}) {
     }
     preferredBrowserId = browserId;
     savePreferredBrowserId(preferencePath, browserId);
+    return state();
+  }
+
+  function persistPolicy(value) {
+    const saved = saveBrowserPolicy(policyPath, value);
+    if (!saved) throw new Error('Could not save browser interaction policy.');
+    browserPolicy = saved;
     return state();
   }
 
@@ -267,6 +303,8 @@ function startBrowserBridge({ port = 4321, token, preferencePath } = {}) {
     token,
     state,
     selectBrowser: persistAndSelect,
+    getPolicy: () => browserPolicy,
+    setPolicy: persistPolicy,
     close: () => {
       for (const item of pending.values()) {
         clearTimeout(item.timer);

@@ -13,6 +13,7 @@ const {
   saveUpdateSettings,
   updateSettingsPath,
 } = require('./update-state.cjs');
+const { browserPolicyPath } = require('./browser-policy.cjs');
 
 const APP_PORT = Number(process.env.XEO_APP_PORT || 3100);
 const BROKER_PORT = Number(process.env.XEO_RUNTIME_PORT || 4317);
@@ -41,6 +42,10 @@ function browserPreferencePath() {
   return path.join(app.getPath('userData'), 'browser-profile.json');
 }
 
+function browserPolicyFile() {
+  return browserPolicyPath(app.getPath('userData'));
+}
+
 function getBrowserToken() {
   try {
     const token = readFileSync(browserTokenPath(), 'utf8').trim();
@@ -58,6 +63,7 @@ function startBrowserBridge() {
     port: BROWSER_PORT,
     token: getBrowserToken(),
     preferencePath: browserPreferencePath(),
+    policyPath: browserPolicyFile(),
   });
 }
 
@@ -74,6 +80,7 @@ function browserState() {
     }),
     port: BROWSER_PORT,
     token: browserBridge?.token || null,
+    browserPolicy: browserBridge?.getPolicy?.() || null,
   };
 }
 
@@ -187,6 +194,11 @@ ipcMain.handle('browser:select', (_event, browserId) => {
   if (!browserBridge) throw new Error('Browser bridge is disabled.');
   return browserBridge.selectBrowser(browserId);
 });
+ipcMain.handle('browser:policy', () => browserBridge?.getPolicy?.() || null);
+ipcMain.handle('browser:policy:set', (_event, policy) => {
+  if (!browserBridge) throw new Error('Browser bridge is disabled.');
+  return browserBridge.setPolicy(policy);
+});
 ipcMain.handle('browser:open-extension', async () => shell.openPath(resourcePath('browser-extension')));
 
 ipcMain.handle('project:choose', async () => {
@@ -235,6 +247,7 @@ function startNextServer() {
       XEO_PROJECT_ROOT: readStoredProjectPath() || '',
       XEO_BROWSER_PORT: String(BROWSER_PORT),
       XEO_BROWSER_TOKEN: browserBridge?.token || '',
+      XEO_BROWSER_POLICY_PATH: browserPolicyFile(),
       PORT: String(APP_PORT),
       HOSTNAME: '127.0.0.1',
     },

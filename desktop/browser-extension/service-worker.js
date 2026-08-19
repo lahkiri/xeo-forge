@@ -70,18 +70,66 @@ async function connect() {
   }
 }
 
-async function readPage(tabId) {
+async function readPage(tabId, policy = {}) {
   const [{ result }] = await chrome.scripting.executeScript({
     target: { tabId },
-    func: () => ({
-      url: location.href,
-      title: document.title,
-      text: (document.body?.innerText || '').slice(0, 30000),
-      links: Array.from(document.querySelectorAll('a[href]')).slice(0, 100).map((link) => ({
-        text: (link.textContent || '').trim().slice(0, 200),
-        href: link.href,
-      })),
-    }),
+    args: [policy.redactSensitiveData !== false],
+    func: (redact) => {
+      const clean = (value) => {
+        const text = String(value || '');
+        if (!redact) return text;
+        return text
+          .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[REDACTED_EMAIL]')
+          .replace(/\b(?:\d[ -]*?){13,19}\b/g, '[REDACTED_CARD]')
+          .replace(/\b(?:\+?\d[\d ()-]{7,}\d)\b/g, '[REDACTED_PHONE]')
+          .replace(/\b(?:sk|pk|api|token|secret)[_-]?[a-z0-9]{12,}\b/gi, '[REDACTED_SECRET]');
+      };
+      return {
+        url: location.href,
+        title: clean(document.title),
+        text: clean(document.body?.innerText || '').slice(0, 30000),
+        links: Array.from(document.querySelectorAll('a[href]')).slice(0, 100).map((link) => ({
+          text: clean(link.textContent || '').slice(0, 200),
+          href: redact ? new URL(link.href).origin + new URL(link.href).pathname : link.href,
+        })),
+      };
+    },
+  });
+  return result;
+}
+
+async function clickElement(tabId, selector) {
+  if (typeof selector !== 'string' || !selector.trim()) throw new Error('A CSS selector is required for click.');
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    args: [selector],
+    func: (value) => {
+      const element = document.querySelector(value);
+      if (!element) return { clicked: false, reason: 'Element not found.' };
+      element.click();
+      return { clicked: true, tag: element.tagName, text: (element.textContent || '').trim().slice(0, 160) };
+    },
+  });
+  return result;
+}
+
+async function typeIntoElement(tabId, selector, text) {
+  if (typeof selector !== 'string' || !selector.trim()) throw new Error('A CSS selector is required for type.');
+  if (typeof text !== 'string') throw new Error('Text is required for type.');
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    args: [selector, text],
+    func: (value, nextText) => {
+      const element = document.querySelector(value);
+      if (!element) return { typed: false, reason: 'Element not found.' };
+      if (!('value' in element)) return { typed: false, reason: 'Element is not an editable control.' };
+      element.focus();
+      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value');
+      descriptor?.set?.call(element, nextText);
+      element.dispatchEvent(new Event('input', { bubbles: true }));
+      element.dispatchEvent(new Event('change', { bubbles: true }));
+      return { typed: true, tag: element.tagName };
+    },
   });
   return result;
 }
@@ -96,14 +144,24 @@ async function handleCommand(message) {
   try {
     const tab = await activeTab();
     let result;
+    const policy = message.policy && typeof message.policy === 'object' ? message.policy : {};
     if (message.action === 'state') {
       result = { tab: { id: tab.id, url: tab.url, title: tab.title } };
     } else if (message.action === 'read_page') {
-      result = await readPage(tab.id);
+      result = await readPage(tab.id, policy);
     } else if (message.action === 'screenshot') {
       result = await screenshot(tab.id);
+    } else if (message.action === 'navigate') {
+      const url = message.args?.url;
+      if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('Only http(s) navigation is allowed.');
+      await chrome.tabs.update(tab.id, { url });
+      result = { navigated: true, url };
+    } else if (message.action === 'click') {
+      result = await clickElement(tab.id, message.args?.selector);
+    } else if (message.action === 'type') {
+      result = await typeIntoElement(tab.id, message.args?.selector, message.args?.text);
     } else {
-      throw new Error('This browser action is disabled until the user grants interaction permission.');
+      throw new Error('Unknown browser action.');
     }
     socket.send(JSON.stringify({ type: 'result', id: message.id, ok: true, result }));
   } catch (error) {
