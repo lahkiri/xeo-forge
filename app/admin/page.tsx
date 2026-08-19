@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getCurrentUser } from '@/lib/auth/session';
+import { getCurrentUser, isDesktopLocalMode } from '@/lib/auth/session';
 import { listUsersWithStats, listAdminActions, listAllTasks } from '@/lib/db/queries';
 import { getModelSafe } from '@/lib/model/config';
 import AdminClient from './AdminClient';
@@ -7,6 +7,7 @@ import AdminClient from './AdminClient';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
+  if (isDesktopLocalMode()) redirect('/dashboard');
   const user = await getCurrentUser();
   if (!user) redirect('/login');
   if (!user.isAdmin) redirect('/dashboard');

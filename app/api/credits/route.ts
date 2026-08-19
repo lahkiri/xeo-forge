@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/guard';
+import { isDesktopLocalMode } from '@/lib/auth/session';
 import { getCredits, getLedger } from '@/lib/db/queries';
 import { errorResponse } from '../_lib/respond';
 
@@ -8,6 +9,9 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    if (isDesktopLocalMode()) {
+      return NextResponse.json({ error: 'Credits are unavailable in Desktop Local mode.' }, { status: 404 });
+    }
     const user = await requireUser();
     const credits = await getCredits(user.id);
     const ledger = await getLedger(user.id);
