@@ -34,6 +34,9 @@ import type {
   AgentProfileKind,
   AgentSkill,
   AgentSkillKind,
+  TaskIntentKind,
+  DecisionState,
+  TaskDecisionChoice,
 } from '../types';
 
 function nowIso(): string {
@@ -151,6 +154,10 @@ export async function createTask(input: {
   projectPath?: string | null;
   profileId?: string | null;
   skillId?: string | null;
+  status?: TaskStatus;
+  intentKind?: TaskIntentKind | null;
+  decisionState?: DecisionState;
+  decisionExpiresAt?: string | null;
 }): Promise<Task> {
   const id = uuidv4();
   const ts = nowIso();
@@ -172,10 +179,24 @@ export async function createTask(input: {
   }
   await db
     .prepare(
-      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, plan_version, profile_id, skill_id, credits_spent, created_at, updated_at)
-       VALUES (?, ?, ?, 'pending', ?, ?, 0, ?, ?, 0, ?, ?)`,
+      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, intent_kind, decision_state, decision_expires_at, plan_version, profile_id, skill_id, credits_spent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?)`,
     )
-    .run(id, input.userId, input.goal, input.mode, input.projectPath ?? null, profileId, skillId, ts, ts);
+    .run(
+      id,
+      input.userId,
+      input.goal,
+      input.status ?? 'pending',
+      input.mode,
+      input.projectPath ?? null,
+      input.intentKind ?? null,
+      input.decisionState ?? null,
+      input.decisionExpiresAt ?? null,
+      profileId,
+      skillId,
+      ts,
+      ts,
+    );
   const task = await getTaskById(id);
   if (!task) throw new Error('createTask: task not found after insert');
   return task;
@@ -183,6 +204,70 @@ export async function createTask(input: {
 
 export async function getTaskById(id: string): Promise<Task | undefined> {
   return db.prepare<Task>(`SELECT * FROM tasks WHERE id = ?`).get(id);
+}
+
+export type TaskDecisionResolution =
+  | { outcome: 'resolved'; task: Task }
+  | { outcome: 'expired'; task: Task }
+  | { outcome: 'already_resolved' | 'not_found'; task?: Task };
+
+/**
+ * Resolve the Work direct-vs-plan card exactly once. The conditional UPDATE is
+ * the authority: the UI timer is only presentation and cannot authorize a late
+ * or duplicate choice.
+ */
+export async function resolveTaskDecision(
+  id: string,
+  choice: TaskDecisionChoice,
+  approvedPlan: string | null,
+): Promise<TaskDecisionResolution> {
+  const now = nowIso();
+  const nextMode: TaskMode = choice === 'direct' ? 'build' : 'planning';
+  const res = await db
+    .prepare(
+      `UPDATE tasks
+       SET status = 'pending',
+           mode = ?,
+           approved_plan = ?,
+           decision_state = 'resolved',
+           decision_expires_at = NULL,
+           error = NULL,
+           updated_at = ?
+       WHERE id = ?
+         AND status = 'awaiting_decision'
+         AND decision_state = 'pending'
+         AND decision_expires_at IS NOT NULL
+         AND decision_expires_at > ?`,
+    )
+    .run(nextMode, approvedPlan, now, id, now);
+
+  if (res.changes > 0) {
+    const task = await getTaskById(id);
+    if (!task) throw new Error('resolveTaskDecision: task disappeared after transition');
+    return { outcome: 'resolved', task };
+  }
+
+  const task = await getTaskById(id);
+  if (!task) return { outcome: 'not_found' };
+  if (task.status === 'awaiting_decision' && task.decision_state === 'pending') {
+    const expired = await db
+      .prepare(
+        `UPDATE tasks
+         SET decision_state = 'expired',
+             updated_at = ?
+         WHERE id = ? AND status = 'awaiting_decision'
+           AND decision_state = 'pending'
+           AND decision_expires_at IS NOT NULL
+           AND decision_expires_at <= ?`,
+      )
+      .run(now, id, now);
+    if (expired.changes > 0) {
+      const expiredTask = await getTaskById(id);
+      if (!expiredTask) throw new Error('resolveTaskDecision: expired task disappeared');
+      return { outcome: 'expired', task: expiredTask };
+    }
+  }
+  return { outcome: 'already_resolved', task: await getTaskById(id) };
 }
 
 export async function getTasksByUser(userId: string): Promise<Task[]> {

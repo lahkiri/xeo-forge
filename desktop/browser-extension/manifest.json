@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Xeo Forge Local Browser Bridge",
+  "description": "Optional local-only bridge for governed browser work in Xeo Forge.",
+  "version": "1.0.0",
+  "permissions": ["storage", "tabs", "activeTab", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Xeo Forge Local Browser"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src http://127.0.0.1:* ws://127.0.0.1:*"
+  }
+}

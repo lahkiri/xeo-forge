@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Xeo Forge Local Browser Bridge</title>
+  <style>
+    :root { color-scheme: dark; font: 14px system-ui, sans-serif; background: #080c14; color: #e5edf5; }
+    body { max-width: 620px; margin: 48px auto; padding: 0 24px; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    p { color: #9aa8b7; line-height: 1.6; }
+    label { display: block; margin: 24px 0 8px; color: #c9d6e3; font-weight: 600; }
+    input { box-sizing: border-box; width: 100%; border: 1px solid #27364a; border-radius: 8px; background: #111a27; color: #fff; padding: 11px; }
+    button { margin-top: 20px; border: 0; border-radius: 8px; padding: 10px 16px; background: #67e8f9; color: #071018; font-weight: 700; cursor: pointer; }
+    #status { margin-top: 16px; color: #8ee6b1; }
+    code { color: #8de8f6; }
+  </style>
+</head>
+<body>
+  <h1>Xeo Forge Local Browser Bridge</h1>
+  <p>This optional extension connects only to <code>127.0.0.1</code>. It does not send browsing data, cookies, or page content to Xeo Forge servers.</p>
+  <label for="port">Local bridge port</label>
+  <input id="port" type="number" min="1" max="65535" value="4321">
+  <label for="token">Local bridge token</label>
+  <input id="token" type="password" autocomplete="off" placeholder="Paste the token shown in Xeo Forge Control Center">
+  <button id="save" type="button">Save and connect</button>
+  <div id="status" role="status"></div>
+  <script src="options.js"></script>
+</body>
+</html>

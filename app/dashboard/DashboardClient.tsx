@@ -81,6 +81,7 @@ export default function DashboardClient({
         body: JSON.stringify({
           goal: goal.trim(),
           mode,
+          surface: mode === 'chat' ? 'chat' : 'work',
           projectPath,
           profileId: profileId || null,
           skillId: skillId || null,
@@ -121,8 +122,8 @@ export default function DashboardClient({
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <Eyebrow>New interaction</Eyebrow>
-                  <h2 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight text-white sm:text-3xl">Start with a conversation, not a workflow.</h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-400">Ask a normal question for a direct response. Switch to Task only when you want the agent to inspect, plan, and change your project.</p>
+                  <h2 className="mt-3 max-w-2xl text-2xl font-semibold tracking-tight text-white sm:text-3xl">Start with the right level of agency.</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-400">Chat stays conversational. Work understands your intent, asks when needed, and only plans or changes the project when you choose that path.</p>
                 </div>
                 <span className="rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.07] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-200/80">Local-first</span>
               </div>
@@ -133,17 +134,17 @@ export default function DashboardClient({
                   <span className="mt-1 block text-[11px] text-current/60">Ask, explore, decide</span>
                 </button>
                 <button type="button" onClick={() => setMode('planning')} className={`rounded-xl px-4 py-3 text-left transition ${mode === 'planning' ? 'bg-violet-300/[0.14] text-violet-100 shadow-lg' : 'text-gray-500 hover:bg-white/[0.04] hover:text-gray-300'}`}>
-                  <span className="block text-sm font-semibold">Task</span>
-                  <span className="mt-1 block text-[11px] text-current/60">Plan, approve, execute</span>
+                  <span className="block text-sm font-semibold">Work</span>
+                  <span className="mt-1 block text-[11px] text-current/60">Understand, plan, execute</span>
                 </button>
               </div>
 
               <form onSubmit={submitRequest} className="mt-4 space-y-4">
-                <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={5} autoFocus placeholder={mode === 'chat' ? 'Ask anything about your project or next decision…' : 'Describe the outcome you want the agent to deliver…'} className="w-full resize-y rounded-2xl border border-white/[0.1] bg-[#070b12]/75 px-4 py-4 text-sm leading-6 text-gray-100 outline-none transition placeholder:text-gray-600 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/[0.08]" />
+                <textarea value={goal} onChange={(event) => setGoal(event.target.value)} rows={5} autoFocus placeholder={mode === 'chat' ? 'Ask anything about your project or next decision…' : 'Tell the agent what you want done. It will ask before planning or acting when intent is unclear…'} className="w-full resize-y rounded-2xl border border-white/[0.1] bg-[#070b12]/75 px-4 py-4 text-sm leading-6 text-gray-100 outline-none transition placeholder:text-gray-600 focus:border-cyan-300/50 focus:ring-4 focus:ring-cyan-300/[0.08]" />
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach files" />
-                  <Button type="submit" size="lg" disabled={submitting || !goal.trim()}>{submitting ? 'Opening…' : mode === 'chat' ? 'Start chat' : 'Start task'}<span aria-hidden="true">→</span></Button>
+                  <Button type="submit" size="lg" disabled={submitting || !goal.trim()}>{submitting ? 'Opening…' : mode === 'chat' ? 'Start chat' : 'Start Work'}<span aria-hidden="true">→</span></Button>
                 </div>
 
                 {staged.length > 0 && <div className="flex flex-wrap gap-2">{staged.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] text-gray-300"><span className="max-w-[13rem] truncate">{file.name}</span><button type="button" onClick={() => setStaged((previous) => previous.filter((_, itemIndex) => itemIndex !== index))} className="text-gray-500 hover:text-white" aria-label={`Remove ${file.name}`}>×</button></span>)}</div>}
@@ -170,7 +171,7 @@ export default function DashboardClient({
 
         <section>
           <div className="mb-4 flex items-end justify-between gap-3"><div><Eyebrow>Local history</Eyebrow><h2 className="mt-2 text-xl font-semibold text-white">Conversations and tasks</h2></div><button onClick={refresh} className="rounded-lg px-2 py-1 text-xs text-gray-500 hover:bg-white/[0.05] hover:text-gray-200">Refresh</button></div>
-          {tasks.length === 0 ? <Card className="border-dashed py-14 text-center"><p className="text-sm font-medium text-gray-300">Nothing here yet.</p><p className="mt-1 text-xs text-gray-500">Start a chat when you need an answer, or start a task when you need controlled execution.</p></Card> : <div className="grid gap-3">{tasks.map((task) => <Link key={task.id} href={`/tasks/${task.id}`}><Card interactive className="p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${task.mode === 'chat' ? 'bg-cyan-300/[0.08] text-cyan-200/80' : 'bg-violet-300/[0.08] text-violet-200/80'}`}>{modeLabel(task.mode)}</span>{task.project_path && <span className="max-w-[18rem] truncate text-[10px] text-gray-600">{task.project_path}</span>}</div><p className="line-clamp-2 text-sm font-medium text-gray-200">{task.goal}</p><div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500"><span>{new Date(task.created_at).toLocaleString()}</span><span>{task.status}</span></div></div><StatusBadge status={task.status} /></div></Card></Link>)}</div>}
+          {tasks.length === 0 ? <Card className="border-dashed py-14 text-center"><p className="text-sm font-medium text-gray-300">Nothing here yet.</p><p className="mt-1 text-xs text-gray-500">Start a chat for answers, or use Work when you want governed project action.</p></Card> : <div className="grid gap-3">{tasks.map((task) => <Link key={task.id} href={`/tasks/${task.id}`}><Card interactive className="p-4 sm:p-5"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="mb-2 flex flex-wrap items-center gap-2"><span className={`rounded-md px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] ${task.mode === 'chat' ? 'bg-cyan-300/[0.08] text-cyan-200/80' : 'bg-violet-300/[0.08] text-violet-200/80'}`}>{modeLabel(task.mode)}</span>{task.project_path && <span className="max-w-[18rem] truncate text-[10px] text-gray-600">{task.project_path}</span>}</div><p className="line-clamp-2 text-sm font-medium text-gray-200">{task.goal}</p><div className="mt-2 flex flex-wrap gap-3 text-[11px] text-gray-500"><span>{new Date(task.created_at).toLocaleString()}</span><span>{task.status}</span></div></div><StatusBadge status={task.status} /></div></Card></Link>)}</div>}
         </section>
       </div>
     </AppShell>

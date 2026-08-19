@@ -29,6 +29,7 @@ export default function AppShell({
   const pathname = usePathname();
   const router = useRouter();
   const [runtime, setRuntime] = useState<'checking' | 'native' | 'web'>('checking');
+  const [update, setUpdate] = useState<DesktopUpdateState | null>(null);
   const isLocalOwner = user?.email === 'local-owner@xeo-forge.local';
 
   useEffect(() => {
@@ -50,6 +51,29 @@ export default function AppShell({
     router.push('/login');
     router.refresh();
   }
+
+  useEffect(() => {
+    const desktop = window.xeoDesktop;
+    if (!desktop) return;
+    let active = true;
+    desktop.getUpdateState().then((state) => { if (active) setUpdate(state); }).catch((error) => console.warn('[desktop] update state unavailable', error));
+    const unsubscribe = window.xeoDesktopEvents?.onUpdateStatus((state) => setUpdate(state));
+    return () => { active = false; unsubscribe?.(); };
+  }, []);
+
+  async function downloadUpdate() {
+    if (!window.xeoDesktop) return;
+    const state = await window.xeoDesktop.downloadUpdate();
+    setUpdate(state);
+  }
+
+  async function installUpdate() {
+    if (!window.xeoDesktop) return;
+    const state = await window.xeoDesktop.installUpdate();
+    setUpdate(state);
+  }
+
+  const showUpdate = update && ['available', 'downloading', 'downloaded', 'error'].includes(update.status);
 
   return (
     <div className="app-shell min-h-screen text-gray-100">
@@ -106,6 +130,22 @@ export default function AppShell({
               })}
             </nav>
           </header>
+          {showUpdate && update && (
+            <div className="border-b border-cyan-300/10 bg-cyan-300/[0.04] px-4 py-2.5 sm:px-6 lg:px-10">
+              <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex min-w-0 items-center gap-2 text-gray-300">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${update.status === 'error' ? 'bg-red-300' : 'bg-cyan-300 animate-pulse'}`} />
+                  <span className="truncate">{update.message || (update.version ? `Xeo Forge ${update.version} is ready.` : 'Desktop update')}</span>
+                  {update.status === 'downloading' && <span className="text-gray-500 tabular-nums">{update.percent}%</span>}
+                </div>
+                <div className="flex items-center gap-2">
+                  {update.status === 'available' && <button type="button" onClick={downloadUpdate} className="rounded-lg bg-cyan-300 px-2.5 py-1.5 text-[11px] font-bold text-[#071018] hover:bg-cyan-200">Download update</button>}
+                  {update.status === 'downloaded' && <button type="button" onClick={installUpdate} className="rounded-lg bg-emerald-300 px-2.5 py-1.5 text-[11px] font-bold text-[#071018] hover:bg-emerald-200">Restart to update</button>}
+                  {update.status === 'error' && <button type="button" onClick={() => window.xeoDesktop?.checkForUpdate().then(setUpdate)} className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] text-gray-300 hover:bg-white/[0.06]">Retry</button>}
+                </div>
+              </div>
+            </div>
+          )}
           <main className="px-4 py-6 sm:px-6 lg:px-10 lg:py-8"><div className="mx-auto max-w-6xl">{children}</div></main>
         </div>
       </div>

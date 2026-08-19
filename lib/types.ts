@@ -38,6 +38,7 @@ export type TaskStatus =
   | 'pending'
   | 'running'
   | 'planned' // planning run finished; proposed plan awaits user approval
+  | 'awaiting_decision' // Work request awaits direct-vs-plan choice
   | 'completed'
   | 'failed';
 
@@ -53,6 +54,10 @@ export type TaskStatus =
  */
 export type TaskMode = 'chat' | 'planning' | 'build';
 
+export type TaskIntentKind = 'conversation' | 'explicit_plan' | 'direct_execution' | 'clarification_needed';
+export type DecisionState = 'pending' | 'resolved' | 'expired' | null;
+export type TaskDecisionChoice = 'direct' | 'plan';
+
 export interface Task {
   id: string;
   user_id: string;
@@ -61,6 +66,9 @@ export interface Task {
   mode: TaskMode;
   /** Absolute local project root selected for this run, when applicable. */
   project_path: string | null;
+  intent_kind: TaskIntentKind | null;
+  decision_state: DecisionState;
+  decision_expires_at: string | null;
   plan: string | null; // latest proposed plan (planning output)
   approved_plan: string | null; // immutable snapshot frozen at approval
   plan_version: number; // increments each time a plan is approved
@@ -251,6 +259,7 @@ export interface AuthUser {
 export type AgentEventType =
   | 'task_status'
   | 'mode' // native mode state: { mode: TaskMode }
+  | 'intent' // Work intent classification/decision: { kind, reason, options, expires_at? }
   | 'plan' // proposed/approved plan: { plan, plan_version }
   | 'text'
   | 'reasoning'

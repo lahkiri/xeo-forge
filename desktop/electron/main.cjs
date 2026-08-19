@@ -2,15 +2,51 @@ const { app, BrowserWindow, shell, dialog, ipcMain } = require('electron');
 const { spawn } = require('node:child_process');
 const { existsSync, readFileSync, writeFileSync, mkdirSync } = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
+const { autoUpdater } = require('electron-updater');
+const { startBrowserBridge: createBrowserBridge } = require('./browser-bridge.cjs');
 
 const APP_PORT = Number(process.env.XEO_APP_PORT || 3100);
 const BROKER_PORT = Number(process.env.XEO_RUNTIME_PORT || 4317);
+const BROWSER_PORT = Number(process.env.XEO_BROWSER_PORT || 4321);
 const projectRoot = path.resolve(__dirname, '..', '..');
 let nextProcess;
 let brokerProcess;
+let mainWindow;
+let updateTimer;
+let browserBridge;
+let updateState = { status: 'idle', currentVersion: app.getVersion(), version: null, percent: 0, message: '' };
 
 function projectConfigPath() {
   return path.join(app.getPath('userData'), 'project.json');
+}
+
+function browserTokenPath() {
+  return path.join(app.getPath('userData'), 'browser-token');
+}
+
+function getBrowserToken() {
+  try {
+    const token = readFileSync(browserTokenPath(), 'utf8').trim();
+    if (token.length >= 32) return token;
+  } catch {}
+  const token = crypto.randomBytes(32).toString('hex');
+  mkdirSync(app.getPath('userData'), { recursive: true });
+  writeFileSync(browserTokenPath(), token, { encoding: 'utf8', mode: 0o600 });
+  return token;
+}
+
+function startBrowserBridge() {
+  if (process.env.XEO_DISABLE_BROWSER === '1') return;
+  browserBridge = createBrowserBridge({ port: BROWSER_PORT, token: getBrowserToken() });
+}
+
+function browserState() {
+  return {
+    ...(browserBridge?.state() || { connected: false, tab: null, permissions: [] }),
+    port: BROWSER_PORT,
+    token: browserBridge?.token || null,
+  };
 }
 
 function readStoredProjectPath() {
@@ -33,6 +69,51 @@ ipcMain.handle('project:set', (_event, projectPath) => {
   if (typeof projectPath !== 'string' || !existsSync(projectPath)) return { path: null, error: 'Project folder does not exist.' };
   return saveProjectPath(path.resolve(projectPath));
 });
+function publishUpdate(status, values = {}) {
+  updateState = { ...updateState, status, ...values, currentVersion: app.getVersion() };
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', updateState);
+}
+
+function configureUpdater() {
+  // Development and smoke-test runs must never contact the release feed.
+  if (!app.isPackaged || process.env.XEO_DISABLE_UPDATES === '1' || !['win32', 'darwin'].includes(process.platform)) return;
+  const channel = process.env.XEO_UPDATE_CHANNEL === 'beta' ? 'beta' : 'latest';
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.allowPrerelease = channel === 'beta';
+  autoUpdater.channel = channel;
+  autoUpdater.on('checking-for-update', () => publishUpdate('checking', { message: 'Checking for updates…' }));
+  autoUpdater.on('update-available', (info) => publishUpdate('available', { version: info.version, releaseDate: info.releaseDate, size: info.files?.[0]?.size || null, message: `Xeo Forge ${info.version} is available.` }));
+  autoUpdater.on('update-not-available', () => publishUpdate('not-available', { version: null, message: 'Xeo Forge is up to date.' }));
+  autoUpdater.on('download-progress', (progress) => publishUpdate('downloading', { version: updateState.version, percent: Math.round(progress.percent), transferred: progress.transferred, total: progress.total, message: 'Downloading update in the background…' }));
+  autoUpdater.on('update-downloaded', (info) => publishUpdate('downloaded', { version: info.version, percent: 100, message: 'Update ready. Restart Xeo Forge to install it.' }));
+  autoUpdater.on('error', (error) => publishUpdate('error', { message: error instanceof Error ? error.message : String(error) }));
+
+  const check = () => autoUpdater.checkForUpdates().catch((error) => publishUpdate('error', { message: error instanceof Error ? error.message : String(error) }));
+  updateTimer = setTimeout(check, 5000);
+  updateTimer.unref?.();
+  setInterval(check, 6 * 60 * 60 * 1000).unref?.();
+}
+
+ipcMain.handle('update:state', () => updateState);
+ipcMain.handle('update:check', async () => {
+  if (!app.isPackaged || !['win32', 'darwin'].includes(process.platform)) return updateState;
+  await autoUpdater.checkForUpdates();
+  return updateState;
+});
+ipcMain.handle('update:download', async () => {
+  if (updateState.status !== 'available') return updateState;
+  await autoUpdater.downloadUpdate();
+  return updateState;
+});
+ipcMain.handle('update:install', () => {
+  if (updateState.status !== 'downloaded') return updateState;
+  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  return { ...updateState, status: 'installing', message: 'Restarting to install update…' };
+});
+ipcMain.handle('browser:state', () => browserState());
+ipcMain.handle('browser:open-extension', async () => shell.openPath(resourcePath('browser-extension')));
+
 ipcMain.handle('project:choose', async () => {
   const result = await dialog.showOpenDialog({
     title: 'Choose a project folder',
@@ -77,6 +158,8 @@ function startNextServer() {
       XEO_DESKTOP_LOCAL: '1',
       DB_PATH: process.env.DB_PATH || localDbPath,
       XEO_PROJECT_ROOT: readStoredProjectPath() || '',
+      XEO_BROWSER_PORT: String(BROWSER_PORT),
+      XEO_BROWSER_TOKEN: browserBridge?.token || '',
       PORT: String(APP_PORT),
       HOSTNAME: '127.0.0.1',
     },
@@ -103,7 +186,7 @@ async function createWindow() {
   const url = `http://127.0.0.1:${APP_PORT}/`;
   await waitForApp(url);
 
-  const window = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1440,
     height: 920,
     minWidth: 1100,
@@ -118,11 +201,12 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
     },
   });
-  window.webContents.setWindowOpenHandler(({ url: target }) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
     if (target.startsWith('https://')) shell.openExternal(target);
     return { action: 'deny' };
   });
-  await window.loadURL(url);
+  await mainWindow.loadURL(url);
+  mainWindow.webContents.send('update:status', updateState);
 }
 
 function stopChild(child) {
@@ -130,10 +214,17 @@ function stopChild(child) {
   child.kill();
 }
 
-app.whenReady().then(() => createWindow().catch((error) => {
-  console.error('[desktop] startup failed', error);
-  app.quit();
-}));
+app.whenReady().then(async () => {
+  try {
+    startBrowserBridge();
+    await createWindow();
+    configureUpdater();
+  } catch (error) {
+    console.error('[desktop] startup failed', error);
+    app.quit();
+  }
+});
+
 
 app.on('window-all-closed', () => {
   stopChild(nextProcess);
@@ -142,6 +233,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('before-quit', () => {
+  if (updateTimer) clearTimeout(updateTimer);
+  browserBridge?.close();
   stopChild(nextProcess);
   stopChild(brokerProcess);
 });

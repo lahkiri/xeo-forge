@@ -12,6 +12,7 @@ import { z } from 'zod';
 import { FileTool } from './files';
 import { CodeTool } from './code';
 import { analyzeProject, startPreviewWithStrategy, stopPreview, getPreviewStatus } from './preview';
+import { browserRequest } from './browser';
 
 const MAX_RESULT_CHARS = 8000;
 
@@ -21,8 +22,9 @@ const MAX_RESULT_CHARS = 8000;
  */
 export const WRITE_TOOLS = new Set(['file_write', 'file_edit', 'code_execute']);
 
-/** Tools available to a planning-mode run (read-only + completion). */
-export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'http_request', 'task_complete']);
+/** Tools available to conversational Chat and read-only Planning runs. */
+export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'http_request', 'browser', 'task_complete']);
+export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'http_request', 'browser', 'task_complete']);
 
 export interface ToolContext {
   taskId: string;
@@ -48,8 +50,8 @@ export function createToolContext(taskId: string, mode: TaskMode, projectPath?: 
  * steered away from writes — and executeTool enforces the lock regardless.
  */
 export function schemasForMode(mode: TaskMode): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  if (mode === 'planning') {
-    return TOOL_SCHEMAS.filter((t) => PLANNING_TOOLS.has(t.function.name));
+  if (mode === 'planning' || mode === 'chat') {
+    return TOOL_SCHEMAS.filter((t) => (mode === 'planning' ? PLANNING_TOOLS : CHAT_TOOLS).has(t.function.name));
   }
   return TOOL_SCHEMAS;
 }
@@ -139,6 +141,23 @@ export const TOOL_SCHEMAS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           body: { type: 'string' },
         },
         required: ['method', 'url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'browser',
+      description: 'Use the user-approved local browser bridge to inspect the active tab, read visible page content, or capture a screenshot. The browser stays on the user device; navigation and interaction require an explicit browser permission policy.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['state', 'read_page', 'screenshot', 'navigate', 'click', 'type'] },
+          url: { type: 'string', description: 'URL for navigate, if interaction permission is enabled.' },
+          selector: { type: 'string', description: 'CSS selector for click/type, if interaction permission is enabled.' },
+          text: { type: 'string', description: 'Text for type, if interaction permission is enabled.' },
+        },
+        required: ['action'],
       },
     },
   },
@@ -240,6 +259,12 @@ const toolArgSchemas: Record<string, z.ZodTypeAny> = {
     url: z.string().min(1),
     headers: z.record(z.string()).optional(),
     body: z.string().optional(),
+  }),
+  browser: z.object({
+    action: z.enum(['state', 'read_page', 'screenshot', 'navigate', 'click', 'type']),
+    url: z.string().optional(),
+    selector: z.string().optional(),
+    text: z.string().optional(),
   }),
   task_complete: z.object({
     summary: z.string().min(1),
@@ -391,9 +416,9 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
   // System-level enforcement: planning mode is strictly read-only. Write/exec
   // tools are hard-locked here at the single dispatch chokepoint, regardless of
   // what the model was told or attempts.
-  if (ctx.mode === 'planning' && WRITE_TOOLS.has(name)) {
+  if ((ctx.mode === 'planning' || ctx.mode === 'chat') && WRITE_TOOLS.has(name)) {
     throw new Error(
-      `Tool "${name}" is locked in planning mode. Planning is read-only; produce a plan and call task_complete. The user must approve the plan before any build (write/execute) can run.`,
+      `Tool "${name}" is locked in ${ctx.mode} mode. This surface is read-only; the user must explicitly enter Work and accept an execution decision before any build (write/execute) can run.`,
     );
   }
   // Validate arguments against Zod schemas before dispatch.
@@ -421,6 +446,12 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
     }
     case 'http_request':
       return clamp(await httpRequest(args));
+    case 'browser': {
+      const action = String(args.action) as Parameters<typeof browserRequest>[0];
+      const browserArgs = { url: args.url, selector: args.selector, text: args.text };
+      const result = action === 'state' ? await browserRequest('state') : await browserRequest(action, browserArgs);
+      return clamp(typeof result === 'string' ? result : JSON.stringify(result, null, 2));
+    }
     case 'preview': {
       const action = String(args.action || 'status');
       if (action === 'analyze') {

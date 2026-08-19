@@ -316,6 +316,12 @@ export default function TaskClient({
   const [creditsSpent, setCreditsSpent] = useState(initialTask.credits_spent);
   const [approving, setApproving] = useState(false);
   const [rejecting, setRejecting] = useState(false);
+  const [decisionBusy, setDecisionBusy] = useState(false);
+  const [decisionError, setDecisionError] = useState('');
+  const [decisionSeconds, setDecisionSeconds] = useState(() => {
+    if (!initialTask.decision_expires_at) return 0;
+    return Math.max(0, Math.ceil((Date.parse(initialTask.decision_expires_at) - Date.now()) / 1000));
+  });
   const [followUp, setFollowUp] = useState('');
   const [sending, setSending] = useState(false);
   const [contextPct, setContextPct] = useState<number | null>(null);
@@ -412,7 +418,7 @@ export default function TaskClient({
     if (status === 'completed' || status === 'failed') return;
     const es = new EventSource(`/api/tasks/${initialTask.id}/stream`);
     esRef.current = es;
-    const types = ['task_status','mode','plan','text','reasoning','tool_call','tool_result','credits','context','compaction','error','done','upload','todo_update','verification','file_activity'];
+    const types = ['task_status','mode','intent','plan','text','reasoning','tool_call','tool_result','credits','context','compaction','error','done','upload','todo_update','verification','file_activity'];
     const handler = (e: MessageEvent) => {
       const seq = Number(e.lastEventId);
       if (!Number.isFinite(seq)) return;
@@ -425,7 +431,41 @@ export default function TaskClient({
     return () => { types.forEach((t) => es.removeEventListener(t, handler as EventListener)); es.close(); esRef.current = null; };
   }, [initialTask.id, status]);
 
+  // The countdown is presentation only. The API enforces the same deadline and
+  // performs the conditional transition, so a late click can never execute.
+  useEffect(() => {
+    if (status !== 'awaiting_decision' || !initialTask.decision_expires_at) return;
+    const tick = () => setDecisionSeconds(Math.max(0, Math.ceil((Date.parse(initialTask.decision_expires_at as string) - Date.now()) / 1000)));
+    tick();
+    const timer = window.setInterval(tick, 250);
+    return () => window.clearInterval(timer);
+  }, [status, initialTask.decision_expires_at]);
+
   // ── Handlers ──
+
+  async function handleDecision(choice: 'direct' | 'plan') {
+    if (decisionBusy || decisionSeconds <= 0) return;
+    setDecisionBusy(true);
+    setDecisionError('');
+    try {
+      const res = await fetch(`/api/tasks/${initialTask.id}/decision`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ choice }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setDecisionError(data.error || 'This decision could not be applied.');
+        if (data.task?.decision_state === 'expired') setDecisionSeconds(0);
+        return;
+      }
+      setStatus(data.task?.status === 'pending' ? 'pending' : 'running');
+    } catch (err) {
+      setDecisionError(err instanceof Error ? err.message : 'Network error');
+    } finally {
+      setDecisionBusy(false);
+    }
+  }
 
   async function handleApprove() {
     setApproving(true);
@@ -482,6 +522,8 @@ export default function TaskClient({
 
   const isTerminal = status === 'completed' || status === 'failed';
   const isChat = initialTask.mode === 'chat';
+  const awaitingDecision = status === 'awaiting_decision' && initialTask.decision_state === 'pending' && decisionSeconds > 0;
+  const decisionExpired = status === 'awaiting_decision' && decisionSeconds <= 0;
   const isPlanned = !isChat && status === 'planned';
   const isRunning = status === 'running' || status === 'pending';
   const canFollowUp = isTerminal;
@@ -608,10 +650,11 @@ export default function TaskClient({
             status === 'completed' ? 'bg-green-500/15 text-green-400' :
             status === 'failed' ? (isChat ? 'bg-amber-500/15 text-amber-300' : 'bg-red-500/15 text-red-400') :
             status === 'planned' ? 'bg-amber-500/15 text-amber-400' :
+            status === 'awaiting_decision' ? 'bg-violet-500/15 text-violet-300' :
             'bg-white/5 text-gray-400'
           }`}>
             {status === 'running' && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />}
-            {isChat && status === 'failed' ? 'needs setup' : status}
+            {isChat && status === 'failed' ? 'needs setup' : status === 'awaiting_decision' ? 'needs your choice' : status}
           </span>
           {isTerminal && (
             <a href={`/api/tasks/${initialTask.id}/export`}
@@ -650,6 +693,31 @@ export default function TaskClient({
           {showPhase && (
             <div className="flex justify-center">
               <PhaseIndicator phase={phase} />
+            </div>
+          )}
+
+          {/* Direct-vs-plan decision gate */}
+          {awaitingDecision && (
+            <div className="rounded-2xl border border-violet-300/20 bg-violet-300/[0.06] p-4 shadow-xl shadow-violet-950/10">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-200/75">Choose how Work should proceed</p>
+                  <p className="mt-1.5 max-w-xl text-sm leading-6 text-gray-300">This request sounds like a direct action. Would you like Xeo to plan it first, or execute the requested scope directly?</p>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] tabular-nums ${decisionSeconds <= 5 ? 'border-amber-300/30 bg-amber-300/[0.1] text-amber-200' : 'border-white/10 bg-black/20 text-gray-400'}`}>{decisionSeconds}s</span>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button type="button" onClick={() => handleDecision('direct')} disabled={decisionBusy || decisionSeconds <= 0} className="rounded-xl bg-cyan-300 px-3 py-2.5 text-xs font-bold text-[#071018] transition hover:bg-cyan-200 disabled:cursor-not-allowed disabled:opacity-40">{decisionBusy ? 'Applying…' : 'Execute directly'}</button>
+                <button type="button" onClick={() => handleDecision('plan')} disabled={decisionBusy || decisionSeconds <= 0} className="rounded-xl border border-violet-200/20 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-violet-100 transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-40">Plan first</button>
+              </div>
+              {decisionError && <p className="mt-3 rounded-xl border border-red-300/15 bg-red-400/[0.08] px-3 py-2 text-[11px] text-red-200">{decisionError}</p>}
+            </div>
+          )}
+          {decisionExpired && (
+            <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 text-center">
+              <p className="text-xs font-semibold text-gray-300">Decision window closed</p>
+              <p className="mt-1 text-[11px] leading-5 text-gray-500">Nothing ran. Start a new Work request if you still want to continue.</p>
+              <Link href="/dashboard" className="mt-3 inline-flex rounded-xl border border-cyan-300/20 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-300/[0.08]">New Work request</Link>
             </div>
           )}
 

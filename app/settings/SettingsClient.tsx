@@ -37,6 +37,8 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
   const [instructionPriority, setInstructionPriority] = useState('100');
   const [memoryContent, setMemoryContent] = useState('');
   const [memoryKind, setMemoryKind] = useState<(typeof MEMORY_KINDS)[number]>('lesson');
+  const [browserState, setBrowserState] = useState<DesktopBrowserState | null>(null);
+  const [showBrowserToken, setShowBrowserToken] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -51,6 +53,16 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
   }, []);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    const desktop = window.xeoDesktop;
+    if (!desktop) return;
+    let active = true;
+    const refresh = () => desktop.getBrowserState().then((state) => { if (active) setBrowserState(state); }).catch((error) => console.warn('[desktop] browser state unavailable', error));
+    refresh();
+    const timer = window.setInterval(refresh, 3000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, []);
 
   const runMutation = async (payload: Record<string, unknown>, success: string) => {
     setBusy(true);
@@ -137,6 +149,31 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
             {notice.text}
           </div>
         )}
+
+        <section className="rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.035] p-5 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <Eyebrow>Optional local capability</Eyebrow>
+              <h2 className="mt-2 font-semibold text-white">User-controlled browser</h2>
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Connect your existing browser only when you want visual inspection, local web testing, or research. Xeo Forge talks to a loopback bridge; page data and cookies do not leave this device.</p>
+            </div>
+            <span className={`rounded-full px-2.5 py-1 text-[10px] ${browserState?.connected ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.06] text-gray-500'}`}>{browserState?.connected ? 'connected' : 'not connected'}</span>
+          </div>
+          {browserState && (
+            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
+              <div className="rounded-xl border border-white/[0.07] bg-black/10 p-4">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-gray-600">Extension token · port {browserState.port}</p>
+                <code className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-cyan-200/80">{showBrowserToken ? browserState.token : '••••••••••••••••••••••••••••••••'}</code>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="ghost" onClick={() => setShowBrowserToken((value) => !value)}>{showBrowserToken ? 'Hide token' : 'Reveal token'}</Button>
+                  <Button variant="ghost" disabled={!browserState.token} onClick={() => browserState.token && navigator.clipboard.writeText(browserState.token)}>Copy token</Button>
+                  <Button variant="ghost" onClick={() => window.xeoDesktop?.openBrowserExtension().catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not open extension folder.' }))}>Open extension folder</Button>
+                </div>
+              </div>
+              <div className="max-w-xs text-xs leading-5 text-gray-500"><p className="text-gray-300">Read access is the default.</p><p className="mt-1">Navigation, clicks, typing, and form submission remain blocked until you explicitly grant an interaction policy.</p></div>
+            </div>
+          )}
+        </section>
 
         <ProfileStudio />
         <SkillStudio />

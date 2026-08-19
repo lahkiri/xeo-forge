@@ -118,6 +118,16 @@ try {
     throw new Error(`Expected a local chat thread with project path, got HTTP ${chat.status}: ${JSON.stringify(chatBody)}`);
   }
 
+  const direct = await fetch(`http://127.0.0.1:${port}/api/tasks`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ goal: 'نفذ إصلاحًا مباشرًا لهذا المشروع', surface: 'work', mode: 'build', projectPath: root }),
+  });
+  const directBody = await direct.json();
+  if (direct.status !== 202 || directBody.task?.status !== 'awaiting_decision' || directBody.decision?.expiresAt == null) {
+    throw new Error(`Expected direct Work request to await a decision, got HTTP ${direct.status}: ${JSON.stringify(directBody)}`);
+  }
+
   const runtime = await waitFor(`http://127.0.0.1:${brokerPort}/healthz`, 'Runtime broker');
   if (runtime.status !== 200) throw new Error(`Runtime broker health check returned HTTP ${runtime.status}`);
   const runtimeApi = await fetch(`http://127.0.0.1:${port}/api/runtime`);
@@ -128,7 +138,7 @@ try {
 
   console.log(JSON.stringify({
     ok: true,
-    checks: ['local-root-redirect', 'implicit-local-owner', 'register-disabled', 'chat-mode-with-project-path', 'native-runtime-health'],
+    checks: ['local-root-redirect', 'implicit-local-owner', 'register-disabled', 'chat-mode-with-project-path', 'work-direct-awaits-decision', 'native-runtime-health'],
     dbPath,
     electronVersion,
   }, null, 2));

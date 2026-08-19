@@ -1,17 +1,21 @@
 # Xeo Forge V3 — Agent & Architecture Rules
 
+> Product contract: **The Control Plane for Agentic Work**. Chat is conversation; Work is governed agency.
+
 This file is the contract for working in this repo. Keep it short, keep it enforced.
 If a change violates a rule here, the change is wrong — not the rule.
 
 ## 1. What this product is
 
 One governed AI agent with reusable execution context:
-1. **Planning mode** — read-only inspection, produces a structured plan for approval.
-2. **Build mode** — executes an immutable approved plan with full tool access.
-3. **Context layers** — Prompt Studio instructions, approved memories, Agent Profiles, and Agent Skills are compiled into the run context.
+1. **Chat surface** — conversational answers and exploration; it never creates a plan or executes write tools.
+2. **Work surface** — intent-aware agent work. Normal messages stay conversational; explicit planning starts Planning, and direct execution requests pause for an auditable user choice.
+3. **Planning mode** — read-only inspection, produces a structured plan for approval.
+4. **Build mode** — executes an immutable approved plan or an immutable, explicitly accepted execution brief.
+5. **Context layers** — Prompt Studio instructions, approved memories, Agent Profiles, and Agent Skills are compiled into the run context.
 
 The agent:
-1. receives a task from a user (defaults to planning mode),
+1. receives a conversation or Work request from a user and classifies intent before selecting planning or execution,
 2. loads policy, profile, skill, task context, and approved memories,
 3. inspects and analyzes (planning) or executes (build),
 4. returns a final result and bounded memory candidates,
@@ -67,9 +71,12 @@ New capabilities must preserve the approval gate, task-scoped authorization, sin
 - `auth_sessions` — token_hash (pk), user_id, expires_at.
 - `credits` — user_id (pk), balance, daily_grant, last_reset_at, updated_at.
 - `credit_ledger` — id, user_id, delta, reason, ref_id, balance_after, created_at.
-- `tasks` — id, user_id, goal, status, mode (planning|build), plan (latest
-  proposed plan), approved_plan (immutable snapshot frozen at approval),
-  plan_version, result_summary, credits_spent, error, created_at, updated_at.
+- `tasks` — id, user_id, goal, status (including awaiting_decision), mode
+  (chat|planning|build), surface (chat|work), intent_kind, intent_confidence,
+  intent_reason, decision_state, decision_choice, decision_expires_at,
+  execution_brief (immutable direct-execution scope), plan (latest proposed plan),
+  approved_plan (immutable snapshot frozen at approval), plan_version,
+  result_summary, credits_spent, error, created_at, updated_at.
 - `task_events` — id, task_id, seq, type, content (JSON), created_at.
   UNIQUE(task_id, seq).
 - `messages` — id, task_id, role (user|assistant|system), content, active,
@@ -89,32 +96,36 @@ Adding a cursor would be dead state that never drives execution.
 
 ## 5. Execution flow (must work end-to-end)
 
-1. User submits a task (goal) with mode (planning|build, default planning).
-2. Server checks credits, debits creation cost atomically (402 if insufficient).
-3. Server creates `tasks` row (status=pending, mode=selected).
-4. Runner starts fire-and-forget; `.catch` marks task failed AND emits a failure
+1. User submits a Chat or Work request with a surface and goal.
+2. Server classifies intent deterministically before starting any governed run.
+3. Conversation intent starts Chat; explicit planning starts Planning; direct execution creates `awaiting_decision` and starts nothing.
+4. Server checks credits where the selected run requires them, debits creation cost atomically (402 if insufficient).
+5. Server creates `tasks` row with the canonical intent and decision state.
+6. A decision endpoint accepts `direct` or `plan` once, only before its server-enforced deadline. Direct acceptance freezes an execution brief; plan acceptance starts Planning.
+7. Runner starts fire-and-forget; `.catch` marks task failed AND emits a failure
    event (never silent).
-5. Agent builds context, streams model output, dispatches tools.
-   - **Planning mode:** only read-only tools (file_read, file_list, http_request,
-     task_complete). Write tools (file_write, file_edit, code_execute) are
-     HARD-LOCKED at the dispatch level — attempted writes throw immediately.
-     Planning concludes by calling task_complete with the plan as summary,
-     setting status=planned.
-   - **Build mode:** full tool access. Executes the approved_plan as immutable
-     contract — no plan rewriting. Concludes with status=completed.
-6. Every step is emitted as a `task_events` row (seq-ordered) and over SSE.
-7. Per-tool-call credits debited as incurred; total recorded on the task.
-8. Planning task ends: status=planned, proposed plan stored. Build task ends:
-   status=completed|failed, result_summary stored.
-9. User watches live via SSE and sees history on reload (same data, one source).
-10. User approves/rejects the plan: approve atomically snapshots the plan into
-    approved_plan, flips mode to build, and starts the build run. Reject resets
-    to planning mode and auto-starts a new planning run for revision.
-11. User can send follow-up messages on completed/failed tasks — conversation
-    history is persisted in `messages` and injected into the agent's LLM context.
-12. User can switch modes at any time (non-running tasks) via `POST /tasks/:id/mode`.
+8. Agent builds context, streams model output, and dispatches tools.
+   - **Chat mode:** conversational/read-only tools only; it cannot write or execute.
+   - **Planning mode:** file and browser inspection only; write tools are
+     HARD-LOCKED at dispatch. Planning concludes with task_complete and status=planned.
+   - **Build mode:** full tool access. Executes approved_plan or accepted
+     execution_brief as an immutable contract — no plan rewriting.
+   - **Browser:** local extension inspection is read-only by default. Navigation,
+     clicks, typing, and submission require an explicit interaction policy.
+9. Every step is emitted as a `task_events` row (seq-ordered) and over SSE.
+10. Per-tool-call credits are debited as incurred; total is recorded on the task.
+11. Planning task ends: status=planned, proposed plan stored. Build task ends:
+    status=completed|failed, result_summary stored.
+12. User watches live via SSE and sees history on reload (same data, one source).
+13. User approves/rejects the plan: approve atomically snapshots the plan into
+    approved_plan, flips mode to build, and starts the build run. Reject resets to
+    planning mode and auto-starts a new planning run for revision. A direct Work
+    decision freezes execution_brief and enters build only after explicit choice.
+14. User can send follow-up messages on completed/failed tasks — conversation
+    history is persisted in messages and injected into the agent's LLM context.
+15. User can switch modes at any time (non-running tasks) via `POST /tasks/:id/mode`.
     Switching to planning clears approved_plan and auto-starts a new planning run.
-13. Admin can inspect any user, any task, any ledger entry; adjust credits;
+16. Admin can inspect any user, any task, any ledger entry; adjust credits;
     enable/disable users; view/update the global model.
 
 
@@ -178,8 +189,10 @@ components/           # minimal shared UI
 
 `file_read`, `file_write`, `file_edit`, `file_list`, `code_execute`
 (bash/python in a sandboxed per-task workspace with env whitelist + path
-boundaries + dangerous-command blocklist), `http_request`, `task_complete`.
-`task_complete` is called exactly once, as a tool, never as text.
+boundaries + dangerous-command blocklist), `http_request`, `browser`, `task_complete`.
+`browser` uses the optional loopback extension and is read-only by default;
+interaction requires an explicit user-granted policy. `task_complete` is called
+exactly once, as a tool, never as text.
 
 Workspace root per task: `$TASK_WORK_DIR/<taskId>` (default `/tmp/xeo-tasks`).
 All file/code access is confined to that directory (realpath-checked).
@@ -199,22 +212,32 @@ result is stored in history → admin can inspect and modify user state → all
 users use the same global model → no duplicate writers, no silent failures →
 typecheck + tests + build all pass.
 
-## 10. Dual-mode execution (core feature)
+## 10. Intent-aware execution (core feature)
 
-The agent supports two modes that share the same execution engine:
+The agent supports Chat and Work surfaces that share the same execution engine but
+never share unsafe defaults:
+
+**Chat mode** (`mode=chat`):
+- Conversational responses with read-only file, HTTP, and optional browser inspection.
+- Never creates a plan for ordinary conversation and never writes or executes code.
+
+**Work intake** (`surface=work`):
+- Normal conversation remains Chat-like.
+- Explicit planning starts `mode=planning` immediately.
+- A direct execution request creates `status=awaiting_decision` and starts nothing.
+- The UI offers a short, server-enforced 30-second choice: direct execution or
+  planning first. Expiry closes the choice; it never defaults to execution.
+- Ambiguous intent can request clarification or offer bounded choices before a run.
 
 **Planning mode** (`mode=planning`):
-- Tool access: file_read, file_list, http_request, task_complete ONLY.
-- Write tools (file_write, file_edit, code_execute) are HARD-LOCKED at the
-  `executeTool` dispatch level — they throw immediately if attempted.
+- Tool access: file_read, file_list, http_request, browser, task_complete ONLY.
+- Write tools are HARD-LOCKED at `executeTool` dispatch and throw if attempted.
 - Produces a structured plan (objective, findings, steps, verification, risks).
-- Calls `task_complete` with the plan as the summary.
-- Ends with status=`planned`, plan stored in `tasks.plan`.
 - User must approve or reject before any writes occur.
 
 **Build mode** (`mode=build`):
-- Full tool access (all 7 tools).
-- Executes ONLY the `approved_plan` (immutable snapshot frozen at approval).
+- Full tool access, but browser interaction remains separately policy-gated.
+- Executes ONLY the `approved_plan` or the accepted `execution_brief`.
 - Plan cannot be rewritten during execution — no dynamic re-planning.
 - Ends with status=`completed` or `failed`.
 

@@ -7,7 +7,7 @@ on:
       - 'v*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-windows:
@@ -38,14 +38,24 @@ jobs:
       - name: Prepare and smoke test desktop runtime
         run: npm run desktop:prepare && node scripts/smoke-desktop.mjs
 
-      - name: Build installer
-        run: npx electron-builder --win nsis --x64 --publish never
+      - name: Build and publish installer + update feed
+        run: npx electron-builder --win nsis --x64 --publish always
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload installer artifact
+      - name: Verify update metadata
+        shell: pwsh
+        run: |
+          if (-not (Test-Path dist/latest.yml)) { throw 'dist/latest.yml was not generated' }
+          if (-not (Get-ChildItem dist/*.exe)) { throw 'Windows installer was not generated' }
+
+      - name: Upload installer and update metadata artifact
         uses: actions/upload-artifact@v4
         with:
-          name: xeo-forge-windows-installer
-          path: dist/*.exe
+          name: xeo-forge-windows-release
+          path: |
+            dist/*.exe
+            dist/latest.yml
+            dist/*.blockmap
           if-no-files-found: error
