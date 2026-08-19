@@ -104,7 +104,10 @@ function configureUpdater() {
   if (!updaterSupported()) return;
   const channel = process.env.XEO_UPDATE_CHANNEL === 'beta' ? 'beta' : 'latest';
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = true;
+  // The Restart to update action owns installation explicitly. Keeping the
+  // implicit quit hook enabled can create a second installer invocation while
+  // Electron is shutting down, so disable it and use one deterministic path.
+  autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = channel === 'beta';
   autoUpdater.channel = channel;
   autoUpdater.on('checking-for-update', () => publishUpdate('checking', { message: 'Checking for updates…' }));
@@ -145,7 +148,7 @@ ipcMain.handle('update:install', () => {
     previousVersion: app.getVersion(),
     message: 'Restarting to install update…',
   });
-  setImmediate(() => autoUpdater.quitAndInstall(true, true));
+  setImmediate(launchDownloadedUpdate);
   return updateState;
 });
 ipcMain.handle('browser:state', () => browserState());
@@ -253,6 +256,38 @@ async function createWindow() {
 function stopChild(child) {
   if (!child || child.killed) return;
   child.kill();
+}
+
+function stopRuntimeForUpdate() {
+  browserBridge?.close();
+  stopChild(nextProcess);
+  stopChild(brokerProcess);
+}
+
+function launchDownloadedUpdate() {
+  // electron-updater normally supplies these exact NSIS flags. Launching the
+  // Windows installer explicitly makes the unattended contract observable and
+  // prevents a second app-quit path from falling back to an interactive setup.
+  if (process.platform === 'win32') {
+    const installerPath = autoUpdater.installerPath;
+    if (typeof installerPath === 'string' && installerPath.length > 0) {
+      const installer = spawn(installerPath, ['/S', '--updated', '--force-run'], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      });
+      installer.once('error', (error) => {
+        console.error('[desktop] silent update installer failed to start', error);
+      });
+      installer.unref();
+      stopRuntimeForUpdate();
+      app.exit(0);
+      return;
+    }
+    console.error('[desktop] downloaded Windows installer path is unavailable; falling back to electron-updater');
+  }
+
+  autoUpdater.quitAndInstall(true, true);
 }
 
 app.whenReady().then(async () => {
