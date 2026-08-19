@@ -155,22 +155,47 @@ export default function SettingsClient({ user }: { user: AuthUser }) {
             <div>
               <Eyebrow>Optional local capability</Eyebrow>
               <h2 className="mt-2 font-semibold text-white">User-controlled browser</h2>
-              <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Connect your existing browser only when you want visual inspection, local web testing, or research. Xeo Forge talks to a loopback bridge; page data and cookies do not leave this device.</p>
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Install the extension in the browser profile you want Xeo Forge to use. The selected local profile remains attached to Work until you change it; the bridge never silently switches to another browser.</p>
             </div>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] ${browserState?.connected ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.06] text-gray-500'}`}>{browserState?.connected ? 'connected' : 'not connected'}</span>
+            <span className={`rounded-full px-2.5 py-1 text-[10px] ${browserState?.connected ? 'bg-emerald-400/10 text-emerald-300' : browserState?.selection === 'selected_disconnected' ? 'bg-amber-400/10 text-amber-300' : 'bg-white/[0.06] text-gray-500'}`}>{browserState?.connected ? 'selected · connected' : browserState?.selection === 'selected_disconnected' ? 'selected · disconnected' : 'connect a profile'}</span>
           </div>
           {browserState && (
-            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
-              <div className="rounded-xl border border-white/[0.07] bg-black/10 p-4">
-                <p className="text-[10px] uppercase tracking-[0.16em] text-gray-600">Extension token · port {browserState.port}</p>
-                <code className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-cyan-200/80">{showBrowserToken ? browserState.token : '••••••••••••••••••••••••••••••••'}</code>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Button variant="ghost" onClick={() => setShowBrowserToken((value) => !value)}>{showBrowserToken ? 'Hide token' : 'Reveal token'}</Button>
-                  <Button variant="ghost" disabled={!browserState.token} onClick={() => browserState.token && navigator.clipboard.writeText(browserState.token)}>Copy token</Button>
-                  <Button variant="ghost" onClick={() => window.xeoDesktop?.openBrowserExtension().catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not open extension folder.' }))}>Open extension folder</Button>
+            <div className="mt-5 space-y-4">
+              <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
+                <div className="rounded-xl border border-white/[0.07] bg-black/10 p-4">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-gray-600">Local extension token · port {browserState.port}</p>
+                  <code className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-cyan-200/80">{showBrowserToken ? browserState.token : '••••••••••••••••••••••••••••••••'}</code>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="ghost" onClick={() => setShowBrowserToken((value) => !value)}>{showBrowserToken ? 'Hide token' : 'Reveal token'}</Button>
+                    <Button variant="ghost" disabled={!browserState.token} onClick={() => browserState.token && navigator.clipboard.writeText(browserState.token)}>Copy token</Button>
+                    <Button variant="ghost" onClick={() => window.xeoDesktop?.openBrowserExtension().catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not open extension folder.' }))}>Open extension folder</Button>
+                  </div>
                 </div>
+                <div className="max-w-xs text-xs leading-5 text-gray-500"><p className="text-gray-300">Read access is the default.</p><p className="mt-1">Navigation, clicks, typing, and form submission remain blocked until a separate interaction policy is granted.</p></div>
               </div>
-              <div className="max-w-xs text-xs leading-5 text-gray-500"><p className="text-gray-300">Read access is the default.</p><p className="mt-1">Navigation, clicks, typing, and form submission remain blocked until you explicitly grant an interaction policy.</p></div>
+              {browserState.profiles.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-gray-500">No browser profile is connected yet. Load the unpacked extension, paste the token, and give this profile a name.</div>
+              ) : (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {browserState.profiles.map((profile) => {
+                    const selected = profile.browserId === browserState.selectedBrowserId;
+                    return (
+                      <div key={profile.browserId} className={`rounded-xl border p-4 ${selected ? 'border-cyan-300/30 bg-cyan-300/[0.06]' : 'border-white/[0.07] bg-black/10'}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-white">{profile.profileName}</p>
+                            <p className="mt-1 text-[11px] text-gray-500">{profile.browserName} · {profile.connected ? 'connected' : 'disconnected'}</p>
+                          </div>
+                          {selected && <span className="rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] text-cyan-200">selected for Work</span>}
+                        </div>
+                        <p className="mt-3 truncate text-xs text-gray-400">{profile.tab?.title || 'No active tab reported'}</p>
+                        <p className="mt-1 truncate text-[11px] text-gray-600">{profile.tab?.url || '—'}</p>
+                        <Button variant="ghost" className="mt-3" disabled={!profile.connected || selected} onClick={() => window.xeoDesktop?.selectBrowser(profile.browserId).then(setBrowserState).catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not select browser profile.' }))}>{selected ? 'Using this profile' : 'Use for Work'}</Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </section>

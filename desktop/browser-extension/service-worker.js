@@ -2,7 +2,18 @@ let socket;
 let reconnectTimer;
 
 async function config() {
-  return chrome.storage.local.get({ port: 4321, token: '' });
+  const stored = await chrome.storage.local.get({ port: 4321, token: '', browserId: '', profileName: '' });
+  let browserId = stored.browserId;
+  if (typeof browserId !== 'string' || browserId.length < 16) {
+    browserId = crypto.randomUUID();
+    await chrome.storage.local.set({ browserId });
+  }
+  return {
+    port: Number(stored.port) || 4321,
+    token: typeof stored.token === 'string' ? stored.token : '',
+    browserId,
+    profileName: typeof stored.profileName === 'string' && stored.profileName.trim() ? stored.profileName.trim().slice(0, 80) : 'Browser profile',
+  };
 }
 
 async function activeTab() {
@@ -12,16 +23,29 @@ async function activeTab() {
   return tab;
 }
 
-async function sendState() {
+function browserName() {
+  const agent = navigator.userAgent;
+  if (/Edg\//i.test(agent)) return 'Microsoft Edge';
+  if (/OPR\//i.test(agent)) return 'Opera';
+  if (/Brave/i.test(agent)) return 'Brave';
+  if (/Chrome\//i.test(agent)) return 'Google Chrome';
+  if (/Chromium\//i.test(agent)) return 'Chromium';
+  return 'Chromium browser';
+}
+
+async function sendState(type = 'state') {
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  const settings = await config();
   const tab = await activeTab().catch(() => null);
   socket.send(JSON.stringify({
-    type: 'state',
-    state: {
-      connected: true,
-      tab: tab ? { id: tab.id, url: tab.url, title: tab.title } : null,
-      permissions: ['read_page', 'screenshot'],
-    },
+    type,
+    browserId: settings.browserId,
+    profileName: settings.profileName,
+    browserName: browserName(),
+    extensionVersion: chrome.runtime.getManifest().version,
+    userAgent: navigator.userAgent,
+    tab: tab ? { id: tab.id, url: tab.url, title: tab.title } : null,
+    permissions: ['state', 'read_page', 'screenshot'],
   }));
 }
 
@@ -31,16 +55,17 @@ function scheduleReconnect() {
 }
 
 async function connect() {
-  const { port, token } = await config();
-  if (!token) return;
+  const settings = await config();
+  if (!settings.token) return;
   try {
     socket?.close();
-    socket = new WebSocket(`ws://127.0.0.1:${Number(port) || 4321}/extension?token=${encodeURIComponent(token)}`);
-    socket.addEventListener('open', sendState);
+    socket = new WebSocket(`ws://127.0.0.1:${settings.port}/extension?token=${encodeURIComponent(settings.token)}`);
+    socket.addEventListener('open', () => sendState('register'));
     socket.addEventListener('message', (event) => handleCommand(JSON.parse(event.data)));
     socket.addEventListener('close', scheduleReconnect);
     socket.addEventListener('error', scheduleReconnect);
-  } catch {
+  } catch (error) {
+    console.warn('[xeo-browser] connection failed:', error);
     scheduleReconnect();
   }
 }
@@ -88,6 +113,10 @@ async function handleCommand(message) {
 
 chrome.runtime.onInstalled.addListener(connect);
 chrome.runtime.onStartup.addListener(connect);
+chrome.tabs.onActivated.addListener(() => sendState());
+chrome.tabs.onUpdated.addListener((_tabId, changeInfo) => {
+  if (changeInfo.status === 'complete' || changeInfo.url) sendState();
+});
 chrome.alarms?.create('xeo-browser-heartbeat', { periodInMinutes: 1 });
 chrome.alarms?.onAlarm.addListener((alarm) => { if (alarm.name === 'xeo-browser-heartbeat') { connect(); sendState(); } });
 connect();

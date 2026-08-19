@@ -1,9 +1,27 @@
 export {};
 
 declare global {
+  type DesktopBrowserTab = { id?: number; url?: string; title?: string } | null;
+
+  type DesktopBrowserProfile = {
+    browserId: string;
+    profileName: string;
+    browserName: string;
+    extensionVersion: string;
+    userAgent: string;
+    connected: boolean;
+    tab: DesktopBrowserTab;
+    permissions: string[];
+    updatedAt?: string;
+  };
+
   type DesktopBrowserState = {
     connected: boolean;
-    tab: { id?: number; url?: string; title?: string } | null;
+    selection: 'selected' | 'selected_disconnected' | 'selection_required';
+    selectedBrowserId: string | null;
+    selectedProfile: DesktopBrowserProfile | null;
+    profiles: DesktopBrowserProfile[];
+    tab: DesktopBrowserTab;
     permissions: string[];
     port: number;
     token: string | null;
@@ -34,6 +52,7 @@ declare global {
       downloadUpdate: () => Promise<DesktopUpdateState>;
       installUpdate: () => Promise<DesktopUpdateState>;
       getBrowserState: () => Promise<DesktopBrowserState>;
+      selectBrowser: (browserId: string) => Promise<DesktopBrowserState>;
       openBrowserExtension: () => Promise<string>;
     };
     xeoDesktopEvents?: {

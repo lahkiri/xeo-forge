@@ -12,22 +12,22 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-V3-blue.svg" alt="Xeo Forge V3">
+  <img src="https://img.shields.io/badge/release-v1.4.0-blue.svg" alt="Xeo Forge v1.4.0">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
-  <img src="https://img.shields.io/badge/Tests-131%20passing-brightgreen.svg" alt="131 passing tests">
+  <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
   <img src="https://img.shields.io/badge/Self--hosting-Docker-blueviolet.svg?logo=docker" alt="Self-hosting with Docker">
 </p>
 
-Xeo Forge is a self-hosted platform for running **governed AI agents** across software-building and knowledge-work tasks. It combines an approval-first execution engine with persistent context, reusable agent roles, reusable skills, sandboxed workspaces, live event history, and operator controls.
+Xeo Forge is a **local-first control plane for agentic work**. It gives software-building and knowledge-work agents a governed Work surface, a separate ordinary Chat surface, persistent context, reusable profiles and skills, sandboxed workspaces, live event history, an optional user-controlled browser, and an installable desktop runtime.
 
 The product is built around one principle:
 
 > **Give your agent a forge, not a blank check.**
 
-## What changed in V3
+## What changed in v1.4.0
 
-Xeo Forge started as an approval-first coding agent. V3 turns that foundation into a reusable control plane for agentic work without removing the safety contract that made the project different.
+Xeo Forge started as an approval-first coding agent. v1.4.0 turns that foundation into a local-first control plane for agentic work without removing the safety contract that made the project different. The release also establishes the desktop update path and the first cross-platform desktop packages.
 
 | Layer | What it provides |
 |---|---|
@@ -40,26 +40,29 @@ Xeo Forge started as an approval-first coding agent. V3 turns that foundation in
 | **Live audit trail** | Sequence-ordered events are persisted and streamed over SSE, so reloads preserve the same history. |
 | **Sandbox and preview** | Per-task file boundaries, guarded code execution, preview health checks, and workspace inspection. |
 | **Operator controls** | Authentication, credits, user administration, global model configuration, and task inspection. |
+| **Intent Gate** | Separates ordinary Chat from Work intent and offers a short direct-versus-plan decision when a Work request asks for immediate execution. |
+| **Browser Profiles** | Connect a Chromium extension to the browser profile the user chooses, persist that selection locally, and keep read-only browser inspection fail-closed. |
+| **Desktop continuity** | Windows OTA Bootstrap from v1.3.1 onward, unattended restart installation in v1.4.0, and Linux AppImage/deb packages. |
 
 ## Product identity
 
-**Xeo Forge is not another terminal wrapper.** Claude Code, Codex, and OpenCode are execution surfaces for developers. Manus and Cowork are broader general-purpose agents. Xeo Forge occupies a different layer: it is the place where an organization defines how agents should behave, what they may remember, what they may execute, who must approve them, and how their work is reviewed.
+**Xeo Forge is not another terminal wrapper and not a cloud-only agent.** Claude Code, Codex, and OpenCode are powerful execution surfaces for developers. Manus and Cowork are broader general-purpose agents. Xeo Forge occupies the local control-plane layer: it is the place where a person or team defines how agents should behave, what they may remember, which local browser they may inspect, what they may execute, who must approve them, and how their work is reviewed.
 
 The short version is:
 
 > **Your agents can execute. Xeo Forge gives execution a policy, a memory, an audit trail, and a proof of work.**
 
-## V3 product preview
+## Product preview
 
-These previews are captured from the running V3 application after authenticating as an operator and configuring the Builder Sentinel profile, Governed Ship Loop skill, Evidence First instruction, and persistent product memory.
+These previews are captured from the running application and represent the governed Workbench, Prompt Studio, and auditable task surface. The current desktop and Browser Profile work extends the same control model into a local installable environment.
 
 | Command center | Prompt Studio |
 |---|---|
-| ![Xeo Forge V3 command center](docs/screenshots/dashboard-v3.png) | ![Xeo Forge V3 Prompt Studio](docs/screenshots/context-studio-v3.png) |
+| ![Xeo Forge command center](docs/screenshots/dashboard-v3.png) | ![Xeo Forge Prompt Studio](docs/screenshots/context-studio-v3.png) |
 
 | Governed run |
 |---|
-| ![Xeo Forge V3 governed run](docs/screenshots/governed-run-v3.png) |
+| ![Xeo Forge governed run](docs/screenshots/governed-run-v3.png) |
 
 ### Product tour
 
@@ -107,7 +110,7 @@ The same principle applies to memory. Xeo Forge does not silently treat every co
 
 ## Current scope and honest boundaries
 
-V3 is a strong foundation for a governed agent platform, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows and operator visibility.
+v1.4.0 is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, and a read-only Browser Bridge with explicit profile selection.
 
 The next product layers are intentionally separate from the current core:
 
@@ -117,21 +120,29 @@ The next product layers are intentionally separate from the current core:
 4. Model routing and connector permissions for browsers, repositories, documents, and external services.
 5. Schedules, resumable jobs, richer verification artifacts, and evaluation dashboards.
 
-## Windows desktop
+## Desktop, OTA, and Browser Bridge
 
-Xeo Forge also ships a thin Windows desktop shell for teams that prefer an installable local workspace. The shell starts the production Next.js control plane on loopback, opens it in a hardened Electron window, and supervises local preview or worker processes through the native Go runtime broker.
+Xeo Forge ships a thin Windows/Linux desktop shell for users who prefer an installable local workspace. The shell starts the production Next.js control plane on loopback, opens it in a hardened Electron window, and supervises local preview or worker processes through the native Go runtime broker.
 
 The desktop build deliberately shares the same product surface as the web app. It does not fork task governance, context compilation, authentication, or persistence into a second implementation.
 
 ```bash
 npm ci
 npm run desktop:dev
+npm run browser:smoke
 
-# Produce an NSIS installer on a Windows CI runner
+# Windows NSIS installer on a Windows runner
 npm run desktop:build:win
+
+# Linux AppImage and deb packages on an Ubuntu runner
+npm run desktop:build:linux
 ```
 
-The Windows installer workflow is available under `.github/workflows/windows-desktop.yml`. A Windows runner is used for the final installer step because Electron Builder requires the Windows signing/packaging toolchain for a native NSIS artifact. The native broker itself is standard-library Go and can be cross-compiled from Linux.
+The minimum recommended installed version for receiving air updates is **v1.3.1**, the OTA Bootstrap. Users should always update to the latest release. In v1.4.0, Windows `Restart to update` uses an unattended per-user NSIS install and should launch the new version directly. Linux AppImage is the preferred Linux package when air updates matter; deb is available for native package workflows.
+
+The optional Browser Bridge connects the extension installed in the browser profile chosen by the user. Control Center lists connected profiles, persists the selected profile for Work, and never silently switches browsers when the selected profile disconnects. Read-only `state`, `read_page`, and `screenshot` are included; write-capable browser actions remain separately gated.
+
+See [`desktop/README.md`](desktop/README.md), [`docs/ota-bootstrap-protocol.md`](docs/ota-bootstrap-protocol.md), and [`docs/browser-profile-v1.4.0.md`](docs/browser-profile-v1.4.0.md).
 
 ## Multi-language architecture
 
@@ -185,6 +196,8 @@ The `init` service creates the schema, seeds the root admin, and stores the init
 | `npm run db:init` | Create the schema and seed the initial admin and model settings. |
 | `npm run desktop:dev` | Build the standalone app, prepare the native broker, and open the desktop shell. |
 | `npm run desktop:build:win` | Produce the Windows NSIS installer on a Windows runner. |
+| `npm run desktop:build:linux` | Produce Linux AppImage and deb packages on an Ubuntu runner. |
+| `npm run browser:smoke` | Verify loopback authentication, Browser Profile registration, selection, routing, and fail-closed disconnect behavior. |
 
 ## Architecture at a glance
 
@@ -203,8 +216,7 @@ native/
 desktop/
   electron/          thin Windows/Linux desktop shell
   native/            generated broker binaries for packaging
-docs/
-  screenshots/       current V3 product previews
+docs/screenshots/       current product previews
   xeo-forge-v3-vision.md  product and architecture direction
   architecture-and-product-audit.md  product, runtime, and language-boundary audit
 ```

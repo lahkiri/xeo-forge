@@ -27,6 +27,10 @@ function browserTokenPath() {
   return path.join(app.getPath('userData'), 'browser-token');
 }
 
+function browserPreferencePath() {
+  return path.join(app.getPath('userData'), 'browser-profile.json');
+}
+
 function getBrowserToken() {
   try {
     const token = readFileSync(browserTokenPath(), 'utf8').trim();
@@ -40,12 +44,24 @@ function getBrowserToken() {
 
 function startBrowserBridge() {
   if (process.env.XEO_DISABLE_BROWSER === '1') return;
-  browserBridge = createBrowserBridge({ port: BROWSER_PORT, token: getBrowserToken() });
+  browserBridge = createBrowserBridge({
+    port: BROWSER_PORT,
+    token: getBrowserToken(),
+    preferencePath: browserPreferencePath(),
+  });
 }
 
 function browserState() {
   return {
-    ...(browserBridge?.state() || { connected: false, tab: null, permissions: [] }),
+    ...(browserBridge?.state() || {
+      connected: false,
+      selection: 'selection_required',
+      selectedBrowserId: null,
+      selectedProfile: null,
+      profiles: [],
+      tab: null,
+      permissions: [],
+    }),
     port: BROWSER_PORT,
     token: browserBridge?.token || null,
   };
@@ -77,9 +93,15 @@ function publishUpdate(status, values = {}) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update:status', updateState);
 }
 
+function updaterSupported() {
+  if (!app.isPackaged || process.env.XEO_DISABLE_UPDATES === '1') return false;
+  if (process.platform === 'linux') return Boolean(process.env.APPIMAGE);
+  return ['win32', 'darwin'].includes(process.platform);
+}
+
 function configureUpdater() {
-  // Development and smoke-test runs must never contact the release feed.
-  if (!app.isPackaged || process.env.XEO_DISABLE_UPDATES === '1' || !['win32', 'darwin'].includes(process.platform)) return;
+  // Development, smoke-test, and non-AppImage Linux runs must never contact the release feed.
+  if (!updaterSupported()) return;
   const channel = process.env.XEO_UPDATE_CHANNEL === 'beta' ? 'beta' : 'latest';
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -100,7 +122,7 @@ function configureUpdater() {
 
 ipcMain.handle('update:state', () => updateState);
 ipcMain.handle('update:check', async () => {
-  if (!app.isPackaged || !['win32', 'darwin'].includes(process.platform)) return updateState;
+  if (!updaterSupported()) return updateState;
   try {
     await autoUpdater.checkForUpdates();
   } catch (error) {
@@ -123,10 +145,14 @@ ipcMain.handle('update:install', () => {
     previousVersion: app.getVersion(),
     message: 'Restarting to install update…',
   });
-  setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  setImmediate(() => autoUpdater.quitAndInstall(true, true));
   return updateState;
 });
 ipcMain.handle('browser:state', () => browserState());
+ipcMain.handle('browser:select', (_event, browserId) => {
+  if (!browserBridge) throw new Error('Browser bridge is disabled.');
+  return browserBridge.selectBrowser(browserId);
+});
 ipcMain.handle('browser:open-extension', async () => shell.openPath(resourcePath('browser-extension')));
 
 ipcMain.handle('project:choose', async () => {

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('xeoDesktop', {
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   getBrowserState: () => ipcRenderer.invoke('browser:state'),
+  selectBrowser: (browserId) => ipcRenderer.invoke('browser:select', browserId),
   openBrowserExtension: () => ipcRenderer.invoke('browser:open-extension'),
 });
 
