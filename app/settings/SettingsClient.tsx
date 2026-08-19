@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import { Button, Card, Eyebrow } from '@/components/ui';
-import type { AgentInstruction, AgentMemory, AuthUser } from '@/lib/types';
+import type { AgentInstruction, AgentMemory, AuthUser, ModelSettingsSafe } from '@/lib/types';
 import ProfileStudio from './ProfileStudio';
 import SkillStudio from './SkillStudio';
 
 const MEMORY_KINDS = ['preference', 'fact', 'decision', 'constraint', 'lesson'] as const;
 
 type ContextResponse = { instructions: AgentInstruction[]; memories: AgentMemory[] };
+
+type ModelResponse = { model: ModelSettingsSafe | null };
 
 async function requestContext(init?: RequestInit): Promise<ContextResponse | { ok: true }> {
   const response = await fetch('/api/agent/context', {
@@ -18,6 +20,16 @@ async function requestContext(init?: RequestInit): Promise<ContextResponse | { o
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || 'Request failed');
+  return body;
+}
+
+async function requestModel(init?: RequestInit): Promise<ModelResponse> {
+  const response = await fetch('/api/settings/model', {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || 'Model settings request failed');
   return body;
 }
 
@@ -39,12 +51,36 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
   const [memoryKind, setMemoryKind] = useState<(typeof MEMORY_KINDS)[number]>('lesson');
   const [browserState, setBrowserState] = useState<DesktopBrowserState | null>(null);
   const [showBrowserToken, setShowBrowserToken] = useState(false);
+  const [model, setModel] = useState<ModelSettingsSafe | null>(null);
+  const [modelName, setModelName] = useState('');
+  const [modelBaseUrl, setModelBaseUrl] = useState('');
+  const [modelId, setModelId] = useState('');
+  const [modelApiKey, setModelApiKey] = useState('');
+  const [modelTemperature, setModelTemperature] = useState('0.7');
+  const [modelMaxTokens, setModelMaxTokens] = useState('4000');
+  const [modelContextWindow, setModelContextWindow] = useState('128000');
+  const [modelCompactThreshold, setModelCompactThreshold] = useState('80');
+  const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
+  const [updateSettings, setUpdateSettings] = useState<DesktopUpdateSettings | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const result = await requestContext() as ContextResponse;
       setData(result);
+      if (localMode) {
+        const modelResult = await requestModel();
+        setModel(modelResult.model);
+        if (modelResult.model) {
+          setModelName(modelResult.model.name);
+          setModelBaseUrl(modelResult.model.base_url);
+          setModelId(modelResult.model.model_id);
+          setModelTemperature(String(modelResult.model.temperature));
+          setModelMaxTokens(String(modelResult.model.max_tokens));
+          setModelContextWindow(String(modelResult.model.context_window));
+          setModelCompactThreshold(String(modelResult.model.auto_compact_threshold));
+        }
+      }
     } catch (err) {
       setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not load Prompt Studio.' });
     } finally {
@@ -63,6 +99,17 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
     const timer = window.setInterval(refresh, 3000);
     return () => { active = false; window.clearInterval(timer); };
   }, []);
+
+  useEffect(() => {
+    const desktop = window.xeoDesktop;
+    if (!desktop || !localMode) return;
+    let active = true;
+    Promise.all([desktop.getUpdateState(), desktop.getUpdateSettings()])
+      .then(([state, settings]) => { if (active) { setUpdateState(state); setUpdateSettings(settings); } })
+      .catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not load update settings.' }));
+    const unsubscribe = window.xeoDesktopEvents?.onUpdateStatus((state) => { if (active) setUpdateState(state); });
+    return () => { active = false; unsubscribe?.(); };
+  }, [localMode]);
 
   const runMutation = async (payload: Record<string, unknown>, success: string) => {
     setBusy(true);
@@ -87,6 +134,71 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
       await load();
     } catch (err) {
       setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Update failed.' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const refreshUpdates = async () => {
+    if (!window.xeoDesktop) return;
+    try {
+      setUpdateState(await window.xeoDesktop.checkForUpdate());
+    } catch (err) {
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not check for updates.' });
+    }
+  };
+
+  const downloadUpdate = async () => {
+    if (!window.xeoDesktop) return;
+    try {
+      setUpdateState(await window.xeoDesktop.downloadUpdate());
+    } catch (err) {
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not download the update.' });
+    }
+  };
+
+  const installUpdate = async () => {
+    if (!window.xeoDesktop) return;
+    try {
+      setUpdateState(await window.xeoDesktop.installUpdate());
+    } catch (err) {
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not restart for the update.' });
+    }
+  };
+
+  const saveUpdateSettings = async (patch: Partial<DesktopUpdateSettings>) => {
+    if (!window.xeoDesktop || !updateSettings) return;
+    try {
+      setUpdateSettings(await window.xeoDesktop.setUpdateSettings({ ...updateSettings, ...patch }));
+      setNotice({ type: 'ok', text: 'Update preferences saved locally.' });
+    } catch (err) {
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not save update preferences.' });
+    }
+  };
+
+  const saveModel = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setBusy(true);
+    setNotice(null);
+    try {
+      const response = await requestModel({
+        method: 'PUT',
+        body: JSON.stringify({
+          name: modelName.trim(),
+          baseUrl: modelBaseUrl.trim(),
+          modelId: modelId.trim(),
+          ...(modelApiKey.trim() ? { apiKey: modelApiKey.trim() } : {}),
+          temperature: Number(modelTemperature),
+          maxTokens: Number(modelMaxTokens),
+          contextWindow: Number(modelContextWindow),
+          autoCompactThreshold: Number(modelCompactThreshold),
+        }),
+      });
+      setModel(response.model);
+      setModelApiKey('');
+      setNotice({ type: 'ok', text: 'Local model settings saved. New runs will use this configuration.' });
+    } catch (err) {
+      setNotice({ type: 'error', text: err instanceof Error ? err.message : 'Could not save model settings.' });
     } finally {
       setBusy(false);
     }
@@ -148,6 +260,70 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           <div className={`mb-6 rounded-lg border px-4 py-3 text-sm ${notice.type === 'ok' ? 'border-green-500/20 bg-green-500/10 text-green-300' : 'border-red-500/20 bg-red-500/10 text-red-300'}`}>
             {notice.text}
           </div>
+        )}
+
+        {localMode && (
+          <section className="rounded-2xl border border-violet-300/10 bg-violet-300/[0.035] p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <Eyebrow>Local model</Eyebrow>
+                <h2 className="mt-2 font-semibold text-white">Choose how Xeo thinks</h2>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Connect an OpenAI-compatible local or remote model for this device. The API key is stored locally and is never returned to the interface.</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] ${model?.api_key_set ? 'bg-emerald-400/10 text-emerald-300' : 'bg-amber-400/10 text-amber-300'}`}>{model?.api_key_set ? 'provider configured' : 'setup required'}</span>
+            </div>
+            <form onSubmit={saveModel} className="mt-5 space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Display name</span><input value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="Local model" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
+                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Model ID</span><input value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="gpt-4o-mini or local-model" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
+              </div>
+              <label className="block space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">OpenAI-compatible base URL</span><input value={modelBaseUrl} onChange={(e) => setModelBaseUrl(e.target.value)} type="url" placeholder="http://127.0.0.1:1234/v1" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">API key</span><input value={modelApiKey} onChange={(e) => setModelApiKey(e.target.value)} type="password" placeholder={model?.api_key_set ? 'Leave unchanged' : 'Required by provider'} className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
+                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Temperature</span><input value={modelTemperature} onChange={(e) => setModelTemperature(e.target.value)} type="number" min="0" max="2" step="0.1" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
+                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Max output tokens</span><input value={modelMaxTokens} onChange={(e) => setModelMaxTokens(e.target.value)} type="number" min="1" max="200000" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
+                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Context compact at %</span><input value={modelCompactThreshold} onChange={(e) => setModelCompactThreshold(e.target.value)} type="number" min="10" max="95" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <p className="text-[11px] leading-5 text-gray-500">Context window: <span className="text-gray-300">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this local workspace.</p>
+                <div className="flex items-center gap-2"><input value={modelContextWindow} onChange={(e) => setModelContextWindow(e.target.value)} aria-label="Context window" type="number" min="1024" max="10000000" className="w-32 rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /><Button type="submit" disabled={busy || !modelName.trim() || !modelBaseUrl.trim() || !modelId.trim()}>Save model</Button></div>
+              </div>
+            </form>
+          </section>
+        )}
+
+        {localMode && (
+          <section className="rounded-2xl border border-emerald-300/10 bg-emerald-300/[0.03] p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <Eyebrow>Application updates</Eyebrow>
+                <h2 className="mt-2 font-semibold text-white">Keep Xeo Forge current</h2>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Updates are checked on a deliberate schedule, downloaded separately, and installed only when you choose to restart. Your local database, project path, browser profiles, and settings remain in the user data directory.</p>
+              </div>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] ${updateState?.status === 'error' ? 'bg-red-400/10 text-red-300' : updateState?.status === 'downloaded' ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.06] text-gray-400'}`}>{updateState?.status || 'loading'}</span>
+            </div>
+            <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
+              <div className="rounded-xl border border-white/[0.07] bg-black/10 p-4 text-xs leading-5 text-gray-400">
+                <p className="text-gray-200">Current version <span className="font-mono text-emerald-200">{updateState?.currentVersion || '—'}</span>{updateState?.version ? <> · available <span className="font-mono text-cyan-200">{updateState.version}</span></> : ''}</p>
+                <p className="mt-1">{updateState?.message || 'No update check has completed in this session.'}</p>
+                {updateState?.status === 'downloading' && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: `${updateState.percent}%` }} /></div>}
+                {updateState?.lastCheckedAt && <p className="mt-2 text-[11px] text-gray-600">Last checked {new Date(updateState.lastCheckedAt).toLocaleString()}</p>}
+                {updateState?.lastError && <p className="mt-2 text-[11px] text-red-300/80">{updateState.lastError}</p>}
+              </div>
+              <div className="flex flex-wrap items-start justify-end gap-2">
+                <Button variant="ghost" disabled={updateState?.status === 'checking' || updateState?.status === 'downloading'} onClick={refreshUpdates}>Check now</Button>
+                {updateState?.status === 'available' && <Button onClick={downloadUpdate}>Download</Button>}
+                {updateState?.status === 'downloaded' && <Button onClick={installUpdate}>Restart and install</Button>}
+              </div>
+            </div>
+            {updateSettings && (
+              <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/[0.06] pt-4 text-xs text-gray-400">
+                <label className="flex items-center gap-2"><input type="checkbox" checked={updateSettings.autoCheck} onChange={(e) => saveUpdateSettings({ autoCheck: e.target.checked })} /> Automatic checks</label>
+                <label className="flex items-center gap-2">Channel <select value={updateSettings.channel} onChange={(e) => saveUpdateSettings({ channel: e.target.value as DesktopUpdateSettings['channel'] })} className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-gray-200"><option value="latest">Latest stable</option><option value="beta">Beta</option></select></label>
+                <label className="flex items-center gap-2">Every <input type="number" min="1" max="168" value={updateSettings.intervalHours} onChange={(e) => setUpdateSettings({ ...updateSettings, intervalHours: Number(e.target.value) || 6 })} onBlur={() => saveUpdateSettings({ intervalHours: updateSettings.intervalHours })} className="w-16 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-gray-200" /> hours</label>
+              </div>
+            )}
+          </section>
         )}
 
         <section className="rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.035] p-5 sm:p-6">

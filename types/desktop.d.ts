@@ -39,6 +39,16 @@ declare global {
     releaseDate?: string;
     transferred?: number;
     total?: number;
+    channel?: 'latest' | 'beta';
+    lastCheckedAt?: string | null;
+    lastError?: string | null;
+    downloadedAt?: string;
+  };
+
+  type DesktopUpdateSettings = {
+    channel: 'latest' | 'beta';
+    autoCheck: boolean;
+    intervalHours: number;
   };
 
   interface Window {
@@ -48,6 +58,8 @@ declare global {
       chooseProject: () => Promise<{ path: string | null; error?: string }>;
       setProject: (projectPath: string) => Promise<{ path: string | null; error?: string }>;
       getUpdateState: () => Promise<DesktopUpdateState>;
+      getUpdateSettings: () => Promise<DesktopUpdateSettings>;
+      setUpdateSettings: (settings: Partial<DesktopUpdateSettings>) => Promise<DesktopUpdateSettings>;
       checkForUpdate: () => Promise<DesktopUpdateState>;
       downloadUpdate: () => Promise<DesktopUpdateState>;
       installUpdate: () => Promise<DesktopUpdateState>;

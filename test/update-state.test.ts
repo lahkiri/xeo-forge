@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
-const { loadUpdateState, saveUpdateState, updateStatePath } = require('../desktop/electron/update-state.cjs');
+const {
+  loadUpdateState,
+  saveUpdateState,
+  updateStatePath,
+  loadUpdateSettings,
+  saveUpdateSettings,
+  updateSettingsPath,
+} = require('../desktop/electron/update-state.cjs');
 
 describe('local OTA update state', () => {
   const directories: string[] = [];
@@ -52,6 +59,19 @@ describe('local OTA update state', () => {
     const state = loadUpdateState(filePath, '1.3.0', logger);
     expect(state.status).toBe('error');
     expect(state.message).toContain('did not complete');
+    expect(logger.error).not.toHaveBeenCalled();
+  });
+
+  it('persists safe updater preferences under userData and clamps invalid values', () => {
+    const userData = mkdtempSync(path.join(tmpdir(), 'xeo-ota-'));
+    directories.push(userData);
+    const filePath = updateSettingsPath(userData);
+    const logger = { error: vi.fn() };
+
+    const saved = saveUpdateSettings(filePath, { channel: 'beta', autoCheck: false, intervalHours: 999 }, logger);
+    expect(saved).toEqual({ channel: 'beta', autoCheck: false, intervalHours: 168 });
+    expect(loadUpdateSettings(filePath, logger)).toEqual(saved);
+    expect(JSON.parse(readFileSync(filePath, 'utf8'))).toEqual(saved);
     expect(logger.error).not.toHaveBeenCalled();
   });
 

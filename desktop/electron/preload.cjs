@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('xeoDesktop', {
   chooseProject: () => ipcRenderer.invoke('project:choose'),
   setProject: (projectPath) => ipcRenderer.invoke('project:set', projectPath),
   getUpdateState: () => ipcRenderer.invoke('update:state'),
+  getUpdateSettings: () => ipcRenderer.invoke('update:settings'),
+  setUpdateSettings: (settings) => ipcRenderer.invoke('update:settings:set', settings),
   checkForUpdate: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),

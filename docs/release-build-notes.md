@@ -54,3 +54,24 @@ The release tag should use the annotated title **`v1.5.0 — Surface-Aware Workb
 - CSS/Tailwind: visual system and responsive presentation layer.
 - YAML: GitHub Actions Windows build workflow.
 - Python: development utility that generates the Windows ICO asset; not a runtime dependency.
+
+## v1.5.1 — Local Control Center & Update Lifecycle
+
+v1.5.1 restores the missing local control surface that was previously hidden when the SaaS Admin page was removed from Desktop Local. The Desktop Control Center now exposes the active OpenAI-compatible model, endpoint, masked API-key state, temperature, output-token budget, context window, and automatic compaction threshold. The API key is accepted only for local configuration updates and is never returned to the renderer.
+
+The Desktop updater is no longer dependent on a single five-second startup check. It now persists update preferences and lifecycle state under Electron `userData`, supports stable/beta channels, configurable automatic-check intervals, manual checks, explicit download, progress reporting, downloaded-state recovery, error visibility, and the existing unattended Windows restart/install path. The updater keeps `autoDownload` and `autoInstallOnAppQuit` disabled so installation remains an explicit user action.
+
+Verification completed for this patch:
+
+| Check | Result |
+|---|---|
+| Electron `node --check` for main/preload/update-state | Passed |
+| `npm test -- --run test/update-state.test.ts` | Passed: 4 tests |
+| `npm test -- --run` | Passed |
+| `npm run typecheck` | Passed |
+| `npm run desktop:smoke` | Passed |
+| `npm run browser:smoke` | Passed |
+| `npm run build` | Passed |
+| `git diff --check` | Passed |
+
+The annotated release title is **`v1.5.1 — Local Control Center & Update Lifecycle`**. Future tags must continue to include a human-readable title and a concise description of user-facing changes and verification status.

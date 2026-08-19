@@ -5,7 +5,14 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { autoUpdater } = require('electron-updater');
 const { startBrowserBridge: createBrowserBridge } = require('./browser-bridge.cjs');
-const { loadUpdateState, saveUpdateState, updateStatePath } = require('./update-state.cjs');
+const {
+  loadUpdateState,
+  saveUpdateState,
+  updateStatePath,
+  loadUpdateSettings,
+  saveUpdateSettings,
+  updateSettingsPath,
+} = require('./update-state.cjs');
 
 const APP_PORT = Number(process.env.XEO_APP_PORT || 3100);
 const BROKER_PORT = Number(process.env.XEO_RUNTIME_PORT || 4317);
@@ -15,9 +22,12 @@ let nextProcess;
 let brokerProcess;
 let mainWindow;
 let updateTimer;
+let updateInterval;
 let browserBridge;
 let updateStateFile;
-let updateState = { status: 'idle', currentVersion: app.getVersion(), version: null, percent: 0, message: '' };
+let updateSettingsFile;
+let updateSettings = { channel: 'latest', autoCheck: true, intervalHours: 6 };
+let updateState = { status: 'idle', currentVersion: app.getVersion(), version: null, percent: 0, message: '', channel: 'latest', lastCheckedAt: null, lastError: null };
 
 function projectConfigPath() {
   return path.join(app.getPath('userData'), 'project.json');
@@ -102,7 +112,7 @@ function updaterSupported() {
 function configureUpdater() {
   // Development, smoke-test, and non-AppImage Linux runs must never contact the release feed.
   if (!updaterSupported()) return;
-  const channel = process.env.XEO_UPDATE_CHANNEL === 'beta' ? 'beta' : 'latest';
+  const channel = updateSettings.channel;
   autoUpdater.autoDownload = false;
   // The Restart to update action owns installation explicitly. Keeping the
   // implicit quit hook enabled can create a second installer invocation while
@@ -110,29 +120,50 @@ function configureUpdater() {
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = channel === 'beta';
   autoUpdater.channel = channel;
-  autoUpdater.on('checking-for-update', () => publishUpdate('checking', { message: 'Checking for updates…' }));
-  autoUpdater.on('update-available', (info) => publishUpdate('available', { version: info.version, releaseDate: info.releaseDate, size: info.files?.[0]?.size || null, message: `Xeo Forge ${info.version} is available.` }));
-  autoUpdater.on('update-not-available', () => publishUpdate('not-available', { version: null, message: 'Xeo Forge is up to date.' }));
+  updateState.channel = channel;
+  autoUpdater.on('checking-for-update', () => publishUpdate('checking', { message: 'Checking the Xeo Forge release channel…', lastCheckedAt: new Date().toISOString(), lastError: null }));
+  autoUpdater.on('update-available', (info) => publishUpdate('available', { version: info.version, releaseDate: info.releaseDate, size: info.files?.[0]?.size || null, lastError: null, message: `Xeo Forge ${info.version} is available.` }));
+  autoUpdater.on('update-not-available', () => publishUpdate('not-available', { version: null, lastError: null, message: 'Xeo Forge is up to date.' }));
   autoUpdater.on('download-progress', (progress) => publishUpdate('downloading', { version: updateState.version, percent: Math.round(progress.percent), transferred: progress.transferred, total: progress.total, message: 'Downloading update in the background…' }));
-  autoUpdater.on('update-downloaded', (info) => publishUpdate('downloaded', { version: info.version, percent: 100, message: 'Update ready. Restart Xeo Forge to install it.' }));
-  autoUpdater.on('error', (error) => publishUpdate('error', { message: error instanceof Error ? error.message : String(error) }));
+  autoUpdater.on('update-downloaded', (info) => publishUpdate('downloaded', { version: info.version, percent: 100, downloadedAt: new Date().toISOString(), message: 'Update ready. Restart Xeo Forge to install it.' }));
+  autoUpdater.on('error', (error) => publishUpdate('error', { lastError: error instanceof Error ? error.message : String(error), message: error instanceof Error ? error.message : String(error) }));
+  scheduleUpdateChecks();
+}
 
-  const check = () => autoUpdater.checkForUpdates().catch((error) => publishUpdate('error', { message: error instanceof Error ? error.message : String(error) }));
-  updateTimer = setTimeout(check, 5000);
+function checkForUpdates() {
+  if (!updaterSupported()) return Promise.resolve(updateState);
+  publishUpdate('checking', { lastCheckedAt: new Date().toISOString(), lastError: null, message: 'Checking the Xeo Forge release channel…' });
+  return autoUpdater.checkForUpdates()
+    .then(() => updateState)
+    .catch((error) => {
+      publishUpdate('error', { lastError: error instanceof Error ? error.message : String(error), message: error instanceof Error ? error.message : String(error) });
+      return updateState;
+    });
+}
+
+function scheduleUpdateChecks() {
+  if (updateTimer) clearTimeout(updateTimer);
+  if (updateInterval) clearInterval(updateInterval);
+  if (!updaterSupported() || !updateSettings.autoCheck) return;
+  // Give the local server and renderer time to start, then use a persisted interval.
+  updateTimer = setTimeout(() => { void checkForUpdates(); }, 15000);
   updateTimer.unref?.();
-  setInterval(check, 6 * 60 * 60 * 1000).unref?.();
+  updateInterval = setInterval(() => { void checkForUpdates(); }, updateSettings.intervalHours * 60 * 60 * 1000);
+  updateInterval.unref?.();
 }
 
 ipcMain.handle('update:state', () => updateState);
-ipcMain.handle('update:check', async () => {
-  if (!updaterSupported()) return updateState;
-  try {
-    await autoUpdater.checkForUpdates();
-  } catch (error) {
-    publishUpdate('error', { message: error instanceof Error ? error.message : String(error) });
-  }
-  return updateState;
+ipcMain.handle('update:settings', () => updateSettings);
+ipcMain.handle('update:settings:set', (_event, nextSettings) => {
+  const saved = saveUpdateSettings(updateSettingsFile, nextSettings);
+  if (!saved) throw new Error('Could not save update settings.');
+  updateSettings = saved;
+  updateState.channel = saved.channel;
+  publishUpdate(updateState.status, { channel: saved.channel });
+  scheduleUpdateChecks();
+  return updateSettings;
 });
+ipcMain.handle('update:check', async () => checkForUpdates());
 ipcMain.handle('update:download', async () => {
   if (updateState.status !== 'available') return updateState;
   try {
@@ -293,7 +324,10 @@ function launchDownloadedUpdate() {
 app.whenReady().then(async () => {
   try {
     updateStateFile = updateStatePath(app.getPath('userData'));
+    updateSettingsFile = updateSettingsPath(app.getPath('userData'));
+    updateSettings = loadUpdateSettings(updateSettingsFile);
     updateState = loadUpdateState(updateStateFile, app.getVersion());
+    updateState.channel = updateSettings.channel;
     saveUpdateState(updateStateFile, updateState);
     startBrowserBridge();
     await createWindow();
@@ -313,6 +347,7 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   if (updateTimer) clearTimeout(updateTimer);
+  if (updateInterval) clearInterval(updateInterval);
   browserBridge?.close();
   stopChild(nextProcess);
   stopChild(brokerProcess);
