@@ -1060,7 +1060,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   } catch (err: any) {
     const info = classifyModelError(err);
     console.error(`[agent] run failed task=${taskId} kind=${info.kind} status=${info.status ?? 'n/a'}:`, err);
-    await failRun(taskId, publicModelErrorMessage(err, model.modelId));
+    await failRun(taskId, publicModelErrorMessage(err, model.modelId, model.baseUrl));
   }
 }
 

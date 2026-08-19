@@ -5,6 +5,7 @@ export interface ModelErrorInfo {
   status: number | null;
   code: string | null;
   retryAfterMs: number | null;
+  quotaExhausted: boolean;
   safeMessage: string;
 }
 
@@ -20,7 +21,14 @@ function readCode(error: unknown): string | null {
   const candidate = error as Record<string, unknown>;
   const response = candidate.response as Record<string, unknown> | undefined;
   const body = response?.data as Record<string, unknown> | undefined;
-  const code = candidate.code ?? body?.code ?? body?.error;
+  const nestedError = body?.error as Record<string, unknown> | undefined;
+  const code = candidate.code
+    ?? body?.code
+    ?? nestedError?.code
+    ?? nestedError?.type
+    ?? (typeof candidate.name === 'string' && candidate.name !== 'APIError' ? candidate.name : undefined)
+    ?? (typeof body?.type === 'string' && body.type !== 'error' ? body.type : undefined)
+    ?? body?.error;
   return typeof code === 'string' ? code : null;
 }
 
@@ -88,24 +96,40 @@ export function classifyModelError(error: unknown): ModelErrorInfo {
     kind = 'network';
   }
 
+  const quotaExhausted = Boolean(
+    code?.includes('freeusagelimit')
+      || code?.includes('insufficient_quota')
+      || lower.includes('free usage limit')
+      || lower.includes('freeusagelimiterror')
+      || lower.includes('completion quota')
+      || lower.includes('quota exceeded'),
+  );
   const safeMessage = redactMessage(message);
   return {
     kind,
     status,
     code,
     retryAfterMs: parseRetryAfterMs(error),
+    quotaExhausted,
     safeMessage,
   };
 }
 
-export function publicModelErrorMessage(error: unknown, operation = 'model request'): string {
+export function publicModelErrorMessage(error: unknown, operation = 'model request', baseUrl = ''): string {
   const info = classifyModelError(error);
   const waitHint = info.retryAfterMs !== null
     ? ` The provider asked Xeo to wait about ${Math.max(1, Math.ceil(info.retryAfterMs / 1000))} seconds.`
     : '';
+  const isOpenCodeZen = baseUrl.toLowerCase().includes('opencode.ai/zen');
+  const freeModelHint = isOpenCodeZen
+    ? ' Try another available Zen model such as `mimo-v2.5-free` or `hy3-free`, or wait for the free window to reset.'
+    : ' Wait for the provider window to reset or choose a model/provider with available quota.';
   switch (info.kind) {
     case 'rate_limit':
-      return `The provider accepted the connection but rate-limited this completion (HTTP 429). Your key may still be valid; Xeo retries with controlled backoff.${waitHint} Wait for the provider window to reset or choose a model/provider with available quota.`;
+      if (info.quotaExhausted) {
+        return `The provider accepted the connection but this model's free completion quota is exhausted (HTTP 429). Your key may still be valid; this is an upstream model quota, not a connection failure.${freeModelHint}`;
+      }
+      return `The provider accepted the connection but rate-limited this completion (HTTP 429). Your key may still be valid; Xeo retries with controlled backoff.${waitHint}${freeModelHint}`;
     case 'authentication':
       return 'The model provider rejected the API key (HTTP 401/403). Open Settings → Local model and replace any placeholder or expired key.';
     case 'not_found':
@@ -121,5 +145,5 @@ export function publicModelErrorMessage(error: unknown, operation = 'model reque
 
 export function shouldRetryModelError(error: unknown): boolean {
   const info = classifyModelError(error);
-  return info.kind === 'rate_limit' || info.kind === 'network';
+  return (info.kind === 'rate_limit' && !info.quotaExhausted) || info.kind === 'network';
 }

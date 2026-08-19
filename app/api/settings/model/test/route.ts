@@ -31,6 +31,8 @@ function statusFor(kind: ReturnType<typeof classifyModelError>['kind']): number 
 
 /** POST /api/settings/model/test — validate the active provider without saving changes. */
 export async function POST(req: NextRequest) {
+  let testedBaseUrl = '';
+  let testedModelId = 'model';
   try {
     assertLocalSettings();
     await requireUser();
@@ -48,6 +50,8 @@ export async function POST(req: NextRequest) {
     const startedAt = Date.now();
     const baseUrl = normalizeBaseUrl(parsed.data.baseUrl);
     const modelId = parsed.data.modelId.trim();
+    testedBaseUrl = baseUrl;
+    testedModelId = modelId;
     const client = new OpenAI({ apiKey, baseURL: baseUrl, timeout: 30_000, maxRetries: 0 });
     await client.chat.completions.create({
       model: modelId,
@@ -75,10 +79,13 @@ export async function POST(req: NextRequest) {
     const info = classifyModelError(err);
     console.error(`[settings/model/test] failed kind=${info.kind} status=${info.status ?? 'n/a'}:`, err);
     return NextResponse.json({
-      error: publicModelErrorMessage(err, 'connection test'),
+      error: publicModelErrorMessage(err, testedModelId, testedBaseUrl),
       kind: info.kind,
       status: info.status,
       retry_after_ms: info.retryAfterMs,
+      quota_exhausted: info.quotaExhausted,
+      provider_reachable: info.kind !== 'network',
+      completion_available: false,
     }, { status: statusFor(info.kind) });
   }
 }
