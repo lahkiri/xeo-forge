@@ -244,6 +244,27 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   const compiledContext = await compileAgentContext({ userId, taskId, baseSystemPrompt: systemPrompt });
   systemPrompt = compiledContext.systemPrompt;
 
+  // Report which approved memories actually reached the model this run. Memory
+  // that acts invisibly is the failure mode the memory contract forbids, so the
+  // injection is auditable rather than implicit.
+  if (compiledContext.memories.length > 0 || compiledContext.instructions.length > 0) {
+    await emitTaskEvent(taskId, 'context_layers', {
+      instructions: compiledContext.instructions.map((instruction) => ({
+        id: instruction.id,
+        name: instruction.name,
+        scope: instruction.scope,
+        priority: instruction.priority,
+      })),
+      memories: compiledContext.memories.map((memory) => ({
+        id: memory.id,
+        kind: memory.kind,
+        scope: memory.scope,
+        confidence: memory.confidence,
+        content: memory.content.slice(0, 200),
+      })),
+    });
+  }
+
   // Inject runtime context: detected language + engineering memory instructions.
   // This is ephemeral — appended to the in-memory prompt, not persisted.
   systemPrompt += `\n\nRUNTIME CONTEXT (this run only)

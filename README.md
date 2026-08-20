@@ -12,19 +12,40 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.9.0-blue.svg" alt="Xeo Forge v1.9.0">
+  <img src="https://img.shields.io/badge/release-v1.10.0-blue.svg" alt="Xeo Forge v1.10.0">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
   <img src="https://img.shields.io/badge/Self--hosting-Docker-blueviolet.svg?logo=docker" alt="Self-hosting with Docker">
 </p>
 
-Xeo Forge is a **local-first control plane for agentic work**. It gives software-building and knowledge-work agents a governed Work surface, a separate ordinary Chat surface, persistent context, reusable profiles and skills, sandboxed workspaces, live event history, an optional user-controlled browser, and an installable desktop runtime.
+Xeo Forge is a **local-first control plane for agentic work**. It gives software-building and knowledge-work agents a governed Work surface, a separate ordinary Chat surface, persistent context, reusable profiles and skills, workspace-scoped file boundaries, live event history, an optional user-controlled browser, and an installable desktop runtime.
 
 The product is built around one principle:
 
 > **Give your agent a forge, not a blank check.**
 
+## What changed in v1.10.0
+
+v1.10.0 — **Persistent Context** — is the release where the agent gets more useful over time without becoming a black box. Memory, instructions, and runtime state all became inspectable and revocable.
+
+| Capability | What it does |
+|---|---|
+| **Memory review** | The agent proposes bounded memory candidates at completion. They persist as `proposed` and are never injected into a run until you keep them. Keep, edit, or reject each one. |
+| **Injection markers** | When an approved memory reaches a run, a `context_layers` event records exactly which ones. Memory never acts invisibly. |
+| **Context Inspector** | Shows every context layer as in-prompt, withheld, overridden, or deduped, with the reason and a token estimate. Reads the same resolution pass the agent loop uses, so it cannot report a layer the model did not receive. |
+| **Truthful runtime states** | `thinking...` is gone. Chat and Work now report queued, connecting, reading project context, using a named tool, writing the answer, compacting, retrying, or waiting for the provider - with elapsed time and a stall warning after 10s. |
+| **CI on every push** | A `ci.yml` workflow runs typecheck, lint, tests, whitespace, browser smoke, broker tests, and build on push and pull request, not only at tag time. |
+
+Detection in the Context Inspector is deterministic - scope specificity, disabled flags, approval status, expiry, duplicate content, and budget clamping. Xeo does not use a model to guess whether two instructions disagree.
+
+## What changed in v1.9.0
+
+v1.9.0 — **Chat is chat, Work is work** — split the two surfaces. Chat has no tabs, workspace browser, or approval controls because it cannot plan or write. Work leads with a governance rail showing live authority, plan state, project boundary, credits, and every file changed. The approval gate takes the full pane, and a `Cmd+K` command palette plus pane shortcuts make the whole app keyboard-reachable.
+
+## What changed in v1.8.0
+
+v1.8.0 hardened the foundation: the Go runtime broker binds loopback only and requires a shared secret for process control, the behavioral guards were consolidated into one implementation, and two test files that verified private copies of the logic were rewritten to import the shipped modules.
 ## What changed in v1.5.0
 
 v1.5.0 — **Surface-Aware Workbench** — makes the product boundary explicit. Xeo Forge remains a SaaS control plane on the web, while the installed desktop application is a Local-First workbench: it opens directly into local projects, uses an internal local owner only for persistence compatibility, and does not expose credits, billing, account sign-in, multi-user administration, or SaaS navigation.
@@ -44,7 +65,7 @@ Xeo Forge started as an approval-first coding agent. v1.4.0 turns that foundatio
 |---|---|
 | **Governed runs** | A visible Plan -> Approve -> Build flow. Planning is read-only; write and execution tools remain locked until approval. |
 | **Prompt Studio** | Manage pinned system, user, and task instructions from the UI instead of editing source code. |
-| **Persistent memory** | Store deliberate, scoped, auditable memories. Successful tasks may suggest memories; users decide what becomes active. |
+| **Persistent memory** | Store deliberate, scoped, auditable memories. Runs propose bounded candidates; nothing enters context until you keep it. |
 | **Agent Profiles** | Reusable roles such as Builder, Researcher, Analyst, Operator, or custom profiles. |
 | **Agent Skills** | Reusable workflows that can be selected at task creation and combined with a profile. |
 | **Context compiler** | Deterministic assembly of system policy, instructions, profile, skill, task context, and approved memories. |
@@ -93,7 +114,7 @@ flowchart LR
     D --> E{Human approval}
     E -- Reject --> B
     E -- Approve --> F[Build mode]
-    F --> G[Sandboxed tools]
+    F --> G[Governed tools, restricted host execution]
     G --> H[Preview and verification]
     H --> I[Auditable result]
     I --> J[Optional memory suggestion]
@@ -117,11 +138,14 @@ The same principle applies to memory. Xeo Forge does not silently treat every co
 - Credits are debited atomically and every balance change is recorded in a ledger.
 - Model API keys are kept server-side; the application uses one global model configuration.
 - Context usage is measured from the live message array and can trigger automatic compaction.
-- Memory suggestions are scoped, bounded, source-linked, and reviewable.
+- Memory suggestions are scoped, bounded, source-linked, and reviewable. A proposed memory is never injected into a run; only an explicitly kept memory reaches context.
+- Approved memories that reach a run are recorded as a `context_layers` event, so memory cannot act invisibly.
+- The Context Inspector reads the same resolution pass the agent loop uses, so it cannot report a layer the model did not receive.
+- Code execution is restricted host execution: an environment whitelist, realpath-checked workspace boundaries, and a dangerous-command blocklist. It is not OS-level isolation.
 
 ## Current scope and honest boundaries
 
-v1.9.0 is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
+v1.10.0 is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
 
 The next product layers are intentionally separate from the current core and are tracked in the [1.x roadmap](docs/roadmap-1x.md):
 

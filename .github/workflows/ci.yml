@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  GO_VERSION: '1.22.x'
+
+jobs:
+  verify:
+    name: Verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: native/runtime-broker/go.sum
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Same gates the release workflow runs, so master cannot go red between
+      # tags. The v1.9.0 release failed here first: a route rename broke the
+      # desktop smoke test and nothing caught it until tag time.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm test -- --run
+
+      - name: Whitespace check
+        run: git diff --check
+
+      - name: Browser bridge smoke
+        run: npm run browser:smoke
+
+      - name: Runtime broker
+        working-directory: native/runtime-broker
+        run: |
+          go vet ./...
+          go test ./...
+
+      - name: Production build
+        run: npm run build

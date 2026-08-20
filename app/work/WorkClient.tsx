@@ -16,6 +16,7 @@ import {
   type Phase,
 } from '@/lib/agent/timeline';
 import { renderMarkdown } from '@/lib/markdown';
+import { deriveChatRuntime, formatElapsed } from '@/lib/agent/runtime-state';
 import {
   Alert,
   Badge,
@@ -36,6 +37,8 @@ import {
 } from '@/components/ui';
 import { DecisionGate, PlanReview, ToolRow, pairToolEvents } from '@/components/WorkPrimitives';
 import { useHotkeys } from '@/components/CommandPalette';
+import { ContextInspector } from '@/components/ContextInspector';
+import { MemoryReview } from '@/components/MemoryReview';
 import { WorkspaceViewer } from '@/components/WorkspaceViewer';
 import { PreviewPanel } from '@/components/PreviewPanel';
 import TaskContextPanel from '@/app/tasks/[id]/TaskContextPanel';
@@ -83,7 +86,7 @@ function PhaseTrail({ phase }: { phase: Phase }) {
   );
 }
 
-type CenterTab = 'run' | 'project' | 'preview' | 'context';
+type CenterTab = 'run' | 'project' | 'preview' | 'context' | 'memory';
 
 export default function WorkClient({
   runs,
@@ -115,6 +118,9 @@ export default function WorkClient({
   const [contextTokens, setContextTokens] = useState(0);
   const [contextWindow, setContextWindow] = useState(0);
   const [todos, setTodos] = useState<{ id: string; description: string; status: string }[]>([]);
+  // Count of memory candidates awaiting a decision. Drives the Memory tab badge
+  // so a proposal is never silently dropped.
+  const [pendingMemory, setPendingMemory] = useState(0);
   const [decisionSeconds, setDecisionSeconds] = useState(() =>
     task.decision_expires_at
       ? Math.max(0, Math.ceil((Date.parse(task.decision_expires_at) - Date.now()) / 1000))
@@ -140,6 +146,20 @@ export default function WorkClient({
   const phase = derivePhase({ status, isChat: false, currentRunEvents });
   const toolPairs = useMemo(() => pairToolEvents(events), [events]);
   const liveTools = useMemo(() => pairToolEvents(currentRunEvents), [currentRunEvents]);
+
+  // Tick while running so the elapsed timer and provider-stall threshold are
+  // live rather than frozen at the last event.
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isRunning) return;
+    const id = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isRunning]);
+
+  const runtime = useMemo(
+    () => deriveChatRuntime({ status, currentRunEvents, now: tick }),
+    [status, currentRunEvents, tick],
+  );
 
   const errorEvent = latestEventOfType(events, 'error');
   const errorMessage = errorEvent ? String(errorEvent.data.message ?? 'The run failed.') : '';
@@ -253,6 +273,21 @@ export default function WorkClient({
     return { ok: false, error: data.error || `Request failed (${res.status}).` };
   }
 
+  // Memory candidates are proposed at completion. Poll once per terminal state
+  // change so the Memory tab badge reflects pending decisions.
+  const loadPendingMemory = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/memory`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const body = await res.json();
+      setPendingMemory(Array.isArray(body.candidates) ? body.candidates.length : 0);
+    } catch (err) {
+      console.warn('[work] could not read memory candidates:', err);
+    }
+  }, [task.id]);
+
+  useEffect(() => { void loadPendingMemory(); }, [loadPendingMemory, status]);
+
   const approve = async () => {
     setBusy(true);
     const result = await post('/approve');
@@ -307,6 +342,7 @@ export default function WorkClient({
     { combo: 'mod+2', run: () => setTab('project') },
     { combo: 'mod+3', run: () => setTab('preview') },
     { combo: 'mod+4', run: () => setTab('context') },
+    { combo: 'mod+5', run: () => setTab('memory') },
     { combo: 'mod+Enter', run: () => void sendFollowUp(), allowInInput: true },
   ]);
 
@@ -315,6 +351,7 @@ export default function WorkClient({
     { id: 'project', label: 'Project', hint: `${mod}+2` },
     { id: 'preview', label: 'Preview', hint: `${mod}+3` },
     { id: 'context', label: 'Context', hint: `${mod}+4` },
+    { id: 'memory', label: 'Memory', hint: `${mod}+5`, count: pendingMemory },
   ];
 
   return (
@@ -417,8 +454,26 @@ export default function WorkClient({
                       ))}
 
                       {isRunning && liveTools.length === 0 && !currentRunText && (
-                        <div className="flex items-center gap-2 text-[12px] text-gray-600">
-                          <Spinner className="text-gray-600" /> working…
+                        <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Spinner className="text-gray-600" />
+                            <span className="text-[12px] text-gray-300">{runtime.label}</span>
+                            {runtime.sinceLastEventMs !== null && (
+                              <span className="text-[11px] tabular-nums text-gray-600">
+                                {formatElapsed(runtime.sinceLastEventMs)}
+                              </span>
+                            )}
+                          </div>
+                          {runtime.detail && (
+                            <p className="mt-1 truncate font-mono text-[11px] text-gray-600" title={runtime.detail}>
+                              {runtime.detail}
+                            </p>
+                          )}
+                          {runtime.stalled && (
+                            <p className="mt-1.5 text-[11px] leading-5 text-amber-200/90">
+                              The provider has not returned a response yet.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -478,7 +533,15 @@ export default function WorkClient({
         )}
         {tab === 'context' && (
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            <TaskContextPanel taskId={task.id} />
+            <div className="space-y-8">
+              <ContextInspector taskId={task.id} />
+              <TaskContextPanel taskId={task.id} />
+            </div>
+          </div>
+        )}
+        {tab === 'memory' && (
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <MemoryReview taskId={task.id} onChanged={loadPendingMemory} />
           </div>
         )}
       </Panel>

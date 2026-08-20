@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Message, Task, TaskEvent, TaskStatus } from '@/lib/types';
 import { parseEvents, splitRuns, type ParsedEvent } from '@/lib/agent/timeline';
+import { deriveChatRuntime, formatElapsed } from '@/lib/agent/runtime-state';
 import {
   Alert,
   Button,
@@ -68,7 +69,21 @@ export default function ChatClient({
   const pinnedRef = useRef(true);
 
   const isStreaming = status === 'running' || status === 'pending';
-  const { currentRunText } = useMemo(() => splitRuns(events), [events]);
+  const { currentRunEvents, currentRunText } = useMemo(() => splitRuns(events), [events]);
+
+  // Tick while streaming so the elapsed timer and the provider-stall threshold
+  // are live rather than frozen at the last event.
+  const [tick, setTick] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isStreaming) return;
+    const id = setInterval(() => setTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [isStreaming]);
+
+  const runtime = useMemo(
+    () => deriveChatRuntime({ status, currentRunEvents, now: tick }),
+    [status, currentRunEvents, tick],
+  );
 
   /* ── Autoscroll, but never fight the user ── */
   const onScroll = () => {
@@ -313,9 +328,26 @@ export default function ChatClient({
                   ),
                 )}
                 {isStreaming && !currentRunText && (
-                  <div className="flex items-center gap-2 text-[12px] text-gray-600">
-                    <Spinner className="text-gray-600" />
-                    thinking…
+                  <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Spinner className="text-gray-600" />
+                      <span className="text-[12px] text-gray-300">{runtime.label}</span>
+                      {runtime.sinceLastEventMs !== null && (
+                        <span className="text-[11px] tabular-nums text-gray-600">
+                          {formatElapsed(runtime.sinceLastEventMs)}
+                        </span>
+                      )}
+                    </div>
+                    {runtime.detail && (
+                      <p className="mt-1 truncate font-mono text-[11px] text-gray-600" title={runtime.detail}>
+                        {runtime.detail}
+                      </p>
+                    )}
+                    {runtime.stalled && (
+                      <p className="mt-1.5 text-[11px] leading-5 text-amber-200/90">
+                        The provider has not returned a response yet.
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

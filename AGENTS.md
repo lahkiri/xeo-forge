@@ -202,6 +202,7 @@ app/                  # pages + API routes (App Router)
                       # tasks/[id]/decision, tasks/[id]/messages,
                       # tasks/[id]/mode, tasks/[id]/preview,
                       # tasks/[id]/uploads, tasks/[id]/workspace,
+                      # tasks/[id]/context, tasks/[id]/memory,
                       # tasks/[id]/export, agent/*, browser/*, runtime,
                       # credits, settings/model, admin/*
 lib/
@@ -209,8 +210,9 @@ lib/
   auth/               # password, session, guard
   credits/            # engine (atomic debit/grant/adjust), pricing
   model/              # config (global, env + DB row id=1), errors
-  agent/              # runner, loop, guards, tools, files, code, prompts,
-                      # intent, context, compaction, timeline, preview, uploads
+  agent/              # runner, loop, guards, tools, files, code, prompts, intent,
+                      # context, context-pack, runtime-state, compaction,
+                      # timeline, preview, uploads
   sse/                # emitter (seq-based, single delivery path)
   types.ts
 components/           # minimal shared UI
@@ -376,3 +378,56 @@ sufficient credits runs until it finishes — no iteration counting.
 - Stagnation detected → inject nudge → model adjusts approach → continue.
 - If model doesn't adjust → stagnation persists → terminate with descriptive error.
 - The nudge explicitly tells the model to: change approach, call task_complete, or explain blockers.
+
+## 13. Memory and effective context (core feature)
+
+Memory makes the agent more useful over time without letting it learn silently.
+
+**Approval gate.** A run proposes bounded candidates at `task_complete`
+(`persistMemoryCandidates` in `lib/agent/loop.ts`), written as `status='proposed'`.
+`getActiveAgentMemories()` filters on `status='active'`, so a proposed memory is
+structurally incapable of reaching run context. The only transition from
+proposed to active is an explicit user decision through
+`POST /api/tasks/:id/memory`, which is idempotent (409 on a second decision) and
+emits a `memory_decision` event.
+
+**Injection is visible.** When approved memories or instructions are compiled
+into a run, the loop emits a `context_layers` event naming them. Memory that
+acts invisibly is the failure mode this feature exists to prevent.
+
+**One resolution pass.** `resolveContext()` in `lib/agent/context-pack.ts` is the
+single source of truth (rule 1). `compileAgentContext()` renders the prompt from
+it for the agent loop; `describeEffectiveContext()` reports it to the Context
+Inspector. The inspector therefore cannot claim a layer the model did not
+receive — both read the same resolution.
+
+**Deterministic layer states.** Each layer resolves to `active`, `excluded`,
+`overridden`, or `duplicate` with a reason:
+- scope specificity (a task instruction is more specific than a global one with
+  the same name),
+- disabled flags,
+- approval status and expiry,
+- byte-identical duplicate content,
+- character-budget clamping.
+
+There is no model-based conflict detection. Xeo does not guess whether two
+instructions disagree semantically, and it must not claim to.
+
+**Guidance is not authority.** Instructions, memories, profiles, and skills are
+context only. None of them can grant a capability, change tool policy, or alter
+approval state. Tool access is enforced at dispatch, never by prompt text.
+
+## 14. Runtime state reporting
+
+Chat and Work never display a generic `thinking...`. `deriveChatRuntime()` in
+`lib/agent/runtime-state.ts` derives the visible state deterministically from the
+event stream: the last event type, its payload, and how long ago it arrived.
+
+States: `idle`, `queued`, `connecting`, `reading_context`, `using_tool`,
+`receiving`, `waiting_for_provider`, `retrying`, `compacting`, `completed`,
+`failed`.
+
+The server's task status is authoritative for terminal state — the UI never
+invents completion. After `PROVIDER_STALL_MS` (10s) of silence the state becomes
+`waiting_for_provider` and offers retry, so a stalled provider is named rather
+than hidden behind an animation.
