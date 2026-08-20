@@ -116,13 +116,13 @@ function TreeItem({
     <div>
       <button
         onClick={handleClick}
-        className={`flex w-full items-center gap-1.5 py-0.5 text-[11px] hover:bg-white/[0.03] transition-colors ${
-          isSelected ? 'bg-indigo-500/10 text-indigo-300' : 'text-gray-400'
+        className={`flex w-full items-center gap-1.5 py-0.5 text-meta hover:bg-ink-700/60 transition-colors ${
+          isSelected ? 'bg-indigo-500/10 text-indigo-300' : 'text-content-secondary'
         }`}
         style={{ paddingLeft: `${depth * 12 + 4}px` }}
       >
         {isDir ? (
-          <svg className={`h-3 w-3 shrink-0 text-gray-600 transition-transform ${open ? 'rotate-90' : ''}`}
+          <svg className={`h-3 w-3 shrink-0 text-content-muted transition-transform ${open ? 'rotate-90' : ''}`}
                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
@@ -131,7 +131,7 @@ function TreeItem({
         )}
         <span className="truncate">{node.name}{isDir ? '/' : ''}</span>
         {!isDir && node.size !== undefined && (
-          <span className="ml-auto text-[9px] text-gray-600 shrink-0">{formatSize(node.size)}</span>
+          <span className="ml-auto text-micro text-content-muted shrink-0">{formatSize(node.size)}</span>
         )}
       </button>
       {isDir && open && node.children && (
@@ -152,15 +152,15 @@ function CodeViewer({ content, path }: { content: string; path: string }) {
   const lines = content.split('\n');
 
   return (
-    <div className="overflow-auto max-h-[70vh] rounded-lg bg-[#0a0c10] border border-white/[0.06]">
-      <table className="w-full text-[11px] font-mono leading-relaxed">
+    <div className="overflow-auto max-h-[70vh] rounded-control bg-[#0a0c10] border border-line-subtle">
+      <table className="w-full text-meta font-mono leading-relaxed">
         <tbody>
           {lines.map((line, i) => (
-            <tr key={i} className="hover:bg-white/[0.02]">
-              <td className="sticky left-0 text-right pr-3 pl-3 text-gray-600 select-none bg-[#0a0c10] w-12 border-r border-white/[0.04]">
+            <tr key={i} className="hover:bg-ink-700/60">
+              <td className="sticky left-0 text-right pr-3 pl-3 text-content-muted select-none bg-[#0a0c10] w-12 border-r border-white/[0.04]">
                 {i + 1}
               </td>
-              <td className="px-3 text-gray-300 whitespace-pre" dangerouslySetInnerHTML={{
+              <td className="px-3 text-content-secondary whitespace-pre" dangerouslySetInnerHTML={{
                 __html: highlightLine(line, lang)
               }} />
             </tr>
@@ -247,8 +247,8 @@ export function WorkspaceViewer({ taskId }: { taskId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12 text-[11px] text-gray-500">
-        <span className="h-1.5 w-1.5 rounded-full bg-gray-500 animate-pulse mr-2" />
+      <div className="flex items-center justify-center py-12 text-meta text-content-muted">
+        <span className="h-1.5 w-1.5 rounded-full bg-gray-500 animate-live-pulse mr-2" />
         loading workspace…
       </div>
     );
@@ -256,7 +256,7 @@ export function WorkspaceViewer({ taskId }: { taskId: string }) {
 
   if (!data || data.totalFiles === 0) {
     return (
-      <div className="text-center py-12 text-[11px] text-gray-500">
+      <div className="text-center py-12 text-meta text-content-muted">
         workspace is empty
       </div>
     );
@@ -267,16 +267,16 @@ export function WorkspaceViewer({ taskId }: { taskId: string }) {
       {/* Toolbar */}
       <div className="flex items-center gap-3">
         <div className="flex-1 relative">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3 w-3 text-content-muted" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
           <input
             type="text" value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="search files…"
-            className="w-full rounded-lg border border-white/10 bg-white/[0.03] pl-8 pr-3 py-1.5 text-[11px] text-gray-300 placeholder-gray-600 outline-none focus:border-white/20"
+            className="w-full rounded-control border border-line bg-ink-700/60 pl-8 pr-3 py-1.5 text-meta text-content-secondary placeholder-gray-600 outline-none focus:border-line-strong"
           />
         </div>
-        <span className="text-[10px] text-gray-600 shrink-0">
+        <span className="text-micro text-content-muted shrink-0">
           {data.totalFiles} files · {formatSize(data.totalSize)}
         </span>
       </div>
@@ -284,7 +284,7 @@ export function WorkspaceViewer({ taskId }: { taskId: string }) {
       {/* Split: tree + viewer */}
       <div className="flex gap-3 min-h-0" style={{ height: '60vh' }}>
         {/* File tree */}
-        <div className="w-48 shrink-0 overflow-y-auto rounded-lg border border-white/[0.06] bg-white/[0.015] p-1.5">
+        <div className="w-48 shrink-0 overflow-y-auto rounded-control border border-line-subtle bg-ink-700/60 p-1.5">
           {filteredTree.map((node) => (
             <TreeItem key={node.path} node={node} depth={0} selected={selected} onSelect={loadFile} onLoadDir={loadDir} loadedDirs={loadedDirs} />
           ))}
@@ -293,18 +293,18 @@ export function WorkspaceViewer({ taskId }: { taskId: string }) {
         {/* Code viewer */}
         <div className="flex-1 min-w-0 overflow-hidden">
           {loadingFile ? (
-            <div className="flex items-center justify-center h-full text-[11px] text-gray-500">
+            <div className="flex items-center justify-center h-full text-meta text-content-muted">
               loading file…
             </div>
           ) : fileContent ? (
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-mono text-gray-500">{fileContent.path}</span>
+                <span className="text-micro font-mono text-content-muted">{fileContent.path}</span>
               </div>
               <CodeViewer content={fileContent.content} path={fileContent.path} />
             </div>
           ) : (
-            <div className="flex items-center justify-center h-full text-[11px] text-gray-600">
+            <div className="flex items-center justify-center h-full text-meta text-content-muted">
               select a file to view
             </div>
           )}

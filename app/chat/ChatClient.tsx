@@ -252,9 +252,9 @@ export default function ChatClient({
   return (
     <div className="flex h-[calc(100vh-3.5rem)] min-h-0">
       {/* ── Thread list ── */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-white/[0.07] md:flex">
-        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-white/[0.07] px-3">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-line-subtle md:flex">
+        <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-subtle px-3">
+          <span className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
             Conversations
           </span>
           <Link href="/chat">
@@ -265,7 +265,7 @@ export default function ChatClient({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {threads.length === 0 && (
-            <p className="px-2.5 py-6 text-[11px] leading-5 text-gray-600">
+            <p className="px-2.5 py-6 text-meta leading-5 text-content-muted">
               No conversations yet. Ask something below.
             </p>
           )}
@@ -276,11 +276,11 @@ export default function ChatClient({
                 key={thread.id}
                 href={`/chat/${thread.id}`}
                 className={cx(
-                  'mb-0.5 block rounded-lg px-2.5 py-2 transition',
-                  active ? 'bg-white/[0.08] text-gray-100' : 'text-gray-500 hover:bg-white/[0.04] hover:text-gray-300',
+                  'mb-0.5 block rounded-control px-2.5 py-2 transition',
+                  active ? 'bg-ink-600 text-content-primary' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
                 )}
               >
-                <span className="block truncate text-[12px] leading-5">{thread.goal}</span>
+                <span className="block truncate text-ui leading-5">{thread.goal}</span>
               </Link>
             );
           })}
@@ -304,7 +304,7 @@ export default function ChatClient({
                       key={starter}
                       type="button"
                       onClick={() => { setDraft(starter); composerRef.current?.focus(); }}
-                      className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3.5 py-2.5 text-left text-[12px] leading-5 text-gray-400 transition hover:border-cyan-300/20 hover:bg-cyan-300/[0.04] hover:text-gray-200"
+                      className="rounded-control border border-line-subtle bg-ink-700/60 px-3.5 py-2.5 text-left text-ui leading-5 text-content-secondary transition hover:border-signal-run/20 hover:bg-signal-run/04 hover:text-content-primary"
                     >
                       {starter}
                     </button>
@@ -316,14 +316,14 @@ export default function ChatClient({
                 {turns.map((turn) =>
                   turn.role === 'user' ? (
                     <div key={turn.key} className="flex justify-end">
-                      <div className="max-w-[85%] rounded-2xl rounded-br-md bg-cyan-300/[0.1] px-3.5 py-2.5 text-[13px] leading-6 text-cyan-50">
+                      <div className="max-w-[85%] rounded-modal rounded-br-md bg-signal-run/1 px-3.5 py-2.5 text-body leading-6 text-cyan-50">
                         <p className="whitespace-pre-wrap">{turn.content}</p>
                       </div>
                     </div>
                   ) : (
                     <div key={turn.key} className="flex justify-start">
                       <div
-                        className="markdown-content max-w-[92%] text-[13px] leading-6 text-gray-300"
+                        className="markdown-content max-w-[92%] text-body leading-6 text-content-secondary"
                         dangerouslySetInnerHTML={{ __html: renderMarkdown(turn.content) }}
                       />
                     </div>
@@ -353,9 +353,9 @@ export default function ChatClient({
         </div>
 
         {/* ── Composer ── */}
-        <div className="shrink-0 border-t border-white/[0.07] bg-[#0c1320]/80 px-4 py-3 backdrop-blur-xl sm:px-6">
+        <div className="shrink-0 border-t border-line-subtle bg-ink-900/60 px-4 py-3 backdrop-blur-xl sm:px-6">
           <div className="mx-auto w-full max-w-3xl">
-            <div className="rounded-xl border border-white/10 bg-[#0c1320]/90 transition focus-within:border-cyan-300/40 focus-within:ring-4 focus-within:ring-cyan-300/[0.07]">
+            <div className="rounded-panel border border-line bg-ink-900/70 transition focus-within:border-signal-run/40 focus-within:ring-4 focus-within:ring-cyan-300/[0.07]">
               <textarea
                 ref={composerRef}
                 value={draft}
@@ -365,12 +365,12 @@ export default function ChatClient({
                 autoFocus
                 placeholder="Ask a question…"
                 aria-label="Message"
-                className="block max-h-[200px] w-full resize-none bg-transparent px-3.5 py-3 text-[13px] leading-6 text-gray-100 outline-none placeholder:text-gray-600"
+                className="block max-h-[200px] w-full resize-none bg-transparent px-3.5 py-3 text-body leading-6 text-content-primary outline-none placeholder:text-content-muted"
               />
               <div className="flex items-center justify-between gap-3 px-3 pb-2.5">
-                <span className="inline-flex items-center gap-1.5 text-[10px] text-gray-600">
+                <span className="inline-flex items-center gap-1.5 text-micro text-content-muted">
                   <KeyHint keys={['Enter']} /> send
-                  <span className="mx-0.5 text-gray-700">·</span>
+                  <span className="mx-0.5 text-content-faint">·</span>
                   <KeyHint keys={['Shift', 'Enter']} /> newline
                 </span>
                 <div className="flex items-center gap-2">
@@ -390,9 +390,9 @@ export default function ChatClient({
                 </div>
               </div>
             </div>
-            <p className="mt-2 text-center text-[10px] text-gray-600">
+            <p className="mt-2 text-center text-micro text-content-muted">
               Chat never writes files or runs commands.
-              <span className="mx-1.5 text-gray-700">·</span>
+              <span className="mx-1.5 text-content-faint">·</span>
               <KeyHint keys={[mod, 'K']} /> for commands
             </p>
           </div>

@@ -155,10 +155,10 @@ export function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#111a2b] shadow-[0_32px_90px_rgba(0,0,0,0.55)]"
+        className="relative w-full max-w-xl overflow-hidden rounded-modal border border-line bg-ink-600 shadow-modal"
       >
-        <div className="flex items-center gap-3 border-b border-white/[0.07] px-4">
-          <span aria-hidden="true" className="text-gray-600">⌕</span>
+        <div className="flex items-center gap-3 border-b border-line-subtle px-4">
+          <span aria-hidden="true" className="text-content-muted">⌕</span>
           <input
             ref={inputRef}
             value={query}
@@ -166,14 +166,14 @@ export function CommandPalette({
             onKeyDown={onKeyDown}
             placeholder="Search commands and conversations…"
             aria-label="Search commands"
-            className="h-12 flex-1 bg-transparent text-[13px] text-gray-100 outline-none placeholder:text-gray-600"
+            className="h-12 flex-1 bg-transparent text-body text-content-primary outline-none placeholder:text-content-muted"
           />
           <KeyHint keys={['Esc']} />
         </div>
 
         <div ref={listRef} className="max-h-[min(24rem,50vh)] overflow-y-auto p-1.5" role="listbox">
           {matches.length === 0 && (
-            <p className="px-3 py-8 text-center text-[12px] text-gray-600">No matching command.</p>
+            <p className="px-3 py-8 text-center text-ui text-content-muted">No matching command.</p>
           )}
           {matches.map((command, index) => {
             const showGroup = !seenGroups.has(command.group);
@@ -182,7 +182,7 @@ export function CommandPalette({
             return (
               <div key={command.id}>
                 {showGroup && (
-                  <p className="px-2.5 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
+                  <p className="px-2.5 pb-1 pt-2.5 text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
                     {command.group}
                   </p>
                 )}
@@ -194,14 +194,14 @@ export function CommandPalette({
                   onMouseEnter={() => setCursor(index)}
                   onClick={() => commit(command)}
                   className={cx(
-                    'flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-left transition',
-                    active ? 'bg-cyan-300/[0.12] text-white' : 'text-gray-300 hover:bg-white/[0.05]',
+                    'flex w-full items-center justify-between gap-3 rounded-control px-2.5 py-2 text-left transition',
+                    active ? 'bg-signal-run/12 text-white' : 'text-content-secondary hover:bg-ink-700',
                   )}
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-[13px]">{command.label}</span>
+                    <span className="block truncate text-body">{command.label}</span>
                     {command.hint && (
-                      <span className="mt-0.5 block truncate text-[11px] text-gray-500">{command.hint}</span>
+                      <span className="mt-0.5 block truncate text-meta text-content-muted">{command.hint}</span>
                     )}
                   </span>
                   {command.keys && <KeyHint keys={command.keys} />}
@@ -220,7 +220,7 @@ export function CommandPalette({
 export function ShortcutHint({ className = '' }: { className?: string }) {
   const mod = useModKey();
   return (
-    <span className={cx('inline-flex items-center gap-1.5 text-[10px] text-gray-600', className)}>
+    <span className={cx('inline-flex items-center gap-1.5 text-micro text-content-muted', className)}>
       <KeyHint keys={[mod, 'K']} />
       <span>commands</span>
     </span>

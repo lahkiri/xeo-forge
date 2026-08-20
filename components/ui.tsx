@@ -29,22 +29,24 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'succ
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const BUTTON_SIZES: Record<ButtonSize, string> = {
-  sm: 'h-7 gap-1.5 px-2.5 text-[11px]',
-  md: 'h-9 gap-2 px-3.5 text-[13px]',
-  lg: 'h-11 gap-2 px-5 text-sm',
+  sm: 'h-7 gap-1.5 px-2.5 text-meta',
+  md: 'h-8 gap-2 px-3 text-ui',
+  lg: 'h-10 gap-2 px-4 text-body',
 };
 
+// Flat fills, no glow. A control that emits light reads as decorative; in an
+// operations console the only thing that should draw the eye is live state.
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   primary:
-    'bg-cyan-300 text-slate-950 font-semibold shadow-[0_0_20px_-4px_rgba(103,232,249,0.5)] hover:bg-cyan-200 active:bg-cyan-400',
+    'bg-signal-run text-ink-900 font-semibold hover:brightness-110 active:brightness-95',
   secondary:
-    'border border-white/10 bg-white/[0.06] text-gray-100 hover:border-white/20 hover:bg-white/[0.1]',
+    'border border-line bg-ink-600 text-content-primary hover:border-line-strong hover:bg-ink-500',
   ghost:
-    'border border-transparent text-gray-400 hover:bg-white/[0.06] hover:text-gray-100',
+    'border border-transparent text-content-secondary hover:bg-ink-700 hover:text-content-primary',
   danger:
-    'border border-red-400/25 bg-red-500/12 text-red-200 hover:border-red-400/40 hover:bg-red-500/20',
+    'border border-signal-fail/30 bg-signal-fail/10 text-signal-fail hover:bg-signal-fail/20',
   success:
-    'bg-emerald-300 text-slate-950 font-semibold shadow-[0_0_20px_-4px_rgba(110,231,183,0.5)] hover:bg-emerald-200',
+    'bg-signal-pass text-ink-900 font-semibold hover:brightness-110 active:brightness-95',
 };
 
 export const Button = forwardRef<
@@ -64,8 +66,8 @@ export const Button = forwardRef<
       ref={ref}
       disabled={disabled || loading}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center rounded-lg font-medium transition-all duration-150',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60 focus-visible:ring-offset-1 focus-visible:ring-offset-[#0c1320]',
+        'inline-flex shrink-0 items-center justify-center rounded-control font-medium transition-colors duration-instant',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-signal-run/60 focus-visible:ring-offset-1 focus-visible:ring-offset-ink-800',
         'disabled:pointer-events-none disabled:opacity-40',
         BUTTON_SIZES[size],
         BUTTON_VARIANTS[variant],
@@ -101,8 +103,8 @@ export const IconButton = forwardRef<
       aria-label={label}
       title={label}
       className={cx(
-        'inline-flex shrink-0 items-center justify-center rounded-lg border border-transparent text-gray-500 transition',
-        'hover:bg-white/[0.07] hover:text-gray-100',
+        'inline-flex shrink-0 items-center justify-center rounded-control border border-transparent text-content-muted transition',
+        'hover:bg-ink-600 hover:text-content-primary',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/60',
         'disabled:pointer-events-none disabled:opacity-40',
         size === 'sm' ? 'h-6 w-6' : 'h-8 w-8',
@@ -129,21 +131,21 @@ export function Card({
   tone?: 'default' | 'cyan' | 'violet' | 'amber' | 'emerald' | 'red';
 }) {
   const tones = {
-    default: 'border-white/[0.08] bg-white/[0.03]',
-    cyan: 'border-cyan-300/20 bg-cyan-300/[0.05]',
-    violet: 'border-violet-300/20 bg-violet-300/[0.05]',
-    amber: 'border-amber-300/20 bg-amber-300/[0.05]',
-    emerald: 'border-emerald-300/20 bg-emerald-300/[0.05]',
-    red: 'border-red-400/20 bg-red-400/[0.05]',
+    default: 'border-line-subtle bg-ink-700/70',
+    cyan: 'border-signal-run/20 bg-signal-run/05',
+    violet: 'border-signal-plan/20 bg-signal-plan/05',
+    amber: 'border-signal-gate/20 bg-signal-gate/05',
+    emerald: 'border-signal-pass/20 bg-signal-pass/05',
+    red: 'border-signal-fail/20 bg-signal-fail/05',
   };
   const hasPad = /(?:^|\s)(p-|px-|py-)/.test(className);
   return (
     <div
       className={cx(
-        'rounded-xl border',
+        'rounded-panel border',
         tones[tone],
         hasPad ? '' : 'p-4',
-        interactive && 'transition duration-150 hover:border-cyan-300/25 hover:bg-white/[0.05]',
+        interactive && 'transition-colors duration-quick hover:border-line hover:bg-ink-700',
         className,
       )}
     >
@@ -154,7 +156,7 @@ export function Card({
 
 export function Panel({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx('flex min-h-0 min-w-0 flex-col border-white/[0.07]', className)}>{children}</div>
+    <div className={cx('flex min-h-0 min-w-0 flex-col border-line-subtle', className)}>{children}</div>
   );
 }
 
@@ -170,11 +172,11 @@ export function PanelHeader({
   return (
     <div
       className={cx(
-        'flex h-11 shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-3',
+        'flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line-subtle px-3',
         className,
       )}
     >
-      <span className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+      <span className="truncate text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
         {title}
       </span>
       {children && <div className="flex shrink-0 items-center gap-1">{children}</div>}
@@ -190,31 +192,33 @@ export function Eyebrow({
   tone?: 'cyan' | 'violet' | 'amber' | 'gray';
 }) {
   const tones = {
-    cyan: 'text-cyan-300/80',
-    violet: 'text-violet-300/80',
-    amber: 'text-amber-300/80',
-    gray: 'text-gray-500',
+    cyan: 'text-signal-run/80',
+    violet: 'text-signal-plan/80',
+    amber: 'text-signal-gate/80',
+    gray: 'text-content-muted',
   };
   return (
-    <p className={cx('text-[10px] font-semibold uppercase tracking-[0.22em]', tones[tone])}>{children}</p>
+    <p className={cx('text-micro font-semibold uppercase tracking-[0.22em]', tones[tone])}>{children}</p>
   );
 }
 
 export function Divider({ className = '' }: { className?: string }) {
-  return <div className={cx('h-px bg-white/[0.07]', className)} />;
+  return <div className={cx('h-px bg-ink-600', className)} />;
 }
 
 /* ── Badge / status ───────────────────────────────────────────────── */
 
 export type BadgeTone = 'gray' | 'cyan' | 'violet' | 'amber' | 'emerald' | 'red';
 
+// Borderless tinted chips. A badge with a border reads as a button and invites
+// a click it does not accept.
 const BADGE_TONES: Record<BadgeTone, string> = {
-  gray: 'border-white/[0.08] bg-white/[0.05] text-gray-400',
-  cyan: 'border-cyan-300/20 bg-cyan-300/[0.1] text-cyan-200',
-  violet: 'border-violet-300/20 bg-violet-300/[0.1] text-violet-200',
-  amber: 'border-amber-300/20 bg-amber-300/[0.1] text-amber-200',
-  emerald: 'border-emerald-300/20 bg-emerald-300/[0.1] text-emerald-200',
-  red: 'border-red-400/20 bg-red-400/[0.1] text-red-200',
+  gray: 'bg-ink-500 text-content-muted',
+  cyan: 'bg-signal-run/15 text-signal-run',
+  violet: 'bg-signal-plan/15 text-signal-plan',
+  amber: 'bg-signal-gate/15 text-signal-gate',
+  emerald: 'bg-signal-pass/15 text-signal-pass',
+  red: 'bg-signal-fail/15 text-signal-fail',
 };
 
 export function Badge({
@@ -233,12 +237,12 @@ export function Badge({
   return (
     <span
       className={cx(
-        'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-medium',
+        'inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-0.5 text-micro font-medium',
         BADGE_TONES[tone],
         className,
       )}
     >
-      {dot && <span className={cx('h-1.5 w-1.5 rounded-full bg-current', pulse && 'animate-pulse')} />}
+      {dot && <span className={cx('h-1.5 w-1.5 rounded-full bg-current', pulse && 'animate-live-pulse')} />}
       {children}
     </span>
   );
@@ -290,24 +294,24 @@ function FieldShell({
   return (
     <div className="min-w-0">
       {label && (
-        <label htmlFor={htmlFor} className="mb-1.5 block text-[11px] font-medium text-gray-400">
+        <label htmlFor={htmlFor} className="mb-1.5 block text-meta font-medium text-content-secondary">
           {label}
         </label>
       )}
       {children}
       {error ? (
-        <p className="mt-1.5 text-[11px] text-red-300">{error}</p>
+        <p className="mt-1.5 text-meta text-signal-fail">{error}</p>
       ) : (
-        hint && <p className="mt-1.5 text-[11px] leading-4 text-gray-600">{hint}</p>
+        hint && <p className="mt-1.5 text-meta leading-4 text-content-muted">{hint}</p>
       )}
     </div>
   );
 }
 
 const CONTROL_BASE =
-  'w-full rounded-lg border border-white/10 bg-[#0c1320]/80 px-3 text-[13px] text-gray-100 transition ' +
-  'placeholder:text-gray-600 ' +
-  'focus:border-cyan-300/50 focus:bg-[#0f192a] focus:outline-none focus:ring-4 focus:ring-cyan-300/[0.08] ' +
+  'w-full rounded-control border border-line bg-ink-900/60 px-3 text-ui text-content-primary ' +
+  'transition-colors duration-quick placeholder:text-content-muted ' +
+  'focus:border-signal-run/45 focus:bg-ink-700 focus:outline-none focus:shadow-focus ' +
   'disabled:cursor-not-allowed disabled:opacity-50';
 
 export const Input = forwardRef<
@@ -322,7 +326,7 @@ export const Input = forwardRef<
         ref={ref}
         id={fieldId}
         aria-invalid={error ? true : undefined}
-        className={cx(CONTROL_BASE, 'h-9', error && 'border-red-400/40', className)}
+        className={cx(CONTROL_BASE, 'h-9', error && 'border-signal-fail/40', className)}
         {...props}
       />
     </FieldShell>
@@ -341,7 +345,7 @@ export const Textarea = forwardRef<
         ref={ref}
         id={fieldId}
         aria-invalid={error ? true : undefined}
-        className={cx(CONTROL_BASE, 'resize-none py-2.5 leading-6', error && 'border-red-400/40', className)}
+        className={cx(CONTROL_BASE, 'resize-none py-2.5 leading-6', error && 'border-signal-fail/40', className)}
         {...props}
       />
     </FieldShell>
@@ -402,18 +406,18 @@ export function Tabs({
             onClick={() => onChange(item.id)}
             title={item.hint}
             className={cx(
-              'group relative inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[12px] font-medium transition',
+              'group relative inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-ui font-medium transition',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50',
               'disabled:pointer-events-none disabled:opacity-30',
-              isActive ? 'bg-white/[0.08] text-white' : 'text-gray-500 hover:bg-white/[0.04] hover:text-gray-300',
+              isActive ? 'bg-ink-600 text-white' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
             )}
           >
             {item.label}
             {typeof item.count === 'number' && item.count > 0 && (
               <span
                 className={cx(
-                  'rounded px-1 text-[10px] tabular-nums',
-                  isActive ? 'bg-cyan-300/20 text-cyan-100' : 'bg-white/[0.07] text-gray-500',
+                  'rounded px-1 text-micro tabular-nums',
+                  isActive ? 'bg-signal-run/20 text-signal-run' : 'bg-ink-600 text-content-muted',
                 )}
               >
                 {item.count}
@@ -435,7 +439,7 @@ export function KeyHint({ keys, className = '' }: { keys: string[]; className?: 
       {keys.map((key) => (
         <kbd
           key={key}
-          className="rounded border border-white/10 bg-white/[0.05] px-1 py-px font-sans text-[9px] font-semibold leading-[1.4] text-gray-500"
+          className="rounded border border-line bg-ink-700 px-1 py-px font-sans text-micro font-semibold leading-[1.4] text-content-muted"
         >
           {key}
         </kbd>
@@ -471,12 +475,12 @@ export function EmptyState({
   return (
     <div className={cx('flex flex-col items-center justify-center px-6 py-12 text-center', className)}>
       {icon && (
-        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-gray-500">
+        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-panel border border-line-subtle bg-ink-700/60 text-content-muted">
           {icon}
         </div>
       )}
-      <p className="text-sm font-semibold text-gray-200">{title}</p>
-      {description && <p className="mt-1.5 max-w-sm text-[12px] leading-5 text-gray-500">{description}</p>}
+      <p className="text-sm font-semibold text-content-primary">{title}</p>
+      {description && <p className="mt-1.5 max-w-sm text-ui leading-5 text-content-muted">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   );
@@ -485,7 +489,7 @@ export function EmptyState({
 /* ── Skeleton ─────────────────────────────────────────────────────── */
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={cx('animate-pulse rounded-md bg-white/[0.05]', className)} />;
+  return <div className={cx('animate-live-pulse rounded-md bg-ink-700', className)} />;
 }
 
 /* ── Metric ───────────────────────────────────────────────────────── */
@@ -502,15 +506,15 @@ export function Metric({
   tone?: 'default' | 'warn' | 'danger';
 }) {
   const tones = {
-    default: 'text-gray-100',
+    default: 'text-content-primary',
     warn: 'text-amber-300',
-    danger: 'text-red-300',
+    danger: 'text-signal-fail',
   };
   return (
-    <div className="rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">{label}</p>
+    <div className="rounded-control border border-line-subtle bg-black/20 px-3 py-2.5">
+      <p className="text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">{label}</p>
       <p className={cx('mt-1 text-lg font-semibold tabular-nums tracking-tight', tones[tone])}>{value}</p>
-      {detail && <p className="mt-0.5 text-[10px] text-gray-600">{detail}</p>}
+      {detail && <p className="mt-0.5 text-micro text-content-muted">{detail}</p>}
     </div>
   );
 }
@@ -532,17 +536,17 @@ export function Meter({
 }) {
   const pct = Math.max(0, Math.min(100, value));
   const tone = pct >= dangerAt ? 'red' : pct >= warnAt ? 'amber' : 'cyan';
-  const bar = { cyan: 'bg-cyan-300/70', amber: 'bg-amber-300/80', red: 'bg-red-400/80' }[tone];
-  const text = { cyan: 'text-gray-400', amber: 'text-amber-300', red: 'text-red-300' }[tone];
+  const bar = { cyan: 'bg-signal-run/70', amber: 'bg-signal-gate/80', red: 'bg-signal-fail/80' }[tone];
+  const text = { cyan: 'text-content-secondary', amber: 'text-amber-300', red: 'text-signal-fail' }[tone];
   return (
     <div title={detail}>
       {label && (
         <div className="mb-1 flex items-baseline justify-between gap-2">
-          <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-gray-600">{label}</span>
-          <span className={cx('text-[11px] font-semibold tabular-nums', text)}>{Math.round(pct)}%</span>
+          <span className="text-micro font-medium uppercase tracking-[0.12em] text-content-muted">{label}</span>
+          <span className={cx('text-meta font-semibold tabular-nums', text)}>{Math.round(pct)}%</span>
         </div>
       )}
-      <div className="h-1 overflow-hidden rounded-full bg-white/[0.07]">
+      <div className="h-1 overflow-hidden rounded-full bg-ink-600">
         <div className={cx('h-full rounded-full transition-all duration-500', bar)} style={{ width: `${pct}%` }} />
       </div>
     </div>
@@ -593,14 +597,14 @@ export function Dialog({
         aria-modal="true"
         aria-label={title}
         className={cx(
-          'relative w-full rounded-2xl border border-white/10 bg-[#111a2b] shadow-[0_32px_90px_rgba(0,0,0,0.5)]',
+          'relative w-full rounded-modal border border-line bg-ink-600 shadow-modal',
           widths[width],
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-line-subtle px-5 py-4">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold text-white">{title}</h2>
-            {description && <p className="mt-1 text-[12px] leading-5 text-gray-500">{description}</p>}
+            {description && <p className="mt-1 text-ui leading-5 text-content-muted">{description}</p>}
           </div>
           <IconButton label="Close" onClick={onClose}>
             <span aria-hidden="true" className="text-base leading-none">×</span>
@@ -608,7 +612,7 @@ export function Dialog({
         </div>
         {children && <div className="px-5 py-4">{children}</div>}
         {footer && (
-          <div className="flex items-center justify-end gap-2 border-t border-white/[0.07] px-5 py-3.5">{footer}</div>
+          <div className="flex items-center justify-end gap-2 border-t border-line-subtle px-5 py-3.5">{footer}</div>
         )}
       </div>
     </div>
@@ -643,9 +647,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   };
 
   const tones = {
-    info: 'border-white/10 bg-[#141d2f] text-gray-200',
-    success: 'border-emerald-300/25 bg-emerald-300/[0.1] text-emerald-100',
-    error: 'border-red-400/25 bg-red-400/[0.1] text-red-100',
+    info: 'border-line bg-ink-600 text-content-primary',
+    success: 'border-signal-pass/25 bg-signal-pass/1 text-emerald-100',
+    error: 'border-signal-fail/25 bg-signal-fail/1 text-signal-fail',
   };
 
   return (
@@ -657,7 +661,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             role="status"
             className={cx(
-              'pointer-events-auto rounded-lg border px-3.5 py-2.5 text-[12px] leading-5 shadow-[0_16px_40px_rgba(0,0,0,0.4)] backdrop-blur-md',
+              'pointer-events-auto rounded-control border px-3.5 py-2.5 text-ui leading-5 shadow-panel backdrop-blur-md',
               tones[toast.tone],
             )}
           >
@@ -683,15 +687,15 @@ export function Alert({
   action?: ReactNode;
 }) {
   const tones = {
-    info: 'border-white/[0.08] bg-white/[0.03] text-gray-300',
-    warn: 'border-amber-300/20 bg-amber-300/[0.06] text-amber-100',
-    error: 'border-red-400/20 bg-red-400/[0.07] text-red-100',
-    success: 'border-emerald-300/20 bg-emerald-300/[0.06] text-emerald-100',
+    info: 'border-line-subtle bg-ink-700/60 text-content-secondary',
+    warn: 'border-signal-gate/20 bg-signal-gate/06 text-signal-gate',
+    error: 'border-signal-fail/20 bg-signal-fail/07 text-signal-fail',
+    success: 'border-signal-pass/20 bg-signal-pass/06 text-emerald-100',
   };
   return (
-    <div role={tone === 'error' ? 'alert' : 'status'} className={cx('rounded-lg border px-3.5 py-3', tones[tone])}>
+    <div role={tone === 'error' ? 'alert' : 'status'} className={cx('rounded-control border px-3.5 py-3', tones[tone])}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 text-[12px] leading-5">
+        <div className="min-w-0 text-ui leading-5">
           {title && <p className="font-semibold">{title}</p>}
           {children && <div className={title ? 'mt-0.5 opacity-90' : ''}>{children}</div>}
         </div>

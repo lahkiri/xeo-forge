@@ -56,7 +56,7 @@ async function requestModelTest(payload: Record<string, unknown>): Promise<Model
 function statusTone(status: AgentMemory['status']): string {
   if (status === 'active') return 'bg-green-500/15 text-green-300';
   if (status === 'proposed') return 'bg-amber-500/15 text-amber-300';
-  return 'bg-white/10 text-gray-400';
+  return 'bg-white/10 text-content-secondary';
 }
 
 export default function SettingsClient({ user, localMode }: { user: AuthUser; localMode: boolean }) {
@@ -311,63 +311,63 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
         <header className="max-w-3xl">
           <Eyebrow>{localMode ? 'Control Center' : 'Agent controls'}</Eyebrow>
           <h2 className="mt-3 text-2xl font-semibold tracking-tight text-white sm:text-3xl">Make Xeo work the way you expect.</h2>
-          <p className="mt-3 text-sm leading-6 text-gray-400">Configure the model, browser permissions, reusable instructions, and memory from one clear workspace. Changes are visible, local where applicable, and never require source-code edits.</p>
-          <div className="mt-5 flex flex-wrap gap-2 text-[11px]"><span className="rounded-full border border-violet-300/15 bg-violet-300/[0.06] px-2.5 py-1 text-violet-200/80">Model</span><span className="rounded-full border border-cyan-300/15 bg-cyan-300/[0.06] px-2.5 py-1 text-cyan-200/80">Browser</span><span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.06] px-2.5 py-1 text-emerald-200/80">Memory</span><span className="rounded-full border border-white/[0.1] bg-white/[0.035] px-2.5 py-1 text-gray-400">Updates</span></div>
+          <p className="mt-3 text-sm leading-6 text-content-secondary">Configure the model, browser permissions, reusable instructions, and memory from one clear workspace. Changes are visible, local where applicable, and never require source-code edits.</p>
+          <div className="mt-5 flex flex-wrap gap-2 text-meta"><span className="rounded-full border border-signal-plan/15 bg-signal-plan/06 px-2.5 py-1 text-signal-plan/80">Model</span><span className="rounded-full border border-signal-run/15 bg-signal-run/06 px-2.5 py-1 text-signal-run/80">Browser</span><span className="rounded-full border border-signal-pass/15 bg-signal-pass/06 px-2.5 py-1 text-signal-pass/80">Memory</span><span className="rounded-full border border-line bg-ink-700/60 px-2.5 py-1 text-content-secondary">Updates</span></div>
         </header>
 
         {notice && (
-          <div className={`mb-6 rounded-lg border px-4 py-3 text-sm ${notice.type === 'ok' ? 'border-green-500/20 bg-green-500/10 text-green-300' : 'border-red-500/20 bg-red-500/10 text-red-300'}`}>
+          <div className={`mb-6 rounded-control border px-4 py-3 text-sm ${notice.type === 'ok' ? 'border-green-500/20 bg-green-500/10 text-green-300' : 'border-red-500/20 bg-signal-fail/10 text-signal-fail'}`}>
             {notice.text}
           </div>
         )}
 
         {localMode && (
-          <section className="rounded-2xl border border-violet-300/10 bg-violet-300/[0.035] p-5 sm:p-6">
+          <section className="rounded-modal border border-signal-plan/10 bg-signal-plan/035 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <Eyebrow>Local model</Eyebrow>
                 <h2 className="mt-2 font-semibold text-white">Choose how Xeo thinks</h2>
-                <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Connect an OpenAI-compatible local or remote model for this device. The API key is stored locally and is never returned to the interface.</p>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-content-secondary">Connect an OpenAI-compatible local or remote model for this device. The API key is stored locally and is never returned to the interface.</p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] ${model?.api_key_set ? 'bg-emerald-400/10 text-emerald-300' : 'bg-amber-400/10 text-amber-300'}`}>{model?.api_key_issue === 'placeholder' ? 'replace placeholder key' : model?.api_key_set ? 'provider configured' : 'setup required'}</span>
+              <span className={`rounded-full px-2.5 py-1 text-micro ${model?.api_key_set ? 'bg-signal-pass/10 text-signal-pass' : 'bg-signal-gate/10 text-amber-300'}`}>{model?.api_key_issue === 'placeholder' ? 'replace placeholder key' : model?.api_key_set ? 'provider configured' : 'setup required'}</span>
             </div>
             <form onSubmit={saveModel} className="mt-5 space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
-                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Display name</span><input value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="Local model" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
-                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Model ID</span><input value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="gpt-4o-mini or local-model" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
+                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Display name</span><input value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="Local model" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-content-muted focus:border-signal-plan/50" /></label>
+                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Model ID</span><input value={modelId} onChange={(e) => setModelId(e.target.value)} placeholder="gpt-4o-mini or local-model" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-content-muted focus:border-signal-plan/50" /></label>
               </div>
-              <label className="block space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">OpenAI-compatible base URL</span><input value={modelBaseUrl} onChange={(e) => setModelBaseUrl(e.target.value)} type="url" placeholder="http://127.0.0.1:1234/v1" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
+              <label className="block space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">OpenAI-compatible base URL</span><input value={modelBaseUrl} onChange={(e) => setModelBaseUrl(e.target.value)} type="url" placeholder="http://127.0.0.1:1234/v1" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-content-muted focus:border-signal-plan/50" /></label>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">API key</span><input value={modelApiKey} onChange={(e) => setModelApiKey(e.target.value)} type="password" placeholder={model?.api_key_set ? 'Leave unchanged' : 'Required by provider'} className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-violet-300/50" /></label>
-                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Temperature</span><input value={modelTemperature} onChange={(e) => setModelTemperature(e.target.value)} type="number" min="0" max="2" step="0.1" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
-                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Max output tokens</span><input value={modelMaxTokens} onChange={(e) => setModelMaxTokens(e.target.value)} type="number" min="256" max="200000" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
-                <label className="space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Context compact at %</span><input value={modelCompactThreshold} onChange={(e) => setModelCompactThreshold(e.target.value)} type="number" min="10" max="95" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /></label>
+                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">API key</span><input value={modelApiKey} onChange={(e) => setModelApiKey(e.target.value)} type="password" placeholder={model?.api_key_set ? 'Leave unchanged' : 'Required by provider'} className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none placeholder:text-content-muted focus:border-signal-plan/50" /></label>
+                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Temperature</span><input value={modelTemperature} onChange={(e) => setModelTemperature(e.target.value)} type="number" min="0" max="2" step="0.1" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none focus:border-signal-plan/50" /></label>
+                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Max output tokens</span><input value={modelMaxTokens} onChange={(e) => setModelMaxTokens(e.target.value)} type="number" min="256" max="200000" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none focus:border-signal-plan/50" /></label>
+                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Context compact at %</span><input value={modelCompactThreshold} onChange={(e) => setModelCompactThreshold(e.target.value)} type="number" min="10" max="95" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none focus:border-signal-plan/50" /></label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-[11px] leading-5 text-gray-500">Context window: <span className="text-gray-300">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this local workspace. Use at least 256 output tokens; reasoning models can reject tiny budgets. Test the connection before saving if you are unsure about the key or model ID.</p>
-                <div className="flex items-center gap-2"><input value={modelContextWindow} onChange={(e) => setModelContextWindow(e.target.value)} aria-label="Context window" type="number" min="1024" max="10000000" className="w-32 rounded-md border border-white/10 bg-black/10 px-3 py-2 text-sm outline-none focus:border-violet-300/50" /><Button type="button" variant="ghost" disabled={testingModel || !modelBaseUrl.trim() || !modelId.trim()} onClick={testModelConnection}>{testingModel ? 'Testing…' : 'Test connection'}</Button><Button type="submit" disabled={busy || !modelName.trim() || !modelBaseUrl.trim() || !modelId.trim()}>Save model</Button></div>
+                <p className="text-meta leading-5 text-content-muted">Context window: <span className="text-content-secondary">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this local workspace. Use at least 256 output tokens; reasoning models can reject tiny budgets. Test the connection before saving if you are unsure about the key or model ID.</p>
+                <div className="flex items-center gap-2"><input value={modelContextWindow} onChange={(e) => setModelContextWindow(e.target.value)} aria-label="Context window" type="number" min="1024" max="10000000" className="w-32 rounded-md border border-line bg-black/10 px-3 py-2 text-sm outline-none focus:border-signal-plan/50" /><Button type="button" variant="ghost" disabled={testingModel || !modelBaseUrl.trim() || !modelId.trim()} onClick={testModelConnection}>{testingModel ? 'Testing…' : 'Test connection'}</Button><Button type="submit" disabled={busy || !modelName.trim() || !modelBaseUrl.trim() || !modelId.trim()}>Save model</Button></div>
               </div>
             </form>
           </section>
         )}
 
         {localMode && (
-          <section className="rounded-2xl border border-emerald-300/10 bg-emerald-300/[0.03] p-5 sm:p-6">
+          <section className="rounded-modal border border-signal-pass/10 bg-signal-pass/03 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <Eyebrow>Application updates</Eyebrow>
                 <h2 className="mt-2 font-semibold text-white">Keep Xeo Forge current</h2>
-                <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Stable is recommended for everyday use. Preview receives prerelease builds for testing. Updates are checked on a deliberate schedule, downloaded separately, and installed only when you choose to restart. Your local database, project path, browser profiles, and settings remain in the user data directory.</p>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-content-secondary">Stable is recommended for everyday use. Preview receives prerelease builds for testing. Updates are checked on a deliberate schedule, downloaded separately, and installed only when you choose to restart. Your local database, project path, browser profiles, and settings remain in the user data directory.</p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] ${updateState?.status === 'error' ? 'bg-red-400/10 text-red-300' : updateState?.status === 'downloaded' ? 'bg-emerald-400/10 text-emerald-300' : 'bg-white/[0.06] text-gray-400'}`}>{updateState?.status || 'loading'}</span>
+              <span className={`rounded-full px-2.5 py-1 text-micro ${updateState?.status === 'error' ? 'bg-signal-fail/10 text-signal-fail' : updateState?.status === 'downloaded' ? 'bg-signal-pass/10 text-signal-pass' : 'bg-ink-700 text-content-secondary'}`}>{updateState?.status || 'loading'}</span>
             </div>
             <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_auto]">
-              <div className="rounded-xl border border-white/[0.07] bg-black/10 p-4 text-xs leading-5 text-gray-400">
-                <p className="text-gray-200">Current version <span className="font-mono text-emerald-200">{updateState?.currentVersion || '—'}</span>{updateState?.version ? <> · available <span className="font-mono text-cyan-200">{updateState.version}</span></> : ''}</p>
+              <div className="rounded-panel border border-line-subtle bg-black/10 p-4 text-xs leading-5 text-content-secondary">
+                <p className="text-content-primary">Current version <span className="font-mono text-signal-pass">{updateState?.currentVersion || '—'}</span>{updateState?.version ? <> · available <span className="font-mono text-signal-run">{updateState.version}</span></> : ''}</p>
                 <p className="mt-1">{updateState?.message || 'No update check has completed in this session.'}</p>
-                {updateState?.status === 'downloading' && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-300 transition-all" style={{ width: `${updateState.percent}%` }} /></div>}
-                {updateState?.lastCheckedAt && <p className="mt-2 text-[11px] text-gray-600">Last checked {new Date(updateState.lastCheckedAt).toLocaleString()}</p>}
-                {updateState?.lastError && <p className="mt-2 text-[11px] text-red-300/80">{updateState.lastError}</p>}
+                {updateState?.status === 'downloading' && <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-signal-run transition-all" style={{ width: `${updateState.percent}%` }} /></div>}
+                {updateState?.lastCheckedAt && <p className="mt-2 text-meta text-content-muted">Last checked {new Date(updateState.lastCheckedAt).toLocaleString()}</p>}
+                {updateState?.lastError && <p className="mt-2 text-meta text-signal-fail/80">{updateState.lastError}</p>}
               </div>
               <div className="flex flex-wrap items-start justify-end gap-2">
                 <Button variant="ghost" disabled={updateState?.status === 'checking' || updateState?.status === 'downloading'} onClick={refreshUpdates}>Check now</Button>
@@ -376,90 +376,90 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
               </div>
             </div>
             {updateSettings && (
-              <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-white/[0.06] pt-4 text-xs text-gray-400">
+              <div className="mt-4 flex flex-wrap items-center gap-4 border-t border-line-subtle pt-4 text-xs text-content-secondary">
                 <label className="flex items-center gap-2"><input type="checkbox" checked={updateSettings.autoCheck} onChange={(e) => saveUpdateSettings({ autoCheck: e.target.checked })} /> Automatic checks</label>
-                <label className="flex items-center gap-2">Release channel <select aria-label="Release channel" value={updateSettings.channel} onChange={(e) => saveUpdateSettings({ channel: e.target.value as DesktopUpdateSettings['channel'] })} className="rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-gray-200"><option value="latest">Stable</option><option value="beta">Preview</option></select></label>
-                <label className="flex items-center gap-2">Every <input type="number" min="1" max="168" value={updateSettings.intervalHours} onChange={(e) => setUpdateSettings({ ...updateSettings, intervalHours: Number(e.target.value) || 6 })} onBlur={() => saveUpdateSettings({ intervalHours: updateSettings.intervalHours })} className="w-16 rounded-md border border-white/10 bg-black/20 px-2 py-1.5 text-xs text-gray-200" /> hours</label>
+                <label className="flex items-center gap-2">Release channel <select aria-label="Release channel" value={updateSettings.channel} onChange={(e) => saveUpdateSettings({ channel: e.target.value as DesktopUpdateSettings['channel'] })} className="rounded-md border border-line bg-black/20 px-2 py-1.5 text-xs text-content-primary"><option value="latest">Stable</option><option value="beta">Preview</option></select></label>
+                <label className="flex items-center gap-2">Every <input type="number" min="1" max="168" value={updateSettings.intervalHours} onChange={(e) => setUpdateSettings({ ...updateSettings, intervalHours: Number(e.target.value) || 6 })} onBlur={() => saveUpdateSettings({ intervalHours: updateSettings.intervalHours })} className="w-16 rounded-md border border-line bg-black/20 px-2 py-1.5 text-xs text-content-primary" /> hours</label>
               </div>
             )}
           </section>
         )}
 
-        <section className="rounded-2xl border border-cyan-300/10 bg-cyan-300/[0.035] p-5 sm:p-6">
+        <section className="rounded-modal border border-signal-run/10 bg-signal-run/035 p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <Eyebrow>Optional local capability</Eyebrow>
               <h2 className="mt-2 font-semibold text-white">User-controlled browser</h2>
-              <p className="mt-2 max-w-2xl text-xs leading-5 text-gray-400">Install the extension in the browser profile you want Xeo Forge to use. The selected local profile remains attached to Work until you change it; the bridge never silently switches to another browser.</p>
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-content-secondary">Install the extension in the browser profile you want Xeo Forge to use. The selected local profile remains attached to Work until you change it; the bridge never silently switches to another browser.</p>
             </div>
-            <span className={`rounded-full px-2.5 py-1 text-[10px] ${browserState?.connected ? 'bg-emerald-400/10 text-emerald-300' : browserState?.selection === 'selected_disconnected' ? 'bg-amber-400/10 text-amber-300' : 'bg-white/[0.06] text-gray-500'}`}>{browserState?.connected ? 'selected · connected' : browserState?.selection === 'selected_disconnected' ? 'selected · disconnected' : 'connect a profile'}</span>
+            <span className={`rounded-full px-2.5 py-1 text-micro ${browserState?.connected ? 'bg-signal-pass/10 text-signal-pass' : browserState?.selection === 'selected_disconnected' ? 'bg-signal-gate/10 text-amber-300' : 'bg-ink-700 text-content-muted'}`}>{browserState?.connected ? 'selected · connected' : browserState?.selection === 'selected_disconnected' ? 'selected · disconnected' : 'connect a profile'}</span>
           </div>
-          <div className="mt-5 rounded-xl border border-cyan-300/10 bg-cyan-300/[0.025] p-4">
+          <div className="mt-5 rounded-panel border border-signal-run/10 bg-signal-run/025 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="text-sm font-medium text-white">Install the browser extension</p>
-                <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-500">The extension is loaded locally and connects only to Xeo Forge on <code className="text-cyan-200">127.0.0.1</code>. It does not upload cookies or browsing content.</p>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-content-muted">The extension is loaded locally and connects only to Xeo Forge on <code className="text-signal-run">127.0.0.1</code>. It does not upload cookies or browsing content.</p>
               </div>
               <Button variant="ghost" disabled={!localMode || !window.xeoDesktop} onClick={() => window.xeoDesktop?.openBrowserExtension().catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not open extension folder.' }))}>Open extension folder</Button>
             </div>
-            <ol className="mt-4 grid gap-3 text-xs leading-5 text-gray-400 sm:grid-cols-2">
-              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">1</span><span>Click <strong className="font-medium text-gray-200">Open extension folder</strong>, or locate <code className="text-cyan-200">desktop/browser-extension</code> in the Xeo Forge project.</span></li>
-              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">2</span><span>In Chrome or Chromium, open <code className="text-cyan-200">chrome://extensions</code> and turn on <strong className="font-medium text-gray-200">Developer mode</strong>.</span></li>
-              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">3</span><span>Choose <strong className="font-medium text-gray-200">Load unpacked</strong>, then select the <code className="text-cyan-200">browser-extension</code> folder itself, not its parent folder.</span></li>
-              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cyan-300/10 text-[10px] font-semibold text-cyan-200">4</span><span>Open the extension’s <strong className="font-medium text-gray-200">Options</strong>, paste the token shown below, keep port <code className="text-cyan-200">4321</code>, name the profile, then click <strong className="font-medium text-gray-200">Save and connect</strong>.</span></li>
+            <ol className="mt-4 grid gap-3 text-xs leading-5 text-content-secondary sm:grid-cols-2">
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal-run/10 text-micro font-semibold text-signal-run">1</span><span>Click <strong className="font-medium text-content-primary">Open extension folder</strong>, or locate <code className="text-signal-run">desktop/browser-extension</code> in the Xeo Forge project.</span></li>
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal-run/10 text-micro font-semibold text-signal-run">2</span><span>In Chrome or Chromium, open <code className="text-signal-run">chrome://extensions</code> and turn on <strong className="font-medium text-content-primary">Developer mode</strong>.</span></li>
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal-run/10 text-micro font-semibold text-signal-run">3</span><span>Choose <strong className="font-medium text-content-primary">Load unpacked</strong>, then select the <code className="text-signal-run">browser-extension</code> folder itself, not its parent folder.</span></li>
+              <li className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-signal-run/10 text-micro font-semibold text-signal-run">4</span><span>Open the extension’s <strong className="font-medium text-content-primary">Options</strong>, paste the token shown below, keep port <code className="text-signal-run">4321</code>, name the profile, then click <strong className="font-medium text-content-primary">Save and connect</strong>.</span></li>
             </ol>
-            <p className="mt-4 border-t border-white/[0.06] pt-3 text-[11px] leading-5 text-gray-600">After connecting, return here and select the profile. For navigation, clicking, or typing, also add the domain to the allowlist and enable the interaction policy below.</p>
+            <p className="mt-4 border-t border-line-subtle pt-3 text-meta leading-5 text-content-muted">After connecting, return here and select the profile. For navigation, clicking, or typing, also add the domain to the allowlist and enable the interaction policy below.</p>
           </div>
 
           {browserState && (
             <div className="mt-5 space-y-4">
               {browserPolicy && (
-                <div className="rounded-xl border border-amber-300/10 bg-amber-300/[0.03] p-4">
+                <div className="rounded-panel border border-signal-gate/10 bg-signal-gate/03 p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-medium text-white">Interaction policy</p>
-                      <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-500">Read access stays available by default. Navigation, clicks, and typing require this local policy, an allowed domain, and an explicit confirmation for sensitive actions.</p>
+                      <p className="mt-1 max-w-2xl text-xs leading-5 text-content-muted">Read access stays available by default. Navigation, clicks, and typing require this local policy, an allowed domain, and an explicit confirmation for sensitive actions.</p>
                     </div>
-                    <span className={`rounded-full px-2 py-1 text-[10px] ${browserPolicy.interactionEnabled ? 'bg-amber-400/10 text-amber-200' : 'bg-white/[0.06] text-gray-500'}`}>{browserPolicy.interactionEnabled ? 'interaction enabled' : 'read-only mode'}</span>
+                    <span className={`rounded-full px-2 py-1 text-micro ${browserPolicy.interactionEnabled ? 'bg-signal-gate/10 text-signal-gate' : 'bg-ink-700 text-content-muted'}`}>{browserPolicy.interactionEnabled ? 'interaction enabled' : 'read-only mode'}</span>
                   </div>
                   <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <label className="flex items-start gap-2 text-xs text-gray-300"><input type="checkbox" checked={browserPolicy.interactionEnabled} onChange={(e) => setBrowserPolicy({ ...browserPolicy, interactionEnabled: e.target.checked })} /> <span><strong className="font-medium text-white">Allow interaction</strong><span className="mt-1 block text-gray-600">Enable navigate, click, and type after saving domains.</span></span></label>
-                    <label className="flex items-start gap-2 text-xs text-gray-300"><input type="checkbox" checked={browserPolicy.redactSensitiveData} onChange={(e) => setBrowserPolicy({ ...browserPolicy, redactSensitiveData: e.target.checked })} /> <span><strong className="font-medium text-white">Redact page data</strong><span className="mt-1 block text-gray-600">Mask emails, cards, phones, and token-like strings in text reads.</span></span></label>
-                    <label className="flex items-start gap-2 text-xs text-gray-300"><input type="checkbox" checked={browserPolicy.allowSensitiveActions} onChange={(e) => setBrowserPolicy({ ...browserPolicy, allowSensitiveActions: e.target.checked })} /> <span><strong className="font-medium text-white">Allow sensitive actions</strong><span className="mt-1 block text-gray-600">Still requires explicit confirmation on each click or type call.</span></span></label>
+                    <label className="flex items-start gap-2 text-xs text-content-secondary"><input type="checkbox" checked={browserPolicy.interactionEnabled} onChange={(e) => setBrowserPolicy({ ...browserPolicy, interactionEnabled: e.target.checked })} /> <span><strong className="font-medium text-white">Allow interaction</strong><span className="mt-1 block text-content-muted">Enable navigate, click, and type after saving domains.</span></span></label>
+                    <label className="flex items-start gap-2 text-xs text-content-secondary"><input type="checkbox" checked={browserPolicy.redactSensitiveData} onChange={(e) => setBrowserPolicy({ ...browserPolicy, redactSensitiveData: e.target.checked })} /> <span><strong className="font-medium text-white">Redact page data</strong><span className="mt-1 block text-content-muted">Mask emails, cards, phones, and token-like strings in text reads.</span></span></label>
+                    <label className="flex items-start gap-2 text-xs text-content-secondary"><input type="checkbox" checked={browserPolicy.allowSensitiveActions} onChange={(e) => setBrowserPolicy({ ...browserPolicy, allowSensitiveActions: e.target.checked })} /> <span><strong className="font-medium text-white">Allow sensitive actions</strong><span className="mt-1 block text-content-muted">Still requires explicit confirmation on each click or type call.</span></span></label>
                   </div>
-                  <label className="mt-4 block space-y-1.5"><span className="text-[10px] uppercase tracking-[0.14em] text-gray-500">Allowed domains · one per line</span><textarea value={browserPolicy.allowedDomains.join('\\n')} onChange={(e) => setBrowserPolicy({ ...browserPolicy, allowedDomains: e.target.value.split(/\\r?\\n|,/).map((value) => value.trim()).filter(Boolean) })} rows={3} placeholder="example.com\\nlocalhost" className="w-full rounded-md border border-white/10 bg-black/10 px-3 py-2 text-xs text-gray-200 outline-none placeholder:text-gray-700 focus:border-amber-300/50" /></label>
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-[11px] leading-5 text-gray-600">Subdomains are included. An empty allowlist keeps all write actions blocked.</p><Button variant="ghost" onClick={() => saveBrowserPolicy(browserPolicy)}>Save safety policy</Button></div>
+                  <label className="mt-4 block space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Allowed domains · one per line</span><textarea value={browserPolicy.allowedDomains.join('\\n')} onChange={(e) => setBrowserPolicy({ ...browserPolicy, allowedDomains: e.target.value.split(/\\r?\\n|,/).map((value) => value.trim()).filter(Boolean) })} rows={3} placeholder="example.com\\nlocalhost" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-xs text-content-primary outline-none placeholder:text-content-faint focus:border-signal-gate/50" /></label>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-meta leading-5 text-content-muted">Subdomains are included. An empty allowlist keeps all write actions blocked.</p><Button variant="ghost" onClick={() => saveBrowserPolicy(browserPolicy)}>Save safety policy</Button></div>
                 </div>
               )}
               <div className="grid gap-4 lg:grid-cols-[1fr_auto]">
-                <div className="rounded-xl border border-white/[0.07] bg-black/10 p-4">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-gray-600">Local extension token · port {browserState.port}</p>
-                  <code className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-cyan-200/80">{showBrowserToken ? browserState.token : '••••••••••••••••••••••••••••••••'}</code>
+                <div className="rounded-panel border border-line-subtle bg-black/10 p-4">
+                  <p className="text-micro uppercase tracking-[0.16em] text-content-muted">Local extension token · port {browserState.port}</p>
+                  <code className="mt-2 block overflow-hidden text-ellipsis whitespace-nowrap text-xs text-signal-run/80">{showBrowserToken ? browserState.token : '••••••••••••••••••••••••••••••••'}</code>
                   <div className="mt-3 flex flex-wrap gap-2">
                     <Button variant="ghost" onClick={() => setShowBrowserToken((value) => !value)}>{showBrowserToken ? 'Hide token' : 'Reveal token'}</Button>
                     <Button variant="ghost" disabled={!browserState.token} onClick={() => browserState.token && navigator.clipboard.writeText(browserState.token)}>Copy token</Button>
                     <Button variant="ghost" onClick={() => window.xeoDesktop?.openBrowserExtension().catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not open extension folder.' }))}>Open extension folder</Button>
                   </div>
                 </div>
-                <div className="max-w-xs text-xs leading-5 text-gray-500"><p className="text-gray-300">Read access is the default.</p><p className="mt-1">Navigation, clicks, typing, and form submission remain blocked until a separate interaction policy is granted.</p></div>
+                <div className="max-w-xs text-xs leading-5 text-content-muted"><p className="text-content-secondary">Read access is the default.</p><p className="mt-1">Navigation, clicks, typing, and form submission remain blocked until a separate interaction policy is granted.</p></div>
               </div>
               {browserState.profiles.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/10 p-4 text-sm text-gray-500">No browser profile is connected yet. Load the unpacked extension, paste the token, and give this profile a name.</div>
+                <div className="rounded-panel border border-dashed border-line p-4 text-sm text-content-muted">No browser profile is connected yet. Load the unpacked extension, paste the token, and give this profile a name.</div>
               ) : (
                 <div className="grid gap-3 md:grid-cols-2">
                   {browserState.profiles.map((profile) => {
                     const selected = profile.browserId === browserState.selectedBrowserId;
                     return (
-                      <div key={profile.browserId} className={`rounded-xl border p-4 ${selected ? 'border-cyan-300/30 bg-cyan-300/[0.06]' : 'border-white/[0.07] bg-black/10'}`}>
+                      <div key={profile.browserId} className={`rounded-panel border p-4 ${selected ? 'border-signal-run/30 bg-signal-run/06' : 'border-line-subtle bg-black/10'}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium text-white">{profile.profileName}</p>
-                            <p className="mt-1 text-[11px] text-gray-500">{profile.browserName} · {profile.connected ? 'connected' : 'disconnected'}</p>
+                            <p className="mt-1 text-meta text-content-muted">{profile.browserName} · {profile.connected ? 'connected' : 'disconnected'}</p>
                           </div>
-                          {selected && <span className="rounded-full bg-cyan-300/10 px-2 py-1 text-[10px] text-cyan-200">selected for Work</span>}
+                          {selected && <span className="rounded-full bg-signal-run/10 px-2 py-1 text-micro text-signal-run">selected for Work</span>}
                         </div>
-                        <p className="mt-3 truncate text-xs text-gray-400">{profile.tab?.title || 'No active tab reported'}</p>
-                        <p className="mt-1 truncate text-[11px] text-gray-600">{profile.tab?.url || '—'}</p>
+                        <p className="mt-3 truncate text-xs text-content-secondary">{profile.tab?.title || 'No active tab reported'}</p>
+                        <p className="mt-1 truncate text-meta text-content-muted">{profile.tab?.url || '—'}</p>
                         <Button variant="ghost" className="mt-3" disabled={!profile.connected || selected} onClick={() => window.xeoDesktop?.selectBrowser(profile.browserId).then(setBrowserState).catch((error) => setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Could not select browser profile.' }))}>{selected ? 'Using this profile' : 'Use for Work'}</Button>
                       </div>
                     );
@@ -479,16 +479,16 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
               <div className="mb-5 flex items-start justify-between gap-4">
                 <div>
                   <h2 className="font-semibold">Pinned instructions</h2>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">Reusable preferences applied to every task. They never grant new permissions or bypass approval.</p>
+                  <p className="mt-1 text-xs leading-5 text-content-muted">Reusable preferences applied to every task. They never grant new permissions or bypass approval.</p>
                 </div>
-                <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-[10px] text-blue-300">{data.instructions.length} active layers</span>
+                <span className="rounded-full bg-blue-500/10 px-2.5 py-1 text-micro text-blue-300">{data.instructions.length} active layers</span>
               </div>
               <form onSubmit={addInstruction} className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-[1fr_110px]">
-                  <input value={instructionName} onChange={(e) => setInstructionName(e.target.value)} placeholder="Name, e.g. Product voice" className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-blue-400/50" />
-                  <input value={instructionPriority} onChange={(e) => setInstructionPriority(e.target.value)} type="number" min="0" max="1000" placeholder="Priority" className="rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm outline-none placeholder:text-gray-600 focus:border-blue-400/50" />
+                  <input value={instructionName} onChange={(e) => setInstructionName(e.target.value)} placeholder="Name, e.g. Product voice" className="rounded-md border border-line bg-ink-700/60 px-3 py-2 text-sm outline-none placeholder:text-content-muted focus:border-blue-400/50" />
+                  <input value={instructionPriority} onChange={(e) => setInstructionPriority(e.target.value)} type="number" min="0" max="1000" placeholder="Priority" className="rounded-md border border-line bg-ink-700/60 px-3 py-2 text-sm outline-none placeholder:text-content-muted focus:border-blue-400/50" />
                 </div>
-                <textarea value={instructionContent} onChange={(e) => setInstructionContent(e.target.value)} placeholder="Always use concise English UI copy..." rows={4} className="w-full resize-y rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm leading-6 outline-none placeholder:text-gray-600 focus:border-blue-400/50" />
+                <textarea value={instructionContent} onChange={(e) => setInstructionContent(e.target.value)} placeholder="Always use concise English UI copy..." rows={4} className="w-full resize-y rounded-md border border-line bg-ink-700/60 px-3 py-2 text-sm leading-6 outline-none placeholder:text-content-muted focus:border-blue-400/50" />
                 <Button type="submit" disabled={busy || !instructionName.trim() || !instructionContent.trim()}>Pin instruction</Button>
               </form>
             </Card>
@@ -497,18 +497,18 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
               <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                   <h2 className="font-semibold">Current instructions</h2>
-                  <p className="mt-1 text-xs text-gray-500">Edit or disable a layer without touching the repository.</p>
+                  <p className="mt-1 text-xs text-content-muted">Edit or disable a layer without touching the repository.</p>
                 </div>
               </div>
-              {loading ? <p className="text-sm text-gray-600">Loading…</p> : data.instructions.length === 0 ? <p className="rounded-md border border-dashed border-white/10 p-4 text-sm text-gray-600">No pinned instructions yet.</p> : (
+              {loading ? <p className="text-sm text-content-muted">Loading…</p> : data.instructions.length === 0 ? <p className="rounded-md border border-dashed border-line p-4 text-sm text-content-muted">No pinned instructions yet.</p> : (
                 <div className="space-y-3">
                   {data.instructions.map((instruction) => (
-                    <div key={instruction.id} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-4">
+                    <div key={instruction.id} className="rounded-control border border-line-subtle bg-ink-700/60 p-4">
                       <div className="flex items-start justify-between gap-3">
-                        <div><p className="text-sm font-medium">{instruction.name}</p><p className="mt-1 text-[11px] text-gray-600">Priority {instruction.priority} · v{instruction.version}</p></div>
-                        <span className={`rounded-full px-2 py-1 text-[10px] ${instruction.enabled ? 'bg-green-500/15 text-green-300' : 'bg-white/10 text-gray-500'}`}>{instruction.enabled ? 'enabled' : 'disabled'}</span>
+                        <div><p className="text-sm font-medium">{instruction.name}</p><p className="mt-1 text-meta text-content-muted">Priority {instruction.priority} · v{instruction.version}</p></div>
+                        <span className={`rounded-full px-2 py-1 text-micro ${instruction.enabled ? 'bg-green-500/15 text-green-300' : 'bg-white/10 text-content-muted'}`}>{instruction.enabled ? 'enabled' : 'disabled'}</span>
                       </div>
-                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-400">{instruction.content}</p>
+                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-content-secondary">{instruction.content}</p>
                       <div className="mt-3 flex gap-2">
                         <Button variant="ghost" disabled={busy} onClick={() => patch({ type: 'instruction', id: instruction.id, enabled: !instruction.enabled }, instruction.enabled ? 'Instruction disabled.' : 'Instruction enabled.')}>{instruction.enabled ? 'Disable' : 'Enable'}</Button>
                         <Button variant="ghost" disabled={busy} onClick={() => remove('instruction', instruction.id)}>Delete</Button>
@@ -524,31 +524,31 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
             <Card>
               <div className="mb-5">
                 <h2 className="font-semibold">Persistent memory</h2>
-                <p className="mt-1 text-xs leading-5 text-gray-500">The agent proposes memories after verified runs. You decide what becomes active context.</p>
+                <p className="mt-1 text-xs leading-5 text-content-muted">The agent proposes memories after verified runs. You decide what becomes active context.</p>
               </div>
               <form onSubmit={addMemory} className="space-y-3">
-                <select value={memoryKind} onChange={(e) => setMemoryKind(e.target.value as (typeof MEMORY_KINDS)[number])} className="w-full rounded-md border border-white/10 bg-[#111419] px-3 py-2 text-sm text-gray-300 outline-none focus:border-blue-400/50">
+                <select value={memoryKind} onChange={(e) => setMemoryKind(e.target.value as (typeof MEMORY_KINDS)[number])} className="w-full rounded-md border border-line bg-[#111419] px-3 py-2 text-sm text-content-secondary outline-none focus:border-blue-400/50">
                   {MEMORY_KINDS.map((kind) => <option key={kind} value={kind}>{kind}</option>)}
                 </select>
-                <textarea value={memoryContent} onChange={(e) => setMemoryContent(e.target.value)} placeholder="The project uses a dark, dense developer dashboard..." rows={4} className="w-full resize-y rounded-md border border-white/10 bg-white/[0.03] px-3 py-2 text-sm leading-6 outline-none placeholder:text-gray-600 focus:border-blue-400/50" />
-                <label className="block text-xs text-gray-500">Optional expiry <input type="datetime-local" value={memoryExpiresAt} onChange={(e) => setMemoryExpiresAt(e.target.value)} className="mt-1 w-full rounded-md border border-white/10 bg-[#111419] px-3 py-2 text-sm text-gray-300 outline-none focus:border-blue-400/50" /></label>
-                <p className="text-[11px] leading-5 text-gray-600">Use expiry for temporary project facts. Expired memories stay in the inbox but are excluded from future agent context.</p>
+                <textarea value={memoryContent} onChange={(e) => setMemoryContent(e.target.value)} placeholder="The project uses a dark, dense developer dashboard..." rows={4} className="w-full resize-y rounded-md border border-line bg-ink-700/60 px-3 py-2 text-sm leading-6 outline-none placeholder:text-content-muted focus:border-blue-400/50" />
+                <label className="block text-xs text-content-muted">Optional expiry <input type="datetime-local" value={memoryExpiresAt} onChange={(e) => setMemoryExpiresAt(e.target.value)} className="mt-1 w-full rounded-md border border-line bg-[#111419] px-3 py-2 text-sm text-content-secondary outline-none focus:border-blue-400/50" /></label>
+                <p className="text-meta leading-5 text-content-muted">Use expiry for temporary project facts. Expired memories stay in the inbox but are excluded from future agent context.</p>
                 <Button type="submit" disabled={busy || !memoryContent.trim()}>Pin memory</Button>
               </form>
             </Card>
 
             <Card>
               <div className="mb-4 flex items-center justify-between gap-4">
-                <div><h2 className="font-semibold">Memory inbox</h2><p className="mt-1 text-xs text-gray-500">Review proposals before they influence future runs.</p></div>
-                <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-[10px] text-amber-300">{data.memories.filter((m) => m.status === 'proposed').length} proposed</span>
+                <div><h2 className="font-semibold">Memory inbox</h2><p className="mt-1 text-xs text-content-muted">Review proposals before they influence future runs.</p></div>
+                <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-micro text-amber-300">{data.memories.filter((m) => m.status === 'proposed').length} proposed</span>
               </div>
-              {loading ? <p className="text-sm text-gray-600">Loading…</p> : data.memories.length === 0 ? <p className="rounded-md border border-dashed border-white/10 p-4 text-sm text-gray-600">No memories yet. Complete a verified task to generate proposals.</p> : (
+              {loading ? <p className="text-sm text-content-muted">Loading…</p> : data.memories.length === 0 ? <p className="rounded-md border border-dashed border-line p-4 text-sm text-content-muted">No memories yet. Complete a verified task to generate proposals.</p> : (
                 <div className="space-y-3">
                   {data.memories.map((memory) => (
-                    <div key={memory.id} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-4">
-                      <div className="flex items-center justify-between gap-3"><span className="text-[10px] uppercase tracking-wider text-gray-600">{memory.kind}</span><span className={`rounded-full px-2 py-1 text-[10px] ${statusTone(memory.status)}`}>{memory.status}</span></div>
-                      <p className="mt-3 text-sm leading-6 text-gray-300">{memory.content}</p>
-                      <p className="mt-2 text-[11px] text-gray-600">{memory.scope} · {Math.round(memory.confidence * 100)}% confidence{memory.pinned ? ' · pinned' : ''}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ''}</p>
+                    <div key={memory.id} className="rounded-control border border-line-subtle bg-ink-700/60 p-4">
+                      <div className="flex items-center justify-between gap-3"><span className="text-micro uppercase tracking-wider text-content-muted">{memory.kind}</span><span className={`rounded-full px-2 py-1 text-micro ${statusTone(memory.status)}`}>{memory.status}</span></div>
+                      <p className="mt-3 text-sm leading-6 text-content-secondary">{memory.content}</p>
+                      <p className="mt-2 text-meta text-content-muted">{memory.scope} · {Math.round(memory.confidence * 100)}% confidence{memory.pinned ? ' · pinned' : ''}{memory.expires_at ? ` · expires ${new Date(memory.expires_at).toLocaleDateString()}` : ''}</p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {memory.status !== 'active' && <Button variant="ghost" disabled={busy} onClick={() => patch({ type: 'memory', id: memory.id, status: 'active', pinned: true }, 'Memory activated.')}>Activate</Button>}
                         {memory.status === 'active' && <Button variant="ghost" disabled={busy} onClick={() => patch({ type: 'memory', id: memory.id, status: 'archived', pinned: false }, 'Memory archived.')}>Archive</Button>}
@@ -562,7 +562,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           </section>
         </div>
 
-        <p className="pt-2 text-xs leading-5 text-gray-600">{localMode ? 'Local Owner workspace. Instructions, memories, browser profiles, and reusable roles stay on this device.' : `Signed in as ${user.displayName || user.email || 'user'}. Task-scoped instructions, memories, and reusable profiles can be managed from the task control surface and dashboard.`}</p>
+        <p className="pt-2 text-xs leading-5 text-content-muted">{localMode ? 'Local Owner workspace. Instructions, memories, browser profiles, and reusable roles stay on this device.' : `Signed in as ${user.displayName || user.email || 'user'}. Task-scoped instructions, memories, and reusable profiles can be managed from the task control surface and dashboard.`}</p>
       </div>
     </AppShell>
   );

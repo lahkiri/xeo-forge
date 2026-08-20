@@ -96,7 +96,7 @@ export function UploadButton({
         <button
           type="button" onClick={() => inputRef.current?.click()} disabled={disabled || uploading}
           title={title}
-          className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-gray-400 hover:text-gray-200 hover:border-white/20 transition disabled:opacity-40"
+          className="inline-flex items-center gap-2 rounded-control border border-line bg-ink-700/60 px-3 py-2 text-meta text-content-secondary hover:text-content-primary hover:border-line-strong transition disabled:opacity-40"
         >
           {uploading ? <Spinner size={size} /> : <Paperclip size={size} />}
           {uploading ? 'uploading…' : label}
@@ -105,7 +105,7 @@ export function UploadButton({
         <button
           type="button" onClick={() => inputRef.current?.click()} disabled={disabled || uploading}
           title={title}
-          className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2.5 text-gray-400 hover:text-gray-200 hover:border-white/20 transition disabled:opacity-40"
+          className="rounded-control border border-line bg-ink-700/60 px-3 py-2.5 text-content-secondary hover:text-content-primary hover:border-line-strong transition disabled:opacity-40"
         >
           {uploading ? <Spinner size={size} /> : <Paperclip size={size} />}
         </button>

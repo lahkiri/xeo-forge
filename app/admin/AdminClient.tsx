@@ -226,7 +226,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
       </header>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+        <div className="mb-4 rounded-md border border-red-500/30 bg-signal-fail/10 px-3 py-2 text-sm text-signal-fail">
           {error}
         </div>
       )}
@@ -241,7 +241,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
         <h2 className="mb-3 text-lg font-medium">Users ({users.length})</h2>
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase text-gray-400">
+            <thead className="border-b border-line text-xs uppercase text-content-secondary">
               <tr>
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Name</th>
@@ -268,7 +268,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
                     <td className="px-3 py-2">{u.task_count}</td>
                     <td className="px-3 py-2">
                       {u.is_suspended ? (
-                        <span className="text-red-300">suspended</span>
+                        <span className="text-signal-fail">suspended</span>
                       ) : (
                         <span className="text-green-300">active</span>
                       )}
@@ -326,7 +326,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               minLength={8}
               required
             />
-            <label className="flex items-center gap-2 text-sm text-gray-300">
+            <label className="flex items-center gap-2 text-sm text-content-secondary">
               <input
                 type="checkbox"
                 checked={cuAdmin}
@@ -347,18 +347,18 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-medium">Global model</h2>
         <Card>
-          <p className="mb-3 text-xs text-gray-400">
+          <p className="mb-3 text-xs text-content-secondary">
             One model configuration for the entire platform. API key:{' '}
             {model?.api_key_set ? (
               <span className="text-green-300">set</span>
             ) : (
-              <span className="text-red-300">not set</span>
+              <span className="text-signal-fail">not set</span>
             )}
             {' '}— the stored key is never displayed. Leave the API key field blank to keep the current key.
           </p>
           <form onSubmit={saveModel} className="grid gap-3 sm:grid-cols-2">
             <label className="text-sm">
-              <span className="mb-1 block text-gray-400">Name</span>
+              <span className="mb-1 block text-content-secondary">Name</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 value={mName}
@@ -367,7 +367,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-gray-400">Model ID</span>
+              <span className="mb-1 block text-content-secondary">Model ID</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 value={mModelId}
@@ -376,7 +376,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               />
             </label>
             <label className="text-sm sm:col-span-2">
-              <span className="mb-1 block text-gray-400">Base URL</span>
+              <span className="mb-1 block text-content-secondary">Base URL</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 type="url"
@@ -386,7 +386,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-gray-400">Temperature (0–2)</span>
+              <span className="mb-1 block text-content-secondary">Temperature (0–2)</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 type="number"
@@ -399,7 +399,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-gray-400">Max tokens</span>
+              <span className="mb-1 block text-content-secondary">Max tokens</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 type="number"
@@ -410,7 +410,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-gray-400">Context window (tokens)</span>
+              <span className="mb-1 block text-content-secondary">Context window (tokens)</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 type="number"
@@ -419,12 +419,12 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
                 onChange={(e) => setMContextWindow(e.target.value)}
                 required
               />
-              <span className="mt-1 block text-xs text-gray-500">
+              <span className="mt-1 block text-xs text-content-muted">
                 Total tokens the model can hold. Used to calculate context usage %.
               </span>
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-gray-400">Auto-compact threshold (%)</span>
+              <span className="mb-1 block text-content-secondary">Auto-compact threshold (%)</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 type="number"
@@ -434,12 +434,12 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
                 onChange={(e) => setMThreshold(e.target.value)}
                 required
               />
-              <span className="mt-1 block text-xs text-gray-500">
+              <span className="mt-1 block text-xs text-content-muted">
                 Context usage % that triggers automatic compaction (10–95, default 80).
               </span>
             </label>
             <label className="text-sm sm:col-span-2">
-              <span className="mb-1 block text-gray-400">API key (blank = keep current)</span>
+              <span className="mb-1 block text-content-secondary">API key (blank = keep current)</span>
               <input
                 className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
                 type="password"
@@ -462,7 +462,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
         <h2 className="mb-3 text-lg font-medium">Recent tasks</h2>
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase text-gray-400">
+            <thead className="border-b border-line text-xs uppercase text-content-secondary">
               <tr>
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">User</th>
@@ -475,17 +475,17 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
             <tbody>
               {tasks.length === 0 && (
                 <tr>
-                  <td className="px-3 py-2 text-gray-500" colSpan={6}>
+                  <td className="px-3 py-2 text-content-muted" colSpan={6}>
                     No tasks yet.
                   </td>
                 </tr>
               )}
               {tasks.map((t) => (
-                <tr key={t.id} className="border-b border-white/5 hover:bg-white/[0.02]">
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-400">
+                <tr key={t.id} className="border-b border-white/5 hover:bg-ink-700/60">
+                  <td className="px-3 py-2 whitespace-nowrap text-content-secondary">
                     {new Date(t.created_at).toLocaleString()}
                   </td>
-                  <td className="px-3 py-2 text-gray-300">{t.email ?? t.user_id.slice(0, 8)}</td>
+                  <td className="px-3 py-2 text-content-secondary">{t.email ?? t.user_id.slice(0, 8)}</td>
                   <td className="px-3 py-2 capitalize">{t.mode}</td>
                   <td className="px-3 py-2">
                     <StatusBadge status={t.status as Task['status']} />
@@ -504,7 +504,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
         <h2 className="mb-3 text-lg font-medium">Recent admin actions</h2>
         <Card className="overflow-x-auto p-0">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase text-gray-400">
+            <thead className="border-b border-line text-xs uppercase text-content-secondary">
               <tr>
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">Action</th>
@@ -514,18 +514,18 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
             <tbody>
               {actions.length === 0 && (
                 <tr>
-                  <td className="px-3 py-2 text-gray-500" colSpan={3}>
+                  <td className="px-3 py-2 text-content-muted" colSpan={3}>
                     No actions recorded yet.
                   </td>
                 </tr>
               )}
               {actions.map((a) => (
                 <tr key={a.id} className="border-b border-white/5">
-                  <td className="px-3 py-2 whitespace-nowrap text-gray-400">
+                  <td className="px-3 py-2 whitespace-nowrap text-content-secondary">
                     {new Date(a.created_at).toLocaleString()}
                   </td>
                   <td className="px-3 py-2">{a.action}</td>
-                  <td className="px-3 py-2 text-gray-300">{a.detail ?? ''}</td>
+                  <td className="px-3 py-2 text-content-secondary">{a.detail ?? ''}</td>
                 </tr>
               ))}
             </tbody>

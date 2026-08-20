@@ -52,37 +52,37 @@ function LayerRow({ layer, byId }: { layer: ContextLayer; byId: Map<string, Cont
   return (
     <div
       className={cx(
-        'border-b border-white/[0.05] px-3 py-2.5 last:border-0',
+        'border-b border-line-subtle px-3 py-2.5 last:border-0',
         layer.state !== 'active' && 'opacity-70',
       )}
     >
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={STATE_TONE[layer.state]}>{STATE_LABEL[layer.state]}</Badge>
-        <span className="text-[10px] uppercase tracking-[0.12em] text-gray-600">
+        <span className="text-micro uppercase tracking-[0.12em] text-content-muted">
           {KIND_LABEL[layer.kind]}
         </span>
-        <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-gray-200">{layer.label}</span>
+        <span className="min-w-0 flex-1 truncate text-ui font-medium text-content-primary">{layer.label}</span>
         {layer.scope !== 'system' && (
           <Badge tone={layer.scope === 'task' ? 'cyan' : 'gray'}>{layer.scope}</Badge>
         )}
         {typeof layer.priority === 'number' && (
-          <span className="text-[10px] tabular-nums text-gray-600" title="Instruction priority">
+          <span className="text-micro tabular-nums text-content-muted" title="Instruction priority">
             p{layer.priority}
           </span>
         )}
-        <span className="shrink-0 text-[10px] tabular-nums text-gray-600">
+        <span className="shrink-0 text-micro tabular-nums text-content-muted">
           {layer.tokens > 0 ? `~${layer.tokens.toLocaleString()} tok` : '—'}
         </span>
       </div>
 
-      <p className="mt-1.5 text-[11px] leading-5 text-gray-500">
+      <p className="mt-1.5 text-meta leading-5 text-content-muted">
         {layer.reason}
-        {winner && <span className="text-gray-400"> Winner: {winner.label}.</span>}
-        {layer.truncated && <span className="text-amber-300/90"> Content was clamped to fit its budget.</span>}
+        {winner && <span className="text-content-secondary"> Winner: {winner.label}.</span>}
+        {layer.truncated && <span className="text-signal-gate/90"> Content was clamped to fit its budget.</span>}
       </p>
 
       {layer.preview && (
-        <p className="mt-1.5 truncate font-mono text-[10px] leading-4 text-gray-600" title={layer.preview}>
+        <p className="mt-1.5 truncate font-mono text-micro leading-4 text-content-muted" title={layer.preview}>
           {layer.preview}
         </p>
       )}
@@ -139,36 +139,36 @@ export function ContextInspector({ taskId }: { taskId: string }) {
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-cyan-300/80">
+        <p className="text-micro font-semibold uppercase tracking-[0.2em] text-signal-run/80">
           Effective context
         </p>
         <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-white">
           What actually reaches the model
         </h2>
-        <p className="mt-1.5 text-[12px] leading-5 text-gray-500">
-          Resolved for <span className="text-gray-400">{data.mode}</span> mode by the same pass the agent
+        <p className="mt-1.5 text-ui leading-5 text-content-muted">
+          Resolved for <span className="text-content-secondary">{data.mode}</span> mode by the same pass the agent
           loop uses. Every layer below is context only — none of them can grant a capability.
         </p>
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Card className="px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.12em] text-gray-600">In prompt</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-300">{data.totals.activeLayers}</p>
+          <p className="text-micro uppercase tracking-[0.12em] text-content-muted">In prompt</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-signal-pass">{data.totals.activeLayers}</p>
         </Card>
         <Card className="px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.12em] text-gray-600">Withheld</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-400">{data.totals.excludedLayers}</p>
+          <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Withheld</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-content-secondary">{data.totals.excludedLayers}</p>
         </Card>
         <Card className="px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.12em] text-gray-600">Your context</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-200">
+          <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Your context</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-content-primary">
             {data.totals.contextTokens.toLocaleString()}
           </p>
         </Card>
         <Card className="px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.12em] text-gray-600">Whole prompt</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-200">
+          <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Whole prompt</p>
+          <p className="mt-0.5 text-lg font-semibold tabular-nums text-content-primary">
             {data.totals.promptTokens.toLocaleString()}
           </p>
         </Card>
@@ -184,16 +184,16 @@ export function ContextInspector({ taskId }: { taskId: string }) {
         />
       </Card>
 
-      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
-        <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-3 py-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+      <div className="overflow-hidden rounded-panel border border-line-subtle bg-ink-700/60">
+        <div className="flex items-center justify-between gap-3 border-b border-line-subtle px-3 py-2">
+          <span className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
             Layers, in prompt order
           </span>
           {withheldCount > 0 && (
             <button
               type="button"
               onClick={() => setShowWithheld((v) => !v)}
-              className="text-[11px] text-gray-500 transition hover:text-gray-300"
+              className="text-meta text-content-muted transition hover:text-content-secondary"
             >
               {showWithheld ? 'Hide withheld' : `Show ${withheldCount} withheld`}
             </button>
@@ -206,7 +206,7 @@ export function ContextInspector({ taskId }: { taskId: string }) {
         )}
       </div>
 
-      <p className="text-[11px] leading-5 text-gray-600">
+      <p className="text-meta leading-5 text-content-muted">
         Detection here is deterministic: scope specificity, disabled flags, approval status, expiry,
         duplicate content, and budget clamping. Xeo does not use a model to guess whether two
         instructions disagree.

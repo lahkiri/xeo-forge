@@ -17,18 +17,18 @@ import { cx } from './ui';
 
 const TONE_DOT: Record<ActivityTone, string> = {
   neutral: 'bg-gray-600',
-  active: 'bg-cyan-300 animate-pulse',
-  good: 'bg-emerald-400/80',
-  warn: 'bg-amber-300/90',
-  bad: 'bg-red-400/80',
+  active: 'bg-signal-run animate-live-pulse',
+  good: 'bg-signal-pass/80',
+  warn: 'bg-signal-gate/90',
+  bad: 'bg-signal-fail/80',
 };
 
 const TONE_TEXT: Record<ActivityTone, string> = {
-  neutral: 'text-gray-300',
-  active: 'text-cyan-100',
-  good: 'text-gray-200',
-  warn: 'text-amber-100',
-  bad: 'text-red-100',
+  neutral: 'text-content-secondary',
+  active: 'text-signal-run',
+  good: 'text-content-primary',
+  warn: 'text-signal-gate',
+  bad: 'text-signal-fail',
 };
 
 function clock(ts: number): string {
@@ -70,7 +70,7 @@ export function buildActivityRows(events: ParsedEvent[]): TimelineRow[] {
  */
 function DeepRow({ row }: { row: TimelineRow }) {
   return (
-    <pre className="mt-1.5 overflow-x-auto rounded-md border border-white/[0.06] bg-black/30 px-2.5 py-2 font-mono text-[10px] leading-4 text-gray-500">
+    <pre className="mt-1.5 overflow-x-auto rounded-md border border-line-subtle bg-black/30 px-2.5 py-2 font-mono text-micro leading-4 text-content-muted">
 {`seq: ${row.seq}
 type: ${row.type}
 time: ${new Date(row.ts).toISOString()}
@@ -96,7 +96,7 @@ export function ExecutionTimeline({
 
   if (allRows.length === 0) {
     return (
-      <p className="px-3 py-6 text-[12px] leading-5 text-gray-600">
+      <p className="px-3 py-6 text-ui leading-5 text-content-muted">
         No activity recorded yet. Tool calls, context compilation, file changes, and verification
         results appear here as they happen.
       </p>
@@ -113,18 +113,18 @@ export function ExecutionTimeline({
 
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.07] px-3 py-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-500">
+      <div className="flex items-center justify-between gap-3 border-b border-line-subtle px-3 py-2">
+        <span className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
           Activity
-          <span className="ml-1.5 tabular-nums text-gray-700">{allRows.length}</span>
+          <span className="ml-1.5 tabular-nums text-content-faint">{allRows.length}</span>
         </span>
         <button
           type="button"
           onClick={() => setDeep((v) => !v)}
           aria-pressed={deep}
           className={cx(
-            'rounded px-1.5 py-0.5 text-[10px] uppercase tracking-[0.12em] transition',
-            deep ? 'bg-white/[0.09] text-gray-200' : 'text-gray-600 hover:text-gray-400',
+            'rounded px-1.5 py-0.5 text-micro uppercase tracking-[0.12em] transition',
+            deep ? 'bg-ink-600 text-content-primary' : 'text-content-muted hover:text-content-secondary',
           )}
           title="Show raw event envelopes"
         >
@@ -133,7 +133,7 @@ export function ExecutionTimeline({
       </div>
 
       {hidden > 0 && (
-        <p className="border-b border-white/[0.05] px-3 py-1.5 text-[10px] text-gray-600">
+        <p className="border-b border-line-subtle px-3 py-1.5 text-micro text-content-muted">
           {hidden.toLocaleString()} earlier {hidden === 1 ? 'entry' : 'entries'} not shown.
         </p>
       )}
@@ -145,15 +145,15 @@ export function ExecutionTimeline({
           return (
             <li key={row.seq} className="px-3 py-2">
               <div className="flex items-start gap-2.5">
-                <span className="shrink-0 pt-1 font-mono text-[10px] tabular-nums text-gray-700">
+                <span className="shrink-0 pt-1 font-mono text-micro tabular-nums text-content-faint">
                   {clock(row.ts)}
                 </span>
                 <span className={cx('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', TONE_DOT[row.tone])} />
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className={cx('text-[12px] leading-5', TONE_TEXT[row.tone])}>{row.title}</span>
+                    <span className={cx('text-ui leading-5', TONE_TEXT[row.tone])}>{row.title}</span>
                     {row.detail && (
-                      <span className="min-w-0 truncate font-mono text-[11px] text-gray-500" title={row.detail}>
+                      <span className="min-w-0 truncate font-mono text-meta text-content-muted" title={row.detail}>
                         {row.detail}
                       </span>
                     )}
@@ -166,24 +166,24 @@ export function ExecutionTimeline({
                       type="button"
                       onClick={() => toggle(row.seq)}
                       aria-expanded={expanded.has(row.seq)}
-                      className="mt-1 text-[10px] text-cyan-300/70 transition hover:text-cyan-200"
+                      className="mt-1 text-micro text-signal-run/70 transition hover:text-signal-run"
                     >
                       {expanded.has(row.seq) ? 'Hide what was injected' : 'Show what was injected'}
                     </button>
                   )}
 
                   {layers && expanded.has(row.seq) && (
-                    <ul className="mt-1.5 space-y-1 border-l border-white/[0.08] pl-2.5">
+                    <ul className="mt-1.5 space-y-1 border-l border-line-subtle pl-2.5">
                       {layers.instructions.map((instruction) => (
-                        <li key={instruction.id} className="text-[11px] leading-4 text-gray-500">
-                          <span className="text-gray-400">{instruction.name}</span>
-                          <span className="ml-1.5 text-gray-700">{instruction.scope} instruction</span>
+                        <li key={instruction.id} className="text-meta leading-4 text-content-muted">
+                          <span className="text-content-secondary">{instruction.name}</span>
+                          <span className="ml-1.5 text-content-faint">{instruction.scope} instruction</span>
                         </li>
                       ))}
                       {layers.memories.map((memory) => (
-                        <li key={memory.id} className="text-[11px] leading-4 text-gray-500">
-                          <span className="text-gray-400">{memory.content || memory.kind}</span>
-                          <span className="ml-1.5 text-gray-700">
+                        <li key={memory.id} className="text-meta leading-4 text-content-muted">
+                          <span className="text-content-secondary">{memory.content || memory.kind}</span>
+                          <span className="ml-1.5 text-content-faint">
                             {memory.scope} {memory.kind}
                             {memory.confidence !== undefined && ` · ${Math.round(memory.confidence * 100)}%`}
                           </span>

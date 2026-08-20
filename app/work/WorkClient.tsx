@@ -351,7 +351,7 @@ export default function WorkClient({
   return (
     <div className="flex h-[calc(100vh-3.5rem)] min-h-0">
       {/* ── Run list ── */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-white/[0.07] xl:flex">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle xl:flex">
         <PanelHeader title="Work">
           <Link href="/work">
             <IconButton label="New work" size="sm">
@@ -365,13 +365,13 @@ export default function WorkClient({
               key={run.id}
               href={`/work/${run.id}`}
               className={cx(
-                'mb-0.5 block rounded-lg px-2.5 py-2 transition',
+                'mb-0.5 block rounded-control px-2.5 py-2 transition',
                 run.id === task.id
-                  ? 'bg-white/[0.08] text-gray-100'
-                  : 'text-gray-500 hover:bg-white/[0.04] hover:text-gray-300',
+                  ? 'bg-ink-600 text-content-primary'
+                  : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
               )}
             >
-              <span className="block truncate text-[12px] leading-5">{run.goal}</span>
+              <span className="block truncate text-ui leading-5">{run.goal}</span>
               <StatusBadge status={run.status} className="mt-1" />
             </Link>
           ))}
@@ -380,7 +380,7 @@ export default function WorkClient({
 
       {/* ── Center ── */}
       <Panel className="flex-1 border-r">
-        <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-3">
+        <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line-subtle px-3">
           <Tabs items={tabs} active={tab} onChange={(id) => setTab(id as CenterTab)} />
           <div className="hidden items-center gap-3 lg:flex">
             {/* Clickable stage trail: each stage opens the surface that explains
@@ -392,7 +392,7 @@ export default function WorkClient({
         {awaitingDecision && <DecisionGate seconds={decisionSeconds} busy={busy} onChoose={decide} />}
 
         {decisionExpired && (
-          <div className="border-b border-white/[0.07] px-4 py-3">
+          <div className="border-b border-line-subtle px-4 py-3">
             <Alert tone="warn" title="The decision window closed">
               Nothing was executed. Send a new message to start again — expiry never defaults to execution.
             </Alert>
@@ -418,21 +418,21 @@ export default function WorkClient({
                         <div key={turn.id}>
                           {turn.role === 'user' ? (
                             <div className="flex justify-end">
-                              <div className="max-w-[85%] rounded-2xl rounded-br-md bg-violet-300/[0.1] px-3.5 py-2.5 text-[13px] leading-6 text-violet-50">
+                              <div className="max-w-[85%] rounded-modal rounded-br-md bg-signal-plan/1 px-3.5 py-2.5 text-body leading-6 text-signal-plan">
                                 <p className="whitespace-pre-wrap">{turn.content}</p>
                               </div>
                             </div>
                           ) : turn.role === 'system' ? (
-                            <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+                            <div className="rounded-control border border-line-subtle bg-ink-700/60 px-3 py-2">
+                              <p className="text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
                                 Context compacted
                               </p>
-                              <p className="mt-1 text-[12px] leading-5 text-gray-500">{turn.content}</p>
+                              <p className="mt-1 text-ui leading-5 text-content-muted">{turn.content}</p>
                             </div>
                           ) : (
                             <div className="space-y-2">
                               {turn.toolEvents && turn.toolEvents.length > 0 && (
-                                <div className="overflow-hidden rounded-lg border border-white/[0.06] bg-black/15">
+                                <div className="overflow-hidden rounded-control border border-line-subtle bg-black/15">
                                   {pairToolEvents(turn.toolEvents).map(({ call, result }) => (
                                     <ToolRow key={call.seq} call={call} result={result} />
                                   ))}
@@ -440,7 +440,7 @@ export default function WorkClient({
                               )}
                               {turn.content && (
                                 <div
-                                  className="markdown-content text-[13px] leading-6 text-gray-300"
+                                  className="markdown-content text-body leading-6 text-content-secondary"
                                   dangerouslySetInnerHTML={{ __html: renderMarkdown(turn.content) }}
                                 />
                               )}
@@ -475,16 +475,16 @@ export default function WorkClient({
 
             {/* Follow-up composer — only when the agent is idle. */}
             {!isRunning && !isPlanned && !awaitingDecision && (
-              <div className="shrink-0 border-t border-white/[0.07] px-4 py-3">
+              <div className="shrink-0 border-t border-line-subtle px-4 py-3">
                 <div className="mx-auto w-full max-w-3xl">
-                  <div className="rounded-xl border border-white/10 bg-[#0c1320]/90 transition focus-within:border-cyan-300/40">
+                  <div className="rounded-panel border border-line bg-ink-900/70 transition focus-within:border-signal-run/40">
                     <textarea
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       rows={2}
                       placeholder="Follow up, or describe the next change…"
                       aria-label="Follow-up message"
-                      className="block w-full resize-none bg-transparent px-3.5 py-2.5 text-[13px] leading-6 text-gray-100 outline-none placeholder:text-gray-600"
+                      className="block w-full resize-none bg-transparent px-3.5 py-2.5 text-body leading-6 text-content-primary outline-none placeholder:text-content-muted"
                     />
                     <div className="flex items-center justify-between gap-3 px-3 pb-2">
                       <UploadButton
@@ -541,7 +541,7 @@ export default function WorkClient({
         <PanelHeader title="Governance" />
         <div className="space-y-4 p-3">
           <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">State</p>
+            <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">State</p>
             <div className="flex flex-wrap items-center gap-1.5">
               <StatusBadge status={status} />
               <Badge tone={task.mode === 'build' ? 'violet' : 'amber'}>{task.mode}</Badge>
@@ -550,7 +550,7 @@ export default function WorkClient({
           </div>
 
           <div>
-            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+            <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
               Authority
             </p>
             {/* Mirrors what executeTool enforces at dispatch. Each row carries a
@@ -573,10 +573,10 @@ export default function WorkClient({
 
           {task.project_path && (
             <div>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+              <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
                 Boundary
               </p>
-              <p className="break-all rounded-lg border border-white/[0.07] bg-black/20 px-2.5 py-2 font-mono text-[10px] leading-4 text-gray-400">
+              <p className="break-all rounded-control border border-line-subtle bg-black/20 px-2.5 py-2 font-mono text-micro leading-4 text-content-secondary">
                 {task.project_path}
               </p>
             </div>
@@ -585,13 +585,13 @@ export default function WorkClient({
           <Divider />
 
           <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg border border-white/[0.07] bg-black/20 px-2.5 py-2">
-              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-600">Credits</p>
-              <p className="mt-0.5 text-base font-semibold tabular-nums text-gray-200">{creditsSpent}</p>
+            <div className="rounded-control border border-line-subtle bg-black/20 px-2.5 py-2">
+              <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Credits</p>
+              <p className="mt-0.5 text-base font-semibold tabular-nums text-content-primary">{creditsSpent}</p>
             </div>
-            <div className="rounded-lg border border-white/[0.07] bg-black/20 px-2.5 py-2">
-              <p className="text-[10px] uppercase tracking-[0.12em] text-gray-600">Actions</p>
-              <p className="mt-0.5 text-base font-semibold tabular-nums text-gray-200">{toolPairs.length}</p>
+            <div className="rounded-control border border-line-subtle bg-black/20 px-2.5 py-2">
+              <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Actions</p>
+              <p className="mt-0.5 text-base font-semibold tabular-nums text-content-primary">{toolPairs.length}</p>
             </div>
           </div>
 
@@ -609,19 +609,19 @@ export default function WorkClient({
 
           {todos.length > 0 && (
             <div>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+              <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
                 Checklist
               </p>
               <ul className="space-y-1">
                 {todos.map((item) => (
-                  <li key={item.id} className="flex items-start gap-2 text-[11px] leading-5">
+                  <li key={item.id} className="flex items-start gap-2 text-meta leading-5">
                     <span
                       className={cx(
                         'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full',
-                        item.status === 'done' ? 'bg-emerald-400/80' : item.status === 'in_progress' ? 'animate-pulse bg-cyan-300' : 'bg-gray-700',
+                        item.status === 'done' ? 'bg-signal-pass/80' : item.status === 'in_progress' ? 'animate-live-pulse bg-signal-run' : 'bg-gray-700',
                       )}
                     />
-                    <span className={item.status === 'done' ? 'text-gray-600 line-through' : 'text-gray-400'}>
+                    <span className={item.status === 'done' ? 'text-content-muted line-through' : 'text-content-secondary'}>
                       {item.description}
                     </span>
                   </li>
@@ -632,12 +632,12 @@ export default function WorkClient({
 
           {filesTouched.length > 0 && (
             <div>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+              <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
                 Files changed ({filesTouched.length})
               </p>
               <ul className="space-y-0.5">
                 {filesTouched.map((path) => (
-                  <li key={path} className="truncate font-mono text-[10px] leading-5 text-amber-200/80" title={path}>
+                  <li key={path} className="truncate font-mono text-micro leading-5 text-signal-gate/80" title={path}>
                     {path}
                   </li>
                 ))}
@@ -647,13 +647,13 @@ export default function WorkClient({
 
           {uploads.length > 0 && (
             <div>
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
+              <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
                 Uploads
               </p>
               <ul className="space-y-0.5">
                 {uploads.map((upload) => (
-                  <li key={upload.id} className="flex items-center justify-between gap-2 text-[10px] leading-5">
-                    <span className="truncate font-mono text-gray-500">{upload.filename}</span>
+                  <li key={upload.id} className="flex items-center justify-between gap-2 text-micro leading-5">
+                    <span className="truncate font-mono text-content-muted">{upload.filename}</span>
                     <Badge tone={upload.status === 'ready' ? 'emerald' : upload.status === 'rejected' ? 'red' : 'gray'}>
                       {upload.status}
                     </Badge>
@@ -669,7 +669,7 @@ export default function WorkClient({
             {isTerminal && (
               <a
                 href={`/api/tasks/${task.id}/export`}
-                className="block rounded-lg border border-white/[0.08] px-2.5 py-2 text-center text-[11px] text-gray-400 transition hover:border-white/20 hover:text-gray-100"
+                className="block rounded-control border border-line-subtle px-2.5 py-2 text-center text-meta text-content-secondary transition hover:border-line-strong hover:text-content-primary"
               >
                 Export audit trail
               </a>
@@ -683,7 +683,7 @@ export default function WorkClient({
                   toast.push('info', 'Switched to planning. Approved plan cleared.');
                   router.refresh();
                 }}
-                className="w-full rounded-lg border border-white/[0.08] px-2.5 py-2 text-[11px] text-gray-400 transition hover:border-white/20 hover:text-gray-100"
+                className="w-full rounded-control border border-line-subtle px-2.5 py-2 text-meta text-content-secondary transition hover:border-line-strong hover:text-content-primary"
               >
                 Re-plan this task
               </button>

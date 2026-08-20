@@ -44,7 +44,7 @@ export function AuthorityRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-2 py-0.5" title={reason}>
-      <span className="min-w-0 truncate text-[11px] text-gray-500">{label}</span>
+      <span className="min-w-0 truncate text-meta text-content-muted">{label}</span>
       <Badge tone={AUTHORITY_TONE[state]}>{AUTHORITY_LABEL[state]}</Badge>
     </div>
   );
@@ -112,8 +112,8 @@ export function RuntimeBanner({
   return (
     <div
       className={cx(
-        'rounded-lg border px-3 py-2.5',
-        stalled ? 'border-amber-300/25 bg-amber-300/[0.06]' : 'border-white/[0.07] bg-white/[0.02]',
+        'rounded-control border px-3 py-2.5',
+        stalled ? 'border-signal-gate/25 bg-signal-gate/06' : 'border-line-subtle bg-ink-700/60',
       )}
       role="status"
       aria-live="polite"
@@ -122,22 +122,22 @@ export function RuntimeBanner({
         <span
           className={cx(
             'h-1.5 w-1.5 shrink-0 rounded-full',
-            stalled ? 'bg-amber-300' : 'animate-pulse bg-cyan-300',
+            stalled ? 'bg-amber-300' : 'animate-live-pulse bg-signal-run',
           )}
         />
-        <span className={cx('text-[12px]', stalled ? 'text-amber-100' : 'text-gray-200')}>{label}</span>
-        {elapsed && <span className="text-[11px] tabular-nums text-gray-600">{elapsed}</span>}
+        <span className={cx('text-ui', stalled ? 'text-signal-gate' : 'text-content-primary')}>{label}</span>
+        {elapsed && <span className="text-meta tabular-nums text-content-muted">{elapsed}</span>}
       </div>
 
       {detail && (
-        <p className="mt-1 truncate font-mono text-[11px] text-gray-600" title={detail}>
+        <p className="mt-1 truncate font-mono text-meta text-content-muted" title={detail}>
           {detail}
         </p>
       )}
 
       {stalled && (
         <>
-          <p className="mt-1.5 text-[11px] leading-5 text-amber-100/90">
+          <p className="mt-1.5 text-meta leading-5 text-signal-gate/90">
             No new runtime events have arrived. Nothing has been executed during this wait.
           </p>
           {(onRetry || onStop) && (
@@ -146,7 +146,7 @@ export function RuntimeBanner({
                 <button
                   type="button"
                   onClick={onRetry}
-                  className="rounded-md border border-amber-300/30 px-2 py-1 text-[11px] text-amber-100 transition hover:bg-amber-300/10"
+                  className="rounded-md border border-signal-gate/30 px-2 py-1 text-meta text-signal-gate transition hover:bg-signal-gate/10"
                 >
                   Retry
                 </button>
@@ -155,7 +155,7 @@ export function RuntimeBanner({
                 <button
                   type="button"
                   onClick={onStop}
-                  className="rounded-md border border-white/10 px-2 py-1 text-[11px] text-gray-400 transition hover:bg-white/[0.06]"
+                  className="rounded-md border border-line px-2 py-1 text-meta text-content-secondary transition hover:bg-ink-700"
                 >
                   Stop
                 </button>
@@ -203,13 +203,13 @@ export function XeoFlow({
             disabled={!onOpen}
             title={stage.target ? `Open ${stage.target}` : undefined}
             className={cx(
-              'rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-[0.1em] transition',
-              onOpen && 'hover:bg-white/[0.07]',
+              'rounded px-1.5 py-0.5 text-micro font-medium uppercase tracking-[0.1em] transition',
+              onOpen && 'hover:bg-ink-600',
               stage.state === 'current'
-                ? 'text-cyan-200'
+                ? 'text-signal-run'
                 : stage.state === 'done'
-                  ? 'text-gray-400'
-                  : 'text-gray-700',
+                  ? 'text-content-secondary'
+                  : 'text-content-faint',
               !onOpen && 'cursor-default',
             )}
           >
@@ -218,7 +218,7 @@ export function XeoFlow({
           {index < stages.length - 1 && (
             <span
               aria-hidden="true"
-              className={cx('h-px w-3', stage.state === 'done' ? 'bg-gray-600' : 'bg-white/[0.08]')}
+              className={cx('h-px w-3', stage.state === 'done' ? 'bg-gray-600' : 'bg-ink-600')}
             />
           )}
         </div>
@@ -298,27 +298,27 @@ export interface SystemSignal {
  */
 export function CurrentTruth({ headline, signals }: { headline: string; signals: SystemSignal[] }) {
   const dot = {
-    ok: 'bg-emerald-400/80',
+    ok: 'bg-signal-pass/80',
     off: 'bg-gray-700',
-    unknown: 'bg-amber-300/70',
-    bad: 'bg-red-400/80',
+    unknown: 'bg-signal-gate/70',
+    bad: 'bg-signal-fail/80',
   };
   const mark = { ok: '✓', off: '○', unknown: '?', bad: '✕' };
 
   return (
     <div>
-      <p className="mb-2 text-[11px] font-medium text-gray-300">{headline}</p>
+      <p className="mb-2 text-meta font-medium text-content-secondary">{headline}</p>
       <ul className="space-y-1">
         {signals.map((signal) => (
-          <li key={signal.label} className="flex items-center gap-2 text-[11px]" title={signal.detail}>
+          <li key={signal.label} className="flex items-center gap-2 text-meta" title={signal.detail}>
             <span className={cx('h-1.5 w-1.5 shrink-0 rounded-full', dot[signal.state])} />
-            <span className="min-w-0 flex-1 truncate text-gray-500">{signal.label}</span>
+            <span className="min-w-0 flex-1 truncate text-content-muted">{signal.label}</span>
             <span
               className={cx(
-                'shrink-0 font-mono text-[10px]',
-                signal.state === 'ok' ? 'text-emerald-300/80'
-                  : signal.state === 'bad' ? 'text-red-300/80'
-                  : 'text-gray-600',
+                'shrink-0 font-mono text-micro',
+                signal.state === 'ok' ? 'text-signal-pass/80'
+                  : signal.state === 'bad' ? 'text-signal-fail/80'
+                  : 'text-content-muted',
               )}
             >
               {mark[signal.state]}
@@ -390,38 +390,38 @@ export function ResultArtifact({
   actions?: React.ReactNode;
 }) {
   const toneText = {
-    good: 'text-emerald-300',
+    good: 'text-signal-pass',
     warn: 'text-amber-300',
-    bad: 'text-red-300',
-    neutral: 'text-gray-200',
+    bad: 'text-signal-fail',
+    neutral: 'text-content-primary',
   };
 
   return (
     <div
       className={cx(
-        'rounded-xl border px-4 py-3.5',
+        'rounded-panel border px-4 py-3.5',
         status === 'completed'
-          ? 'border-emerald-300/20 bg-emerald-300/[0.05]'
-          : 'border-red-400/20 bg-red-400/[0.05]',
+          ? 'border-signal-pass/20 bg-signal-pass/05'
+          : 'border-signal-fail/20 bg-signal-fail/05',
       )}
     >
       <p
         className={cx(
-          'text-[10px] font-semibold uppercase tracking-[0.18em]',
-          status === 'completed' ? 'text-emerald-200/90' : 'text-red-200/90',
+          'text-micro font-semibold uppercase tracking-[0.18em]',
+          status === 'completed' ? 'text-signal-pass/90' : 'text-signal-fail/90',
         )}
       >
         {status === 'completed' ? 'Completed' : 'Failed'}
       </p>
 
-      {summary && <p className="mt-2 text-[13px] leading-6 text-gray-300">{summary}</p>}
+      {summary && <p className="mt-2 text-body leading-6 text-content-secondary">{summary}</p>}
 
       {facts.length > 0 && (
         <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 sm:grid-cols-3">
           {facts.map((fact) => (
             <div key={fact.label}>
-              <dt className="text-[10px] uppercase tracking-[0.12em] text-gray-600">{fact.label}</dt>
-              <dd className={cx('mt-0.5 text-[13px] font-semibold tabular-nums', toneText[fact.tone ?? 'neutral'])}>
+              <dt className="text-micro uppercase tracking-[0.12em] text-content-muted">{fact.label}</dt>
+              <dd className={cx('mt-0.5 text-body font-semibold tabular-nums', toneText[fact.tone ?? 'neutral'])}>
                 {fact.value}
               </dd>
             </div>

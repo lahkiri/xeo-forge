@@ -2,33 +2,49 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------------------------------------------ */
+/*  Xeo Forge base layer                                              */
+/*                                                                     */
+/*  Tokens live in tailwind.config.ts. This file holds only what a      */
+/*  utility class cannot express: root variables, base element resets,  */
+/*  scrollbars, selection, and the markdown/code-highlight rules that   */
+/*  style model output we do not control the markup of.                 */
+/* ------------------------------------------------------------------ */
+
 :root {
   color-scheme: dark;
-  --xeo-bg: #0c1320;
-  --xeo-panel: rgba(24, 35, 54, 0.72);
-  --xeo-border: rgba(180, 205, 230, 0.12);
-  --xeo-cyan: #67e8f9;
-  --xeo-violet: #a78bfa;
-  --xeo-text: #f1f5f9;
-  --xeo-muted: #a5b1c2;
-  --xeo-dim: #718096;
-  --xeo-radius-panel: 1.25rem;
-  --xeo-shadow-panel: 0 24px 80px rgba(0, 0, 0, 0.24);
+
+  /* Mirrors of the Tailwind tokens, for raw CSS below. */
+  --ink-900: #070b12;
+  --ink-800: #0b1220;
+  --ink-700: #0f1725;
+  --line: rgba(180, 205, 230, 0.12);
+  --line-subtle: rgba(180, 205, 230, 0.07);
+  --content-primary: #e8edf5;
+  --content-secondary: #9aa7bd;
+  --content-muted: #67748c;
+  --signal-run: #67e8f9;
+  --signal-plan: #a78bfa;
 }
 
 html {
   scroll-behavior: smooth;
+  /* Prevent iOS text inflation in the desktop-first workbench. */
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
 body {
-  padding: 0;
   margin: 0;
+  padding: 0;
   min-height: 100%;
-  background: var(--xeo-bg);
-  color: #e6e8ec;
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
+  background: var(--ink-800);
+  color: var(--content-secondary);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* Operational density: tighter default leading than prose. */
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 * {
@@ -40,110 +56,164 @@ a {
   text-decoration: none;
 }
 
+/* Tabular figures everywhere numbers change in place, so live counters and
+   timers do not jitter as digits swap. */
+.tabular-nums,
+[class*='tabular'] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── App shell ─────────────────────────────────────────────────────
+   A single, very restrained ambient gradient. No animated mesh, no glow:
+   the runtime provides the movement in this product. */
+
 .app-shell {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(circle at 82% -8%, rgba(103, 232, 249, 0.13), transparent 32rem),
-    radial-gradient(circle at 12% 18%, rgba(167, 139, 250, 0.09), transparent 28rem),
-    linear-gradient(140deg, #0c1320 0%, #0b1220 52%, #101827 100%);
+    radial-gradient(ellipse 80rem 40rem at 78% -12%, rgba(103, 232, 249, 0.055), transparent 70%),
+    radial-gradient(ellipse 60rem 36rem at 8% 4%, rgba(167, 139, 250, 0.04), transparent 70%),
+    var(--ink-800);
 }
 
-.app-shell::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0.09;
-  background-image: linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-  background-size: 48px 48px;
-  mask-image: linear-gradient(to bottom, black, transparent 76%);
-}
+/* ── Brand mark ──────────────────────────────────────────────────── */
 
 .brand-mark {
   display: inline-flex;
-  width: 2rem;
-  height: 2rem;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(103, 232, 249, 0.35);
-  border-radius: 0.75rem;
-  background: linear-gradient(135deg, rgba(103,232,249,0.18), rgba(167,139,250,0.18));
-  box-shadow: 0 0 24px rgba(103, 232, 249, 0.12);
+  border: 1px solid rgba(103, 232, 249, 0.3);
+  border-radius: 0.5rem;
+  background: linear-gradient(135deg, rgba(103, 232, 249, 0.14), rgba(167, 139, 250, 0.14));
 }
 
 .brand-mark span {
-  width: 0.65rem;
-  height: 0.65rem;
-  border: 2px solid var(--xeo-cyan);
-  border-radius: 0.2rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border: 1.5px solid var(--signal-run);
+  border-radius: 0.15rem;
   transform: rotate(45deg);
 }
 
-.workbench-panel {
-  border: 1px solid var(--xeo-border);
-  border-radius: var(--xeo-radius-panel);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.018));
-  box-shadow: var(--xeo-shadow-panel);
-}
+/* ── Focus ──────────────────────────────────────────────────────────
+   One visible ring for keyboard users, never for mouse clicks. */
 
-.workbench-kicker {
-  color: var(--xeo-dim);
-  font-size: 0.64rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  line-height: 1;
-  text-transform: uppercase;
-}
-
-.workbench-input {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(12, 19, 32, 0.82);
-  color: var(--xeo-text);
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
-}
-
-.workbench-input::placeholder { color: #596274; }
-.workbench-input:focus {
-  border-color: rgba(103, 232, 249, 0.48);
-  background: rgba(15, 25, 42, 0.96);
-  box-shadow: 0 0 0 4px rgba(103, 232, 249, 0.08);
-  outline: none;
-}
-
-::selection {
-  background: rgba(103, 232, 249, 0.24);
-  color: white;
-}
-
-.nav-dot {
-  display: block;
-  width: 0.4rem;
-  height: 0.4rem;
-  flex: 0 0 auto;
-  border-radius: 999px;
-  transition: background-color 200ms ease;
-}
-
-/* Accessible focus styles */
 :focus-visible {
-  outline: 2px solid #818cf8;
+  outline: 2px solid var(--signal-run);
   outline-offset: 2px;
+  border-radius: 0.25rem;
 }
 
 :focus:not(:focus-visible) {
   outline: none;
 }
 
-/* ── Markdown content (inside assistant bubbles) ── */
+::selection {
+  background: rgba(103, 232, 249, 0.22);
+  color: var(--content-primary);
+}
+
+/* ── Scrollbars ─────────────────────────────────────────────────────
+   Thin and low-contrast; a workbench has many scroll regions and loud
+   scrollbars make it read as cluttered. */
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(180, 205, 230, 0.1);
+  border: 3px solid transparent;
+  border-radius: 6px;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(180, 205, 230, 0.2);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(180, 205, 230, 0.14) transparent;
+}
+
+/* ── Legacy panel helpers ──────────────────────────────────────────
+   Retained because a few surfaces still reference them. New code should
+   use the Panel/Card primitives instead. */
+
+.workbench-panel {
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+}
+
+.workbench-kicker {
+  color: var(--content-muted);
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.workbench-input {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: rgba(7, 11, 18, 0.6);
+  color: var(--content-primary);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+.workbench-input::placeholder {
+  color: var(--content-muted);
+  opacity: 0.7;
+}
+
+.workbench-input:focus {
+  border-color: rgba(103, 232, 249, 0.45);
+  background: var(--ink-700);
+  box-shadow: 0 0 0 3px rgba(103, 232, 249, 0.16);
+  outline: none;
+}
+
+/* ── Markdown (assistant output) ────────────────────────────────────
+   We do not control this markup, so it must be styled by element. Sized
+   to match the `body` type step. */
+
+.markdown-content {
+  font-size: 0.8125rem;
+  line-height: 1.625rem;
+}
+
+.markdown-content > :first-child {
+  margin-top: 0;
+}
+
+.markdown-content > :last-child {
+  margin-bottom: 0;
+}
 
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3 {
+  color: var(--content-primary);
   font-weight: 600;
-  margin: 0.75em 0 0.25em;
-  line-height: 1.3;
+  line-height: 1.35;
+  margin: 1.25em 0 0.5em;
 }
 
 .markdown-content h1 { font-size: 1.15em; }
@@ -153,98 +223,90 @@ a {
 .markdown-content p,
 .markdown-content ul,
 .markdown-content ol {
-  margin: 0.4em 0;
+  margin: 0.65em 0;
 }
 
-.markdown-content strong { font-weight: 600; color: #e2e4e9; }
-.markdown-content em { font-style: italic; color: #b0b3ba; }
+.markdown-content strong {
+  color: var(--content-primary);
+  font-weight: 600;
+}
+
+.markdown-content em {
+  color: var(--content-secondary);
+  font-style: italic;
+}
 
 .markdown-content ul,
 .markdown-content ol {
-  padding-left: 1.25em;
+  padding-left: 1.35em;
 }
+
+.markdown-content ul { list-style: disc; }
+.markdown-content ol { list-style: decimal; }
 
 .markdown-content li {
-  margin: 0.15em 0;
-  line-height: 1.55;
+  margin: 0.3em 0;
 }
 
-/* Code blocks */
+.markdown-content li::marker {
+  color: var(--content-muted);
+}
+
 .markdown-content .code-block {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 8px;
-  padding: 0.75em 1em;
-  margin: 0.5em 0;
+  margin: 0.75em 0;
+  padding: 0.75em 0.9em;
   overflow-x: auto;
-  font-size: 0.8em;
+  border: 1px solid var(--line-subtle);
+  border-radius: 0.5rem;
+  background: rgba(7, 11, 18, 0.65);
+  color: #c3cbd9;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 0.75rem;
   line-height: 1.6;
-  font-family: ui-monospace, 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
-  color: #c0c3ca;
 }
 
 .markdown-content .inline-code {
-  background: rgba(255, 255, 255, 0.06);
-  border-radius: 4px;
-  padding: 0.1em 0.35em;
-  font-size: 0.88em;
-  font-family: ui-monospace, 'SF Mono', 'Fira Code', monospace;
-  color: #d0d3da;
+  padding: 0.12em 0.36em;
+  border-radius: 0.25rem;
+  background: rgba(180, 205, 230, 0.09);
+  color: #cfd6e2;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 0.875em;
 }
 
-/* Links in markdown */
 .markdown-content a {
-  color: #818cf8;
-  text-decoration: none;
-}
-.markdown-content a:hover {
+  color: var(--signal-run);
   text-decoration: underline;
+  text-decoration-color: rgba(103, 232, 249, 0.35);
+  text-underline-offset: 2px;
 }
 
-/* ── Scrollbar (subtle) ── */
-
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+.markdown-content a:hover {
+  text-decoration-color: var(--signal-run);
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* ── Syntax highlighting (workspace viewer) ─────────────────────── */
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-}
+.hl-kw { color: #c792ea; }
+.hl-str { color: #a5d6a7; }
+.hl-num { color: #f0a97c; }
+.hl-cmt { color: #5b6678; font-style: italic; }
+.hl-type { color: #e8d48b; }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-/* ── Pulse animation (for live indicators) ── */
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-
-.animate-pulse {
-  animation: pulse 1.5s ease-in-out infinite;
-}
+/* ── Reduced motion ─────────────────────────────────────────────────
+   Honour the OS preference. The live-pulse indicator becomes a static
+   dot: state is still readable from colour and the adjacent label. */
 
 @media (prefers-reduced-motion: reduce) {
-  html { scroll-behavior: auto; }
-  *, *::before, *::after {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
-
-/* ── Syntax highlighting (workspace viewer) ── */
-
-.hl-kw { color: #c678dd; }
-.hl-str { color: #98c379; }
-.hl-num { color: #d19a66; }
-.hl-cmt { color: #5c6370; font-style: italic; }
-.hl-type { color: #e5c07b; }

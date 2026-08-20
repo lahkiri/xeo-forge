@@ -39,7 +39,7 @@ function CandidateCard({
       <div className="flex flex-wrap items-center gap-2">
         <Badge tone={KIND_TONE[memory.kind] ?? 'gray'}>{memory.kind}</Badge>
         <Badge tone={memory.scope === 'task' ? 'cyan' : 'gray'}>{memory.scope}</Badge>
-        <span className="text-[10px] tabular-nums text-gray-600">{confidence}% confidence</span>
+        <span className="text-micro tabular-nums text-content-muted">{confidence}% confidence</span>
       </div>
 
       {editing ? (
@@ -49,13 +49,13 @@ function CandidateCard({
           rows={3}
           autoFocus
           aria-label="Edit memory content"
-          className="mt-2.5 w-full resize-none rounded-lg border border-white/10 bg-[#0c1320]/80 px-3 py-2 text-[12px] leading-5 text-gray-100 outline-none focus:border-cyan-300/40"
+          className="mt-2.5 w-full resize-none rounded-control border border-line bg-ink-900/60 px-3 py-2 text-ui leading-5 text-content-primary outline-none focus:border-signal-run/40"
         />
       ) : (
-        <p className="mt-2.5 text-[13px] leading-6 text-gray-300">{memory.content}</p>
+        <p className="mt-2.5 text-body leading-6 text-content-secondary">{memory.content}</p>
       )}
 
-      <p className="mt-2 text-[10px] leading-4 text-gray-600">
+      <p className="mt-2 text-micro leading-4 text-content-muted">
         Proposed by this run. It will not reach any future run until you keep it.
       </p>
 
@@ -155,11 +155,11 @@ export function MemoryReview({ taskId, onChanged }: { taskId: string; onChanged?
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-300/80">Memory</p>
+        <p className="text-micro font-semibold uppercase tracking-[0.2em] text-signal-gate/80">Memory</p>
         <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-white">
           {candidates.length > 0 ? 'The agent proposed something to remember' : 'Approved memory'}
         </h2>
-        <p className="mt-1.5 text-[12px] leading-5 text-gray-500">
+        <p className="mt-1.5 text-ui leading-5 text-content-muted">
           Nothing is remembered without your approval. Memory is reference data for future runs — it never
           grants a capability.
         </p>
@@ -177,7 +177,7 @@ export function MemoryReview({ taskId, onChanged }: { taskId: string; onChanged?
       )}
 
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-600">
+        <p className="mb-2 text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
           Active for future runs ({approved.length})
         </p>
         {approved.length === 0 ? (
@@ -186,20 +186,20 @@ export function MemoryReview({ taskId, onChanged }: { taskId: string; onChanged?
             description="Approved memories appear here and are injected as reference data into later runs on this task."
           />
         ) : (
-          <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.02]">
+          <div className="overflow-hidden rounded-panel border border-line-subtle bg-ink-700/60">
             {approved.map((memory) => (
-              <div key={memory.id} className="border-b border-white/[0.05] px-3 py-2.5 last:border-0">
+              <div key={memory.id} className="border-b border-line-subtle px-3 py-2.5 last:border-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={KIND_TONE[memory.kind] ?? 'gray'}>{memory.kind}</Badge>
                   <Badge tone={memory.scope === 'task' ? 'cyan' : 'gray'}>{memory.scope}</Badge>
-                  {memory.pinned ? <span className="text-[10px] text-cyan-300/80">pinned</span> : null}
+                  {memory.pinned ? <span className="text-micro text-signal-run/80">pinned</span> : null}
                   <span className="ml-auto shrink-0">
                     <button
                       type="button"
                       disabled={busy}
                       onClick={() => void remove(memory.id)}
                       className={cx(
-                        'text-[10px] text-gray-600 transition hover:text-red-300',
+                        'text-micro text-content-muted transition hover:text-signal-fail',
                         busy && 'pointer-events-none opacity-50',
                       )}
                     >
@@ -207,7 +207,7 @@ export function MemoryReview({ taskId, onChanged }: { taskId: string; onChanged?
                     </button>
                   </span>
                 </div>
-                <p className="mt-1.5 text-[12px] leading-5 text-gray-400">{memory.content}</p>
+                <p className="mt-1.5 text-ui leading-5 text-content-secondary">{memory.content}</p>
               </div>
             ))}
           </div>
