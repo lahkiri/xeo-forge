@@ -6,17 +6,25 @@ import { useRouter } from 'next/navigation';
 import type { Message, Task, TaskEvent, Upload } from '@/lib/types';
 import {
   buildTimeline,
-  derivePhase,
   isRunningStatus,
   isTerminalStatus,
   latestEventOfType,
   parseEvents,
   splitRuns,
   type ParsedEvent,
-  type Phase,
 } from '@/lib/agent/timeline';
 import { renderMarkdown } from '@/lib/markdown';
 import { deriveChatRuntime, formatElapsed } from '@/lib/agent/runtime-state';
+import { eventTypesFor } from '@/lib/agent/events';
+import { ExecutionTimeline, buildActivityRows } from '@/components/ExecutionTimeline';
+import {
+  AuthorityRow,
+  RuntimeBanner,
+  XeoFlow,
+  authorityForMode,
+  deriveFlow,
+  type FlowStage,
+} from '@/components/AgentPrimitives';
 import {
   Alert,
   Badge,
@@ -28,7 +36,6 @@ import {
   Meter,
   Panel,
   PanelHeader,
-  Spinner,
   StatusBadge,
   Tabs,
   cx,
@@ -52,41 +59,7 @@ import { UploadButton } from '@/components/UploadButton';
 /*  what it costs. Three panes — run log, artifact, governance rail.    */
 /* ------------------------------------------------------------------ */
 
-const PHASE_STEPS: { id: Phase; label: string }[] = [
-  { id: 'plan', label: 'Plan' },
-  { id: 'execute', label: 'Execute' },
-  { id: 'verify', label: 'Verify' },
-  { id: 'done', label: 'Done' },
-];
-
-function PhaseTrail({ phase }: { phase: Phase }) {
-  const activeIndex = PHASE_STEPS.findIndex((s) => s.id === phase);
-  return (
-    <div className="flex items-center gap-1.5">
-      {PHASE_STEPS.map((step, index) => {
-        const done = index < activeIndex;
-        const active = index === activeIndex;
-        return (
-          <div key={step.id} className="flex items-center gap-1.5">
-            <span
-              className={cx(
-                'text-[10px] font-medium uppercase tracking-[0.12em] transition',
-                active ? 'text-cyan-200' : done ? 'text-gray-500' : 'text-gray-700',
-              )}
-            >
-              {step.label}
-            </span>
-            {index < PHASE_STEPS.length - 1 && (
-              <span className={cx('h-px w-4', done ? 'bg-gray-600' : 'bg-white/[0.08]')} />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-type CenterTab = 'run' | 'project' | 'preview' | 'context' | 'memory';
+type CenterTab = 'run' | 'activity' | 'project' | 'preview' | 'context' | 'memory';
 
 export default function WorkClient({
   runs,
@@ -143,8 +116,29 @@ export default function WorkClient({
     () => buildTimeline({ events, messages, status, goal: task.goal }),
     [events, messages, status, task.goal],
   );
-  const phase = derivePhase({ status, isChat: false, currentRunEvents });
+
+  // Xeo Flow: derived only from observable state, never a step counter.
+  const flowStages = useMemo(
+    () =>
+      deriveFlow({
+        status,
+        mode: task.mode,
+        hasContextEvent: events.some((e) => e.type === 'context' || e.type === 'context_layers'),
+        hasPlan: Boolean(proposedPlan),
+        hasApprovedPlan: Boolean(task.approved_plan),
+        hasToolActivity: events.some((e) => e.type === 'tool_call'),
+      }),
+    [status, task.mode, task.approved_plan, events, proposedPlan],
+  );
+
+  const openFlowStage = useCallback((stage: FlowStage) => {
+    if (stage === 'context') setTab('context');
+    else if (stage === 'execute') setTab('activity');
+    else setTab('run');
+  }, []);
   const toolPairs = useMemo(() => pairToolEvents(events), [events]);
+  // Rows the Activity timeline will actually render, so the tab badge matches.
+  const activityCount = useMemo(() => buildActivityRows(events).length, [events]);
   const liveTools = useMemo(() => pairToolEvents(currentRunEvents), [currentRunEvents]);
 
   // Tick while running so the elapsed timer and provider-stall threshold are
@@ -242,11 +236,9 @@ export default function WorkClient({
   useEffect(() => {
     if (isTerminal) return;
     const source = new EventSource(`/api/tasks/${task.id}/stream`);
-    const types = [
-      'task_status', 'mode', 'intent', 'plan', 'text', 'reasoning', 'tool_call', 'tool_result',
-      'credits', 'context', 'compaction', 'model_retry', 'error', 'done', 'upload',
-      'todo_update', 'verification', 'file_activity',
-    ];
+    // Subscriptions come from the shared registry. A hardcoded array here is
+    // how v1.10.0's context_layers/memory events were silently dropped.
+    const types = eventTypesFor('work');
     const handler = (e: MessageEvent) => {
       const seq = Number(e.lastEventId);
       if (!Number.isFinite(seq)) return;
@@ -339,19 +331,21 @@ export default function WorkClient({
   /* ── Keyboard ── */
   useHotkeys([
     { combo: 'mod+1', run: () => setTab('run') },
-    { combo: 'mod+2', run: () => setTab('project') },
-    { combo: 'mod+3', run: () => setTab('preview') },
-    { combo: 'mod+4', run: () => setTab('context') },
-    { combo: 'mod+5', run: () => setTab('memory') },
+    { combo: 'mod+2', run: () => setTab('activity') },
+    { combo: 'mod+3', run: () => setTab('project') },
+    { combo: 'mod+4', run: () => setTab('preview') },
+    { combo: 'mod+5', run: () => setTab('context') },
+    { combo: 'mod+6', run: () => setTab('memory') },
     { combo: 'mod+Enter', run: () => void sendFollowUp(), allowInInput: true },
   ]);
 
   const tabs = [
     { id: 'run', label: 'Run', hint: `${mod}+1` },
-    { id: 'project', label: 'Project', hint: `${mod}+2` },
-    { id: 'preview', label: 'Preview', hint: `${mod}+3` },
-    { id: 'context', label: 'Context', hint: `${mod}+4` },
-    { id: 'memory', label: 'Memory', hint: `${mod}+5`, count: pendingMemory },
+    { id: 'activity', label: 'Activity', hint: `${mod}+2`, count: activityCount },
+    { id: 'project', label: 'Project', hint: `${mod}+3` },
+    { id: 'preview', label: 'Preview', hint: `${mod}+4` },
+    { id: 'context', label: 'Context', hint: `${mod}+5` },
+    { id: 'memory', label: 'Memory', hint: `${mod}+6`, count: pendingMemory },
   ];
 
   return (
@@ -389,7 +383,9 @@ export default function WorkClient({
         <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-white/[0.07] px-3">
           <Tabs items={tabs} active={tab} onChange={(id) => setTab(id as CenterTab)} />
           <div className="hidden items-center gap-3 lg:flex">
-            <PhaseTrail phase={phase} />
+            {/* Clickable stage trail: each stage opens the surface that explains
+                it, so progress is navigation rather than decoration. */}
+            <XeoFlow stages={flowStages} onOpen={openFlowStage} />
           </div>
         </div>
 
@@ -454,27 +450,16 @@ export default function WorkClient({
                       ))}
 
                       {isRunning && liveTools.length === 0 && !currentRunText && (
-                        <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Spinner className="text-gray-600" />
-                            <span className="text-[12px] text-gray-300">{runtime.label}</span>
-                            {runtime.sinceLastEventMs !== null && (
-                              <span className="text-[11px] tabular-nums text-gray-600">
-                                {formatElapsed(runtime.sinceLastEventMs)}
-                              </span>
-                            )}
-                          </div>
-                          {runtime.detail && (
-                            <p className="mt-1 truncate font-mono text-[11px] text-gray-600" title={runtime.detail}>
-                              {runtime.detail}
-                            </p>
-                          )}
-                          {runtime.stalled && (
-                            <p className="mt-1.5 text-[11px] leading-5 text-amber-200/90">
-                              The provider has not returned a response yet.
-                            </p>
-                          )}
-                        </div>
+                        <RuntimeBanner
+                          label={runtime.label}
+                          detail={runtime.detail}
+                          elapsed={
+                            runtime.sinceLastEventMs !== null
+                              ? formatElapsed(runtime.sinceLastEventMs)
+                              : undefined
+                          }
+                          stalled={runtime.stalled}
+                        />
                       )}
                     </div>
                   )}
@@ -521,6 +506,11 @@ export default function WorkClient({
           </>
         )}
 
+        {tab === 'activity' && (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ExecutionTimeline events={events} />
+          </div>
+        )}
         {tab === 'project' && (
           <div className="min-h-0 flex-1 overflow-hidden">
             <WorkspaceViewer taskId={task.id} />
@@ -563,25 +553,21 @@ export default function WorkClient({
             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">
               Authority
             </p>
-            <div className="space-y-1.5 text-[11px] leading-5">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-gray-500">Write files</span>
-                <Badge tone={task.mode === 'build' ? 'emerald' : 'gray'}>
-                  {task.mode === 'build' ? 'allowed' : 'locked'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-gray-500">Run commands</span>
-                <Badge tone={task.mode === 'build' ? 'emerald' : 'gray'}>
-                  {task.mode === 'build' ? 'allowed' : 'locked'}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-gray-500">Plan frozen</span>
-                <Badge tone={task.approved_plan ? 'emerald' : 'gray'}>
-                  {task.approved_plan ? 'yes' : 'no'}
-                </Badge>
-              </div>
+            {/* Mirrors what executeTool enforces at dispatch. Each row carries a
+                "why" in its title attribute rather than a separate help page. */}
+            <div className="space-y-0.5">
+              {authorityForMode(task.mode).map((row) => (
+                <AuthorityRow key={row.label} label={row.label} state={row.state} reason={row.reason} />
+              ))}
+              <AuthorityRow
+                label="Plan frozen"
+                state={task.approved_plan ? 'allowed' : 'locked'}
+                reason={
+                  task.approved_plan
+                    ? 'An approved plan was snapshotted and is immutable during this build.'
+                    : 'No plan has been approved, so there is no immutable contract yet.'
+                }
+              />
             </div>
           </div>
 

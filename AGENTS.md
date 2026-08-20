@@ -211,7 +211,7 @@ lib/
   credits/            # engine (atomic debit/grant/adjust), pricing
   model/              # config (global, env + DB row id=1), errors
   agent/              # runner, loop, guards, tools, files, code, prompts, intent,
-                      # context, context-pack, runtime-state, compaction,
+                      # context, context-pack, events, runtime-state, compaction,
                       # timeline, preview, uploads
   sse/                # emitter (seq-based, single delivery path)
   types.ts
@@ -431,3 +431,47 @@ The server's task status is authoritative for terminal state — the UI never
 invents completion. After `PROVIDER_STALL_MS` (10s) of silence the state becomes
 `waiting_for_provider` and offers retry, so a stalled provider is named rather
 than hidden behind an animation.
+
+## 15. Event registry (frontend/backend contract)
+
+`lib/agent/events.ts` is the single declaration of every task event the frontend
+knows about. It exists because `WorkClient` and `ChatClient` each carried a
+hardcoded array of event type strings; when v1.10.0 added `context_layers`,
+`memory`, and `memory_decision`, neither array was updated, so those events were
+persisted, streamed over SSE, and silently discarded by the browser.
+
+Rules:
+
+1. Every `emitTaskEvent` type MUST be declared in `AGENT_EVENT_TYPES`.
+   `test/events.test.ts` scans `lib/` and `app/` for emit sites and fails on an
+   undeclared type.
+2. Surfaces subscribe via `eventTypesFor('chat' | 'work')`. A literal array of
+   event names in a component is a bug.
+3. Payloads are read through the typed readers (`readContextLayers`,
+   `readToolCall`, …). Components must not index into `data` and guess key names.
+4. `describeEvent()` is the one mapping from event to product language, so the
+   timeline, the runtime banner, and the activity list cannot describe the same
+   event differently.
+5. Events that carry no standalone meaning (`text`, `reasoning`, `task_status`)
+   return `null` from `describeEvent` and render nothing. The UI never pads the
+   activity list to look busy.
+
+## 16. UI truth rules
+
+The interface must never imply a capability or result the backend does not
+provide.
+
+- `authorityForMode()` in `components/AgentPrimitives.tsx` mirrors what
+  `executeTool` enforces at dispatch. It reports browser interaction as `gated`,
+  never `allowed`, because interaction requires a separate policy grant. Its
+  reason text must not use the word "sandbox".
+- `deriveFlow()` marks a stage done only when the corresponding state is
+  observable: a context event, a stored plan, a frozen `approved_plan`, a
+  `tool_call`, or a terminal status. It is not a step counter.
+- `RuntimeBanner` states plainly that nothing executed during a provider stall
+  rather than animating over silence.
+- `ResultArtifact` renders only the facts its caller supplies from observed
+  evidence. A run with no verification event must not display a verification
+  fact.
+- A component that lacks a backend value renders nothing rather than a
+  placeholder.

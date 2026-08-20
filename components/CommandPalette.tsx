@@ -264,4 +264,33 @@ export function useBaseCommands(): Command[] {
   );
 }
 
+/**
+ * Commands scoped to an open Work run. Only registered for surfaces that can
+ * actually perform them — a command that does not exist must never appear.
+ */
+export function useRunCommands(input: {
+  taskId: string;
+  onOpenTab: (tab: 'run' | 'activity' | 'project' | 'preview' | 'context' | 'memory') => void;
+}): Command[] {
+  const mod = useModKey();
+  const { taskId, onOpenTab } = input;
+  return useMemo(
+    () => [
+      { id: 'run.activity', label: 'Open activity timeline', hint: 'Every action this run took', group: 'This run', keys: [mod, '2'], run: () => onOpenTab('activity') },
+      { id: 'run.context', label: 'Inspect effective context', hint: 'What actually reached the model', group: 'This run', keys: [mod, '5'], run: () => onOpenTab('context') },
+      { id: 'run.memory', label: 'Review memory', hint: 'Approve or reject proposals', group: 'This run', keys: [mod, '6'], run: () => onOpenTab('memory') },
+      { id: 'run.project', label: 'Browse workspace files', group: 'This run', keys: [mod, '3'], run: () => onOpenTab('project') },
+      { id: 'run.preview', label: 'Open preview', group: 'This run', keys: [mod, '4'], run: () => onOpenTab('preview') },
+      {
+        id: 'run.copyId',
+        label: 'Copy run ID',
+        hint: taskId,
+        group: 'This run',
+        run: () => { void navigator.clipboard?.writeText(taskId); },
+      },
+    ],
+    [mod, taskId, onOpenTab],
+  );
+}
+
 export { Badge };

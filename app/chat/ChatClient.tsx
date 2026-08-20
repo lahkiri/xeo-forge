@@ -6,13 +6,14 @@ import { useRouter } from 'next/navigation';
 import type { Message, Task, TaskEvent, TaskStatus } from '@/lib/types';
 import { parseEvents, splitRuns, type ParsedEvent } from '@/lib/agent/timeline';
 import { deriveChatRuntime, formatElapsed } from '@/lib/agent/runtime-state';
+import { eventTypesFor } from '@/lib/agent/events';
+import { RuntimeBanner } from '@/components/AgentPrimitives';
 import {
   Alert,
   Button,
   EmptyState,
   IconButton,
   KeyHint,
-  Spinner,
   cx,
   useModKey,
   useToast,
@@ -138,7 +139,8 @@ export default function ChatClient({
   useEffect(() => {
     if (!activeTask || status === 'completed' || status === 'failed') return;
     const source = new EventSource(`/api/tasks/${activeTask.id}/stream`);
-    const types = ['text', 'done', 'error', 'task_status'];
+    // Subscriptions come from the shared registry, never a local literal.
+    const types = eventTypesFor('chat');
     const handler = (e: MessageEvent) => {
       const seq = Number(e.lastEventId);
       if (!Number.isFinite(seq)) return;
@@ -328,27 +330,16 @@ export default function ChatClient({
                   ),
                 )}
                 {isStreaming && !currentRunText && (
-                  <div className="rounded-lg border border-white/[0.07] bg-white/[0.02] px-3 py-2.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Spinner className="text-gray-600" />
-                      <span className="text-[12px] text-gray-300">{runtime.label}</span>
-                      {runtime.sinceLastEventMs !== null && (
-                        <span className="text-[11px] tabular-nums text-gray-600">
-                          {formatElapsed(runtime.sinceLastEventMs)}
-                        </span>
-                      )}
-                    </div>
-                    {runtime.detail && (
-                      <p className="mt-1 truncate font-mono text-[11px] text-gray-600" title={runtime.detail}>
-                        {runtime.detail}
-                      </p>
-                    )}
-                    {runtime.stalled && (
-                      <p className="mt-1.5 text-[11px] leading-5 text-amber-200/90">
-                        The provider has not returned a response yet.
-                      </p>
-                    )}
-                  </div>
+                  <RuntimeBanner
+                    label={runtime.label}
+                    detail={runtime.detail}
+                    elapsed={
+                      runtime.sinceLastEventMs !== null
+                        ? formatElapsed(runtime.sinceLastEventMs)
+                        : undefined
+                    }
+                    stalled={runtime.stalled}
+                  />
                 )}
               </div>
             )}
