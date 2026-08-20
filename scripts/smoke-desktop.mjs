@@ -89,8 +89,8 @@ async function waitFor(url, label, attempts = 80) {
 
 try {
   const home = await waitFor(`http://127.0.0.1:${port}/`, 'Local Workbench');
-  if (home.status !== 307 || home.headers.get('location') !== '/dashboard') {
-    throw new Error(`Expected / to redirect to /dashboard, got HTTP ${home.status} ${home.headers.get('location') || ''}`);
+  if (home.status !== 307 || home.headers.get('location') !== '/chat') {
+    throw new Error(`Expected / to redirect to /chat, got HTTP ${home.status} ${home.headers.get('location') || ''}`);
   }
 
   const me = await fetch(`http://127.0.0.1:${port}/api/auth/me`);
