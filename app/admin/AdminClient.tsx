@@ -220,7 +220,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
     <div className="mx-auto max-w-5xl px-4 py-6">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="text-xl font-semibold">Admin</h1>
-        <Link href="/dashboard" className="text-sm text-indigo-300 hover:underline">
+        <Link href="/chat" className="text-sm text-indigo-300 hover:underline">
           ← Back to dashboard
         </Link>
       </header>

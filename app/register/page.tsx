@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default async function RegisterPage() {
   if (isDesktopLocalMode()) {
     await getCurrentUser();
-    redirect('/dashboard');
+    redirect('/chat');
   }
   return <RegisterForm />;
 }

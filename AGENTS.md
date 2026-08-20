@@ -222,7 +222,7 @@ test/                 # vitest unit tests (import real lib/ modules, never copie
 ## 7. Agent tools (the only ones)
 
 `file_read`, `file_write`, `file_edit`, `file_list`, `code_execute`
-(bash/python in a sandboxed per-task workspace with env whitelist + path
+(bash/python under RESTRICTED HOST EXECUTION in a per-task workspace: env whitelist + path
 boundaries + dangerous-command blocklist), `http_request`, `browser`, `task_complete`.
 `browser` uses the optional loopback extension and is read-only by default;
 interaction requires an explicit user-granted policy. `task_complete` is called

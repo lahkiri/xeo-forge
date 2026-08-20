@@ -27,7 +27,7 @@ export default function LoginPage() {
         setError(data.error || 'Login failed');
         return;
       }
-      router.push('/dashboard');
+      router.push('/chat');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Network error');

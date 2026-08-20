@@ -7,10 +7,10 @@ import AdminClient from './AdminClient';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminPage() {
-  if (isDesktopLocalMode()) redirect('/dashboard');
+  if (isDesktopLocalMode()) redirect('/chat');
   const user = await getCurrentUser();
   if (!user) redirect('/login');
-  if (!user.isAdmin) redirect('/dashboard');
+  if (!user.isAdmin) redirect('/chat');
 
   const [users, model, actions, tasks] = await Promise.all([
     listUsersWithStats(),

@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export default async function LoginPage() {
   if (isDesktopLocalMode()) {
     await getCurrentUser();
-    redirect('/dashboard');
+    redirect('/chat');
   }
   return <LoginForm />;
 }
