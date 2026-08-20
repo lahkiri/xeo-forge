@@ -48,8 +48,15 @@ jobs:
       - name: Run required checks
         run: |
           npm run typecheck
+          npm run lint
           npm test -- --run
           git diff --check
+
+      - name: Test runtime broker
+        working-directory: native/runtime-broker
+        run: |
+          go vet ./...
+          go test ./...
 
       - name: Prepare and smoke test desktop runtime
         run: npm run desktop:prepare && node scripts/smoke-desktop.mjs
@@ -113,9 +120,16 @@ jobs:
       - name: Run required checks
         run: |
           npm run typecheck
+          npm run lint
           npm test -- --run
           git diff --check
           npm run browser:smoke
+
+      - name: Test runtime broker
+        working-directory: native/runtime-broker
+        run: |
+          go vet ./...
+          go test ./...
 
       - name: Prepare and smoke test desktop runtime
         run: npm run desktop:prepare && node scripts/smoke-desktop.mjs

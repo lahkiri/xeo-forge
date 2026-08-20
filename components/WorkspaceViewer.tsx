@@ -4,17 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 
 /* ── Simple syntax highlighter (no deps) ─────────────────────────── */
 
-const HL: Record<string, RegExp[]> = {
-  keyword: [/\b(const|let|var|function|return|if|else|for|while|class|import|export|from|default|async|await|try|catch|throw|new|this|typeof|instanceof|switch|case|break|continue|do|in|of|yield|void|delete|debugger|static|extends|super|with|finally)\b/g],
-  string: [/"[^"\\]*(\\.[^"\\]*)*"/g, /'[^'\\]*(\\.[^'\\]*)*'/g, /`[^`\\]*(\\.[^`\\]*)*`/g],
-  comment: [/\/\/.*$/gm, /\/\*[\s\S]*?\*\//g, /#.*$/gm],
-  number: [/\b\d+\.?\d*([eE][+-]?\d+)?\b/g],
-  type: [/\b(string|number|boolean|null|undefined|void|any|never|object|symbol|bigint|unknown)\b/g, /\b([A-Z][a-zA-Z0-9]+)\b/g],
-};
-
 function highlightLine(text: string, lang: string): string {
-  // Tokenize: protect strings and comments first, then highlight keywords/numbers
-  const tokens: string[] = [];
+  // Protect strings and comments as placeholders first, then highlight
+  // keywords and numbers in what remains.
   let result = text
     .replace(/&(?!amp;)/g, '&amp;')
     .replace(/</g, '&lt;')

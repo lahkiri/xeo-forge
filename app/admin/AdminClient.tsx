@@ -43,7 +43,9 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
   const router = useRouter();
   const [users, setUsers] = useState<AdminUserRow[]>(initialUsers);
   const actions = initialActions;
-  const [tasks, setTasks] = useState<AdminTaskRow[]>(initialTasks);
+  // Recent tasks are read-only in the admin surface: the list is rendered from
+  // the server payload and never mutated client-side.
+  const tasks = initialTasks;
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 

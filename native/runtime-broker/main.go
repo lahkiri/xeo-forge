@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -17,7 +19,13 @@ import (
 	"time"
 )
 
-const brokerVersion = "0.1.0"
+const brokerVersion = "0.2.0"
+
+// defaultAddr binds the loopback interface only. The broker starts arbitrary
+// local processes, so a wildcard bind would expose remote code execution to
+// anything that can reach the host. Callers may override the port, but a
+// non-loopback host must be opted into explicitly via XEO_RUNTIME_ALLOW_PUBLIC.
+const defaultAddr = "127.0.0.1:4317"
 
 var processIDPattern = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$`)
 
@@ -49,6 +57,9 @@ type processSummary struct {
 type broker struct {
 	mu        sync.Mutex
 	processes map[string]*managedProcess
+	// token, when non-empty, must be presented on every process-control
+	// request as `Authorization: Bearer <token>` or `X-Xeo-Runtime-Token`.
+	token string
 }
 
 type startRequest struct {
@@ -67,13 +78,65 @@ func newBroker() *broker {
 	return &broker{processes: make(map[string]*managedProcess)}
 }
 
+func newAuthenticatedBroker(token string) *broker {
+	b := newBroker()
+	b.token = token
+	return b
+}
+
+// presentedToken extracts the caller's credential from either supported header.
+func presentedToken(r *http.Request) string {
+	if raw := r.Header.Get("Authorization"); raw != "" {
+		if after, found := cutPrefixFold(raw, "bearer "); found {
+			return strings.TrimSpace(after)
+		}
+		return strings.TrimSpace(raw)
+	}
+	return strings.TrimSpace(r.Header.Get("X-Xeo-Runtime-Token"))
+}
+
+func cutPrefixFold(value, prefix string) (string, bool) {
+	if len(value) < len(prefix) {
+		return value, false
+	}
+	if !strings.EqualFold(value[:len(prefix)], prefix) {
+		return value, false
+	}
+	return value[len(prefix):], true
+}
+
+// authorize gates every process-control request. When no token is configured
+// the broker refuses process control entirely rather than running unauthenticated
+// — an unauthenticated /v1/processes is remote code execution, so failing closed
+// is the only safe default. /healthz stays open so the app can probe liveness.
+func (b *broker) authorize(w http.ResponseWriter, r *http.Request) bool {
+	if b.token == "" {
+		writeError(w, http.StatusServiceUnavailable,
+			"process control is disabled: set XEO_RUNTIME_TOKEN to enable it")
+		return false
+	}
+	presented := presentedToken(r)
+	if presented == "" {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="xeo-forge-runtime-broker"`)
+		writeError(w, http.StatusUnauthorized, "missing runtime broker token")
+		return false
+	}
+	if subtle.ConstantTimeCompare([]byte(presented), []byte(b.token)) != 1 {
+		writeError(w, http.StatusForbidden, "invalid runtime broker token")
+		return false
+	}
+	return true
+}
+
 func (b *broker) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
-		"service":      "xeo-forge-runtime-broker",
-		"version":      brokerVersion,
-		"status":       "ok",
-		"platform":     fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
-		"capabilities": []string{"process-supervision", "local-runtime", "health-checks"},
+		"service":        "xeo-forge-runtime-broker",
+		"version":        brokerVersion,
+		"status":         "ok",
+		"platform":       fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
+		"capabilities":   []string{"process-supervision", "local-runtime", "health-checks"},
+		"authRequired":   true,
+		"processControl": b.token != "",
 	})
 }
 
@@ -243,15 +306,61 @@ func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, errorResponse{Error: message})
 }
 
-func main() {
-	addr := ":4317"
-	if value := os.Getenv("XEO_RUNTIME_ADDR"); value != "" {
+// isLoopbackAddr reports whether a listen address is confined to loopback.
+// An empty or wildcard host ("", "0.0.0.0", "[::]") is NOT loopback.
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		// No port separator: treat the whole value as a host.
+		host = strings.Trim(addr, "[]")
+	}
+	host = strings.Trim(host, "[]")
+	if host == "" {
+		return false
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func resolveAddr() (string, error) {
+	addr := defaultAddr
+	if value := strings.TrimSpace(os.Getenv("XEO_RUNTIME_ADDR")); value != "" {
 		addr = value
 	}
-	b := newBroker()
+	if isLoopbackAddr(addr) {
+		return addr, nil
+	}
+	if os.Getenv("XEO_RUNTIME_ALLOW_PUBLIC") == "1" {
+		return addr, nil
+	}
+	return "", fmt.Errorf(
+		"refusing to bind %q: the runtime broker starts local processes and must stay on loopback. "+
+			"Set XEO_RUNTIME_ALLOW_PUBLIC=1 only if you fully understand the exposure", addr)
+}
+
+func main() {
+	addr, err := resolveAddr()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	token := strings.TrimSpace(os.Getenv("XEO_RUNTIME_TOKEN"))
+	b := newAuthenticatedBroker(token)
+	if token == "" {
+		fmt.Fprintln(os.Stderr,
+			"warning: XEO_RUNTIME_TOKEN is not set; /v1/processes is disabled and only /healthz will respond")
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", b.health)
 	mux.HandleFunc("/v1/processes", func(w http.ResponseWriter, r *http.Request) {
+		if !b.authorize(w, r) {
+			return
+		}
 		if r.URL.Path != "/v1/processes" {
 			b.processRoute(w, r)
 			return

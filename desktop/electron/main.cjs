@@ -25,6 +25,7 @@ let mainWindow;
 let updateTimer;
 let updateInterval;
 let browserBridge;
+let runtimeToken = '';
 let updateStateFile;
 let updateSettingsFile;
 let updateSettings = { channel: 'latest', autoCheck: true, intervalHours: 6 };
@@ -46,11 +47,44 @@ function browserPolicyFile() {
   return browserPolicyPath(app.getPath('userData'));
 }
 
+function runtimeTokenPath() {
+  return path.join(app.getPath('userData'), 'runtime-token');
+}
+
+/**
+ * Read or mint the shared secret for the Go runtime broker.
+ *
+ * /v1/processes starts arbitrary local executables, so the broker refuses
+ * process control unless this token is configured. It is generated per install,
+ * stored 0600 under userData, and passed to the broker and the Next server only
+ * through the environment — never to a renderer.
+ */
+function getRuntimeToken() {
+  try {
+    const token = readFileSync(runtimeTokenPath(), 'utf8').trim();
+    if (token.length >= 32) return token;
+    console.warn('[desktop] stored runtime broker token was too short; minting a new one');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('[desktop] could not read runtime broker token, minting a new one:', error?.message || error);
+    }
+  }
+  const token = crypto.randomBytes(32).toString('hex');
+  mkdirSync(app.getPath('userData'), { recursive: true });
+  writeFileSync(runtimeTokenPath(), token, { encoding: 'utf8', mode: 0o600 });
+  return token;
+}
+
 function getBrowserToken() {
   try {
     const token = readFileSync(browserTokenPath(), 'utf8').trim();
     if (token.length >= 32) return token;
-  } catch {}
+    console.warn('[desktop] stored browser bridge token was too short; minting a new one');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      console.warn('[desktop] could not read browser bridge token, minting a new one:', error?.message || error);
+    }
+  }
   const token = crypto.randomBytes(32).toString('hex');
   mkdirSync(app.getPath('userData'), { recursive: true });
   writeFileSync(browserTokenPath(), token, { encoding: 'utf8', mode: 0o600 });
@@ -225,8 +259,15 @@ function startRuntimeBroker() {
     console.warn(`[desktop] runtime broker not bundled: ${brokerPath}`);
     return;
   }
+  runtimeToken = getRuntimeToken();
   brokerProcess = spawn(brokerPath, [], {
-    env: { ...process.env, XEO_RUNTIME_ADDR: `127.0.0.1:${BROKER_PORT}` },
+    env: {
+      ...process.env,
+      // Loopback only. The broker itself refuses a non-loopback bind unless
+      // XEO_RUNTIME_ALLOW_PUBLIC=1, which the desktop shell never sets.
+      XEO_RUNTIME_ADDR: `127.0.0.1:${BROKER_PORT}`,
+      XEO_RUNTIME_TOKEN: runtimeToken,
+    },
     stdio: 'ignore',
     windowsHide: true,
   });
@@ -248,6 +289,8 @@ function startNextServer() {
       XEO_BROWSER_PORT: String(BROWSER_PORT),
       XEO_BROWSER_TOKEN: browserBridge?.token || '',
       XEO_BROWSER_POLICY_PATH: browserPolicyFile(),
+      XEO_RUNTIME_PORT: String(BROKER_PORT),
+      XEO_RUNTIME_TOKEN: runtimeToken,
       PORT: String(APP_PORT),
       HOSTNAME: '127.0.0.1',
     },
@@ -258,14 +301,20 @@ function startNextServer() {
 }
 
 async function waitForApp(url, attempts = 80) {
+  let lastError;
   for (let i = 0; i < attempts; i += 1) {
     try {
       const response = await fetch(url);
       if (response.ok || response.status < 500) return;
-    } catch {}
+    } catch (error) {
+      // Connection refused while the Next server boots is the expected case.
+      // Retained so the timeout below can report why it never came up.
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`Xeo Forge did not become ready at ${url}`);
+  const detail = lastError ? ` (last error: ${lastError.message || lastError})` : '';
+  throw new Error(`Xeo Forge did not become ready at ${url}${detail}`);
 }
 
 async function createWindow() {

@@ -109,7 +109,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [localMode]);
 
   useEffect(() => { void load(); }, [load]);
 

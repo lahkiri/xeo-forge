@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/guard';
 import { createAgentSkill, deleteAgentSkill, listAgentSkills, updateAgentSkill } from '@/lib/db/queries';
-import type { AgentSkillKind } from '@/lib/types';
 import { errorResponse } from '../../_lib/respond';
 
 export const runtime = 'nodejs';

@@ -49,9 +49,15 @@ export default function DashboardClient({
         if (profileRes.ok) setProfiles((await profileRes.json()).profiles || []);
         if (skillRes.ok) setSkills((await skillRes.json()).skills || []);
       })
-      .catch(() => {});
+      .catch((err) => {
+        // Context layers are optional: a failed fetch must not block starting a
+        // run, but it is logged rather than swallowed (AGENTS.md rule 3).
+        console.warn('[workbench] could not load roles and workflows:', err);
+      });
 
-    window.xeoDesktop?.getProject().then((project) => setProjectPath(project.path)).catch(() => {});
+    window.xeoDesktop?.getProject()
+      .then((project) => setProjectPath(project.path))
+      .catch((err) => console.warn('[workbench] could not read the active project:', err));
     return window.xeoDesktopEvents?.onProjectChanged((project) => setProjectPath(project.path));
   }, []);
 
@@ -124,6 +130,10 @@ export default function DashboardClient({
   }
 
   const activeRuns = tasks.filter((task) => task.status === 'running' || task.status === 'pending' || task.status === 'planned').length;
+  // Only enabled layers can be selected — a disabled role or workflow is
+  // rejected server-side when the task is created.
+  const enabledProfiles = profiles.filter((profile) => profile.enabled);
+  const enabledSkills = skills.filter((skill) => skill.enabled);
 
   return (
     <AppShell user={user} balance={initialBalance} localMode={localMode} title="Workbench" subtitle="Chat with your agent, or start governed Work when you want it to inspect and change a project.">
@@ -159,6 +169,45 @@ export default function DashboardClient({
                   <UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach files" />
                   <Button type="submit" size="lg" disabled={submitting || !goal.trim()}>{submitting ? 'Opening…' : mode === 'chat' ? 'Start chat' : 'Start Work'}<span aria-hidden="true">→</span></Button>
                 </div>
+
+                {/* Context layers. The API and schema have always accepted a
+                    role and a workflow per task, and the task header renders
+                    "role active" / "workflow active" — but there was no way to
+                    choose them here, so they were permanently null. */}
+                {(enabledProfiles.length > 0 || enabledSkills.length > 0) && (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {enabledProfiles.length > 0 && (
+                      <label className="block">
+                        <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">Role</span>
+                        <select
+                          value={profileId}
+                          onChange={(event) => setProfileId(event.target.value)}
+                          className="workbench-input w-full rounded-xl px-3 py-2.5 text-xs outline-none"
+                        >
+                          <option value="">Default agent</option>
+                          {enabledProfiles.map((profile) => (
+                            <option key={profile.id} value={profile.id}>{profile.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                    {enabledSkills.length > 0 && (
+                      <label className="block">
+                        <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-600">Workflow</span>
+                        <select
+                          value={skillId}
+                          onChange={(event) => setSkillId(event.target.value)}
+                          className="workbench-input w-full rounded-xl px-3 py-2.5 text-xs outline-none"
+                        >
+                          <option value="">No workflow</option>
+                          {enabledSkills.map((skill) => (
+                            <option key={skill.id} value={skill.id}>{skill.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+                  </div>
+                )}
 
                 {staged.length > 0 && <div className="flex flex-wrap gap-2">{staged.map((file, index) => <span key={`${file.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 px-2.5 py-1.5 text-[11px] text-gray-300"><span className="max-w-[13rem] truncate">{file.name}</span><button type="button" onClick={() => setStaged((previous) => previous.filter((_, itemIndex) => itemIndex !== index))} className="text-gray-500 hover:text-white" aria-label={`Remove ${file.name}`}>×</button></span>)}</div>}
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2 text-[11px] text-gray-500"><span><strong className="font-medium text-gray-300">{mode === 'chat' ? 'Chat mode' : 'Work mode'}</strong> · {mode === 'chat' ? 'No plan or project changes unless you ask.' : projectPath ? `Working inside ${projectPath}` : 'Choose a project folder to enable execution.'}</span><span className={`rounded-full px-2 py-1 ${mode === 'chat' ? 'bg-cyan-300/10 text-cyan-200' : projectPath ? 'bg-violet-300/10 text-violet-200' : 'bg-amber-300/10 text-amber-200'}`}>{mode === 'chat' ? 'conversational' : projectPath ? 'governed work' : 'folder required'}</span></div>

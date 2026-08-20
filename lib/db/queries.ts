@@ -423,7 +423,7 @@ export async function switchTaskMode(
   // Switching to build: must go through approveTaskPlan when the task is
   // awaiting approval (status='planned') so approved_plan is snapshotted.
   // Flipping mode alone from 'planned' would leave a dead state (mode=build +
-  // no approved_plan), so we refuse it here �?" the UI uses approve for that.
+  // no approved_plan), so we refuse it here — the UI uses approve for that.
   const res = await db
     .prepare(
       `UPDATE tasks
@@ -1205,7 +1205,7 @@ export async function updateAgentSkill(
 ): Promise<AgentSkill | undefined> {
   const existing = await getAgentSkillById(id, userId);
   if (!existing) return undefined;
-  let profileId = input.profile_id === undefined ? existing.profile_id : input.profile_id;
+  const profileId = input.profile_id === undefined ? existing.profile_id : input.profile_id;
   if (profileId) {
     const profile = await getAgentProfileById(profileId, userId);
     if (!profile || !profile.enabled) throw new Error('Skill profile is not available.');

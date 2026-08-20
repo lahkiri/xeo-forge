@@ -1,12 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-
-interface FileActivityItem {
-  action: string;
-  path: string;
-  ts: number;
-}
+import { useState, useRef } from 'react';
 
 const ACTION_ICONS: Record<string, { color: string; icon: string }> = {
   created: { color: 'text-green-400', icon: '+' },

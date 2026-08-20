@@ -32,6 +32,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     async start(controller) {
       let closed = false;
       let maxSeq = initialMaxSeq;
+      // Assigned once below, after the initial replay completes.
       let heartbeat: ReturnType<typeof setInterval> | undefined;
       let safety: ReturnType<typeof setTimeout> | undefined;
 

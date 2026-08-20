@@ -84,12 +84,10 @@ const MAX_PREVIEWS = 50;
 const BUILD_TIMEOUT_MS = 120_000;
 
 /** Adaptive readiness timing */
-const SOFT_TIMEOUT_MS = 15_000;   // emit warning, keep trying
 // Hard ceiling on a no-progress preview before it is declared failed. Overridable
 // via env ONLY to keep the test suite fast — production uses the 45s default.
 const HARD_TIMEOUT_MS = Number(process.env.PREVIEW_HARD_TIMEOUT_MS) || 45_000;   // kill only if zero progress
 const PROGRESS_CHECK_MS = 500;    // poll interval for readiness probes
-const PORT_BIND_CHECK_MS = 300;   // poll interval for port bind detection
 
 /** Framework-specific readiness log patterns (case-insensitive) */
 const FRAMEWORK_LOG_PATTERNS: Record<string, RegExp[]> = {
@@ -135,27 +133,6 @@ async function allocatePort(preferred?: number): Promise<number | null> {
     if (await isPortAvailable(p)) return p;
   }
   return null;
-}
-
-function waitForPortBind(port: number, timeoutMs: number): Promise<boolean> {
-  return new Promise((resolve) => {
-    const deadline = Date.now() + timeoutMs;
-    const check = () => {
-      if (Date.now() > deadline) { resolve(false); return; }
-      const tester = net.createConnection({ port, host: '127.0.0.1' }, () => {
-        tester.destroy();
-        resolve(true);
-      });
-      tester.on('error', () => {
-        setTimeout(check, PORT_BIND_CHECK_MS);
-      });
-      tester.setTimeout(500, () => {
-        tester.destroy();
-        setTimeout(check, PORT_BIND_CHECK_MS);
-      });
-    };
-    check();
-  });
 }
 
 /* ------------------------------------------------------------------ */
@@ -255,7 +232,12 @@ export async function analyzeProject(taskId: string): Promise<ProjectAnalysis> {
       if (!analysis.buildCommand && pkg.scripts?.build) {
         analysis.buildCommand = 'npm run build';
       }
-    } catch {}
+    } catch (err) {
+      // A malformed package.json is a normal user-project condition, not a
+      // preview failure — detection degrades to the generic path. Logged so
+      // an unexpected read error is still traceable (AGENTS.md rule 3).
+      console.warn(`[preview] could not analyze ${pkgPath}:`, err instanceof Error ? err.message : err);
+    }
   }
 
   // --- Python detection ---
@@ -312,7 +294,11 @@ export async function analyzeProject(taskId: string): Promise<ProjectAnalysis> {
           analysis.framework = 'static-html';
           analysis.detectedFiles.push(htmlFile);
         }
-      } catch {}
+      } catch (err) {
+        // Unreadable workspace root: leave entryFile null so the caller
+        // reports "nothing to preview" instead of guessing.
+        console.warn(`[preview] could not scan ${root} for HTML entry:`, err instanceof Error ? err.message : err);
+      }
     }
   }
 
@@ -465,11 +451,18 @@ function detectReadiness(
     const startMs = Date.now();
     let resolved = false;
     let crashed = false;
-    let exitCode: number | null = null;
-    let logLinesAtStart = logs.length;
     let lastProgressAt = Date.now();
     let lastLogCount = logs.length;
-    let httpAttempted = false;
+    // Failed-probe breadcrumbs. A refused connection while the server boots is
+    // expected, so it is not logged to the console per attempt — but it is
+    // recorded here and surfaced as failure evidence (AGENTS.md rule 3).
+    const probeLog: string[] = [];
+    const PROBE_LOG_MAX = 40;
+
+    const recordProbe = (line: string) => {
+      probeLog.push(line);
+      if (probeLog.length > PROBE_LOG_MAX) probeLog.shift();
+    };
 
     const result = (ok: boolean, signal: ReadinessSignal, reason: string, evidence: string[]) => {
       if (resolved) return;
@@ -480,7 +473,6 @@ function detectReadiness(
     // --- Process exit listener ---
     if (child) {
       child.on('exit', (code) => {
-        exitCode = code;
         crashed = true;
         if (!resolved) {
           result(false, 'process-exited', `Process exited with code ${code}`, logs.slice(-10));
@@ -527,7 +519,13 @@ function detectReadiness(
             `GET http://127.0.0.1:${port}${route} → ${res.status} (${body.length} bytes)`,
           ]);
           return true;
-        } catch {}
+        } catch (err) {
+          // Connection refused / timeout while the server is still booting is
+          // the expected case here, so we keep probing the remaining routes.
+          // Recorded in the probe log so a permanently dead server is diagnosable.
+          const reason = err instanceof Error ? err.message : String(err);
+          recordProbe(`GET http://127.0.0.1:${port}${route} → no response (${reason})`);
+        }
       }
       return false;
     };
@@ -572,16 +570,18 @@ function detectReadiness(
           if (portOpen) {
             lastProgressAt = now;
             // Port is open — try HTTP probe
-            httpAttempted = true;
             const httpOk = await httpProbe();
             if (httpOk) return;
           }
-        } catch {}
+        } catch (err) {
+          // The port test itself failed (not just "closed"). Keep polling, but
+          // leave a breadcrumb so a broken socket layer is diagnosable.
+          recordProbe(`port test 127.0.0.1:${port} errored (${err instanceof Error ? err.message : String(err)})`);
+        }
       }
 
       // HTTP probe for http-probe mode
       if (!resolved && mode === 'http-probe' && elapsed > 1500) {
-        httpAttempted = true;
         const httpOk = await httpProbe();
         if (httpOk) return;
       }
@@ -592,7 +592,9 @@ function detectReadiness(
       // 3. If no progress for SOFT_TIMEOUT → keep trying (don't kill)
       const timeSinceProgress = now - lastProgressAt;
       if (timeSinceProgress > HARD_TIMEOUT_MS && !resolved) {
-        const evidence = logs.slice(-15);
+        // Include the failed-probe trail: "no readiness signal" is far more
+        // actionable when the user can see what was attempted and refused.
+        const evidence = [...logs.slice(-15), ...probeLog.slice(-10)];
         result(false, 'no-progress', `No readiness signal for ${(timeSinceProgress / 1000).toFixed(0)}s — process shows no signs of starting`, evidence);
         return;
       }
@@ -763,15 +765,29 @@ export function stopPreview(taskId: string): boolean {
   if (!p) return false;
   clearTimeout(p.timer);
   if (p.killTimer) clearTimeout(p.killTimer);
-  try { p.server?.close(); } catch {}
+  // Teardown is best-effort by design: an already-closed server or an
+  // already-reaped process must not block cleanup. Failures are logged rather
+  // than swallowed so a leaked port or zombie process is diagnosable.
+  try {
+    p.server?.close();
+  } catch (err) {
+    console.warn(`[preview] closing static server for task=${taskId} failed:`, err instanceof Error ? err.message : err);
+  }
   try {
     if (p.process && !p.process.killed) {
       p.process.kill('SIGTERM');
       p.killTimer = setTimeout(() => {
-        try { p.process?.kill('SIGKILL'); } catch {}
+        try {
+          p.process?.kill('SIGKILL');
+        } catch (err) {
+          // Already exited between SIGTERM and SIGKILL — the common case.
+          console.debug(`[preview] SIGKILL for task=${taskId} not delivered:`, err instanceof Error ? err.message : err);
+        }
       }, SIGKILL_DELAY_MS);
     }
-  } catch {}
+  } catch (err) {
+    console.warn(`[preview] terminating process for task=${taskId} failed:`, err instanceof Error ? err.message : err);
+  }
   running.delete(taskId);
   return true;
 }

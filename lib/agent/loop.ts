@@ -51,6 +51,22 @@ import { compileAgentContext } from './context-pack';
 import { createAgentMemory } from '../db/queries';
 import type { AgentMemoryKind, AgentMemoryScope } from '../types';
 import { classifyModelError, publicModelErrorMessage, shouldRetryModelError } from '../model/errors';
+import {
+  ACTION_REQUIRED_NUDGE,
+  AUTONOMY_VIOLATION_NUDGE,
+  AUTONOMY_VIOLATION_NUDGE_FALLBACK,
+  CALL_TASK_COMPLETE_NUDGE,
+  NO_WORK_PERFORMED_NUDGE,
+  TEXT_WITHOUT_TOOL_NUDGE,
+  createExecutionEvidence,
+  hasDoneRealWork as evidenceShowsRealWork,
+  incompleteTodosNudge,
+  isDescribingNotDoing as textDescribesWithoutDoing,
+  isQuestionToUser as textAsksUserQuestion,
+  nextConsecutiveReads,
+  readOnlyLoopDetected,
+  readOnlyLoopNudge,
+} from './guards';
 
 /**
  * Adaptive execution boundary — replaces hardcoded iteration limits.
@@ -211,16 +227,6 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
   // Detected language from the user's first message.
   const detectedLanguage = detectLanguage(goal);
-
-  // Runtime engineering memory — temporary, exists only during this run.
-  // The agent records assumptions, decisions, issues, workarounds during
-  // execution and documents them in its final task_complete summary.
-  const engineeringMemory = {
-    assumptions: [] as string[],
-    decisions: [] as string[],
-    issues: [] as string[],
-    workarounds: [] as string[],
-  };
 
   // System prompt is mode-driven. Build runs that originate from an approved
   // plan get the immutable plan injected as a contract.
@@ -385,8 +391,8 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   let iterationCount = 0;
 
   // Read-only loop detection: consecutive reads without writes in build mode.
+  // Thresholds and tool classification live in ./guards (single source of truth).
   let consecutiveReads = 0;
-  const MAX_CONSECUTIVE_READS = 6;
 
   // Todo tracking state — single source of truth during execution.
   // Persisted via task_events (todo_update type); this in-memory copy is used
@@ -399,12 +405,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   // Execution evidence — deterministic system signals for truth-based verification.
   // This is the ONLY source verification trusts. Model self-reporting (todo status)
   // is checked against this evidence, not the other way around.
-  const executionEvidence = {
-    toolCalls: [] as { name: string; ok: boolean; ts: number }[],
-    filesModified: new Set<string>(),
-    codeExecutions: [] as { exitCode: number; ts: number }[],
-    errors: [] as string[],
-  };
+  const executionEvidence = createExecutionEvidence();
 
   const checkStagnation = async (sig: string): Promise<boolean> => {
     recentSignatures.push(sig);
@@ -648,27 +649,16 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
               return;
             }
             // Build mode: text without task_complete is suspicious.
+            // Uses the same detectors as the native tool-calling path — the
+            // fallback used to carry a weaker 5-pattern copy, so real autonomy
+            // violations slipped through on models without function calling.
             const fbText = textBuf.trim();
-            const fbQuestionPatterns = [
-              /what (would you|do you|should i|can i|shall i)/i,
-              /would you like/i,
-              /do you want/i,
-              /shall i/i,
-              /let me know/i,
-            ];
-            const fbIsQuestion = fbQuestionPatterns.some(p => p.test(fbText));
-            if (fbIsQuestion) {
-              messages.push({
-                role: 'system',
-                content: `AUTONOMY VIOLATION — You asked the user a question instead of executing. Act independently and call task_complete or use a tool.`,
-              });
+            if (textAsksUserQuestion(fbText)) {
+              messages.push({ role: 'system', content: AUTONOMY_VIOLATION_NUDGE_FALLBACK });
               continue;
             }
             // Nudge toward task_complete for proper verification
-            messages.push({
-              role: 'system',
-              content: `You emitted text without a tool call. In build mode, you must either use a tool or call task_complete. Emit an <action> for task_complete with your summary, or continue working with tools.`,
-            });
+            messages.push({ role: 'system', content: TEXT_WITHOUT_TOOL_NUDGE });
             continue;
           }
           messages.push({ role: 'user', content: 'Emit an <action> to use a tool, or task_complete to finish.' });
@@ -900,28 +890,18 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
           // Track read vs write actions for read-only loop detection in build mode.
           if (mode === 'build') {
-            if (call.name === 'file_read' || call.name === 'file_list') {
-              consecutiveReads++;
-            } else if (call.name === 'file_write' || call.name === 'file_edit' || call.name === 'code_execute') {
-              consecutiveReads = 0; // Reset — agent is doing real work
-            }
+            consecutiveReads = nextConsecutiveReads(consecutiveReads, call.name);
           }
         }
 
         // Read-only loop detection: agent keeps reading without acting in build mode.
-        if (mode === 'build' && consecutiveReads >= MAX_CONSECUTIVE_READS) {
+        if (mode === 'build' && readOnlyLoopDetected(consecutiveReads)) {
           await emitTaskEvent(taskId, 'verification', {
             status: 'fail',
             attempt: 0,
             message: `Agent performed ${consecutiveReads} consecutive read operations without writing or executing. Nudging to act.`,
           });
-          messages.push({
-            role: 'system',
-            content: `READ-ONLY LOOP DETECTED — You've read files ${consecutiveReads} times without taking any action. ` +
-              `In build mode, you must EXECUTE: write files, edit code, run commands. ` +
-              `Stop reading and start building. If you have enough context, use file_write, file_edit, or code_execute now. ` +
-              `If the task is unclear, call task_complete and explain what blocked you.`,
-          });
+          messages.push({ role: 'system', content: readOnlyLoopNudge(consecutiveReads) });
           consecutiveReads = 0; // Reset to avoid repeated nudges
         }
 
@@ -945,24 +925,11 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         }
 
         // Build mode: text termination without task_complete is suspicious.
-        // Check for common fake-completion patterns.
-        const lowerText = text.toLowerCase();
+        // Check for common fake-completion patterns. Detectors live in ./guards
+        // so the fallback path and the unit tests share one implementation.
 
         // Pattern 1: Agent is asking the user a question instead of acting.
-        const questionPatterns = [
-          /what (would you|do you|should i|can i|shall i)/i,
-          /how (would you|do you|should i|can i)/i,
-          /would you like/i,
-          /do you want/i,
-          /shall i/i,
-          /can you (confirm|tell|provide|clarify)/i,
-          /please (tell|provide|clarify|confirm|specify)/i,
-          /let me know/i,
-          /waiting for (your|the) (input|response|confirmation|decision)/i,
-        ];
-        const isQuestionToUser = questionPatterns.some(p => p.test(text));
-
-        if (isQuestionToUser) {
+        if (textAsksUserQuestion(text)) {
           // Agent is asking the user instead of acting autonomously.
           // Inject a hard nudge to continue executing.
           await emitTaskEvent(taskId, 'verification', {
@@ -970,43 +937,20 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
             attempt: 0,
             message: 'Agent asked the user a question instead of executing autonomously. Nudging to continue.',
           });
-          messages.push({
-            role: 'system',
-            content: `AUTONOMY VIOLATION — You asked the user a question instead of executing. ` +
-              `Your job is to act independently, make assumptions, and deliver results. ` +
-              `Do NOT ask for confirmation. Do NOT wait for input. Do NOT describe what you would do. ` +
-              `Call task_complete with your results, or continue executing with tools right now.`,
-          });
+          messages.push({ role: 'system', content: AUTONOMY_VIOLATION_NUDGE });
           continue;
         }
 
         // Pattern 2: Agent describes future action instead of doing it.
-        const descriptionPatterns = [
-          /i will (now|then|proceed|start|begin|create|build|write|implement)/i,
-          /i('m| am) (now|going to|about to|ready to) /i,
-          /let me (now|then|proceed|start|begin|create|build|write)/i,
-          /now i will /i,
-          /the next step is/i,
-        ];
-        const isDescribingNotDoing = descriptionPatterns.some(p => p.test(text.slice(-500)));
+        const isDescribingNotDoing = textDescribesWithoutDoing(text);
 
         // If no real work was done (no file writes, no code executions), this is likely fake.
-        const hasDoneRealWork = executionEvidence.toolCalls.length > 0 && (
-          executionEvidence.filesModified.size > 0 ||
-          executionEvidence.codeExecutions.length > 0 ||
-          executionEvidence.toolCalls.some(t => t.name === 'http_request' && t.ok)
-        );
+        const hasDoneRealWork = evidenceShowsRealWork(executionEvidence);
 
         if ((isDescribingNotDoing || !hasDoneRealWork) && executionEvidence.toolCalls.length > 0) {
           // Agent wrote text about doing work but didn't actually complete it.
           // Nudge it to finish with task_complete (which runs verification).
-          messages.push({
-            role: 'system',
-            content: `ACTION REQUIRED — You described what you would do but did not call task_complete. ` +
-              `If your work is done, call task_complete with a summary of what you built. ` +
-              `If work remains, use your tools to continue executing. ` +
-              `Do NOT describe future actions — execute them or finish.`,
-          });
+          messages.push({ role: 'system', content: ACTION_REQUIRED_NUDGE });
           continue;
         }
 
@@ -1018,36 +962,20 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           if (todoItems.length > 0) {
             const pending = todoItems.filter(i => i.status !== 'done');
             if (pending.length > 0) {
-              messages.push({
-                role: 'system',
-                content: `INCOMPLETE WORK — ${pending.length} todo item(s) remain incomplete: ` +
-                  pending.map(i => `[${i.id}] ${i.description} (${i.status})`).join('; ') +
-                  `. Complete the remaining work, then call task_complete.`,
-              });
+              messages.push({ role: 'system', content: incompleteTodosNudge(pending) });
               continue;
             }
           }
           // Real work done and no pending todos — but must go through task_complete
           // for proper verification and engineering memory. Give one more chance.
-          messages.push({
-            role: 'system',
-            content: `Almost done! You've done real work. Now call task_complete with a summary that includes: ` +
-              `what was built, your assumptions, decisions, issues found, and workarounds. ` +
-              `Do not just write text — use the task_complete tool.`,
-          });
+          messages.push({ role: 'system', content: CALL_TASK_COMPLETE_NUDGE });
           continue;
         }
 
         // No tool calls at all and text termination in build mode — very suspicious.
         // Give the agent one chance to use tools, then terminate with a descriptive failure.
         if (executionEvidence.toolCalls.length === 0) {
-          messages.push({
-            role: 'system',
-            content: `NO WORK PERFORMED — You have not called any tools yet. ` +
-              `You must execute the task using your tools (file_write, code_execute, etc.). ` +
-              `If the task is truly impossible, call task_complete and explain what blocked you. ` +
-              `Text-only responses are not valid task completion.`,
-          });
+          messages.push({ role: 'system', content: NO_WORK_PERFORMED_NUDGE });
           continue;
         }
 
@@ -1182,7 +1110,7 @@ async function finalizeComplete(
 
   if (mode === 'planning') {
     // Planning run finished: store the proposed plan and await user approval.
-    // The plan is the richest text we have �?" the accumulated prose across
+    // The plan is the richest text we have — the accumulated prose across
     // iterations (planOverride) wins over the terse task_complete summary.
     const plan =
       planOverride && planOverride.trim().length > summary.trim().length

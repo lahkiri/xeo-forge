@@ -69,7 +69,12 @@ export function PreviewPanel({ taskId, isTerminal }: { taskId: string; isTermina
         setPreview(d.preview);
         setEnv(d.env);
       }
-    } catch {}
+    } catch (err) {
+      // Poll failure (offline, navigation abort) keeps the last known state
+      // rather than blanking the panel. Logged so a persistent failure is
+      // visible in the console instead of silently freezing the UI.
+      console.warn('[preview] status refresh failed:', err);
+    }
   }, [taskId]);
 
   useEffect(() => { refresh(); }, [refresh]);

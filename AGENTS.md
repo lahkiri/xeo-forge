@@ -62,7 +62,9 @@ New capabilities must preserve the approval gate, task-scoped authorization, sin
 - DB: SQLite (better-sqlite3) in dev, PostgreSQL (pg) in prod, via one adapter
   exposing `prepare().{get,all,run}` returning Promises.
 - LLM: `openai` SDK against an OpenAI-compatible endpoint (streaming tool calls).
-- Auth: cookie session (`ai_session`), token = random 32 bytes, stored as sha256.
+- Auth: cookie session (`xeo_session`), token = random 32 bytes, stored as sha256.
+- Local runtime: an optional Go process broker (`native/runtime-broker`), bound to
+  loopback and gated by a per-install shared secret.
 
 ## 4. Data model (the only tables)
 
@@ -72,10 +74,10 @@ New capabilities must preserve the approval gate, task-scoped authorization, sin
 - `credits` — user_id (pk), balance, daily_grant, last_reset_at, updated_at.
 - `credit_ledger` — id, user_id, delta, reason, ref_id, balance_after, created_at.
 - `tasks` — id, user_id, goal, status (including awaiting_decision), mode
-  (chat|planning|build), surface (chat|work), intent_kind, intent_confidence,
-  intent_reason, decision_state, decision_choice, decision_expires_at,
-  execution_brief (immutable direct-execution scope), plan (latest proposed plan),
-  approved_plan (immutable snapshot frozen at approval), plan_version,
+  (chat|planning|build), project_path, intent_kind, decision_state,
+  decision_expires_at, plan (latest proposed plan), approved_plan (immutable
+  snapshot frozen at approval — also holds the frozen execution brief for an
+  accepted direct-execution decision), plan_version, profile_id, skill_id,
   result_summary, credits_spent, error, created_at, updated_at.
 - `task_events` — id, task_id, seq, type, content (JSON), created_at.
   UNIQUE(task_id, seq).
@@ -87,8 +89,31 @@ New capabilities must preserve the approval gate, task-scoped authorization, sin
   `context_window` = total tokens the model can hold. `auto_compact_threshold` =
   context usage % that triggers automatic compaction (1–100, default 80).
 - `admin_actions` — id, admin_id, target_user_id, action, detail, created_at.
+- `uploads` — id, task_id, user_id, filename, kind, status, byte_size, rel_path,
+  file_count, extracted_bytes, error, created_at, updated_at. Quarantined until
+  scanned; archives are expanded into the task workspace.
+- `agent_profiles` — id, user_id, name, kind, description, instructions, enabled,
+  version, created_at, updated_at. Reusable agent roles.
+- `agent_skills` — id, user_id, name, kind, description, instructions,
+  profile_id, enabled, version, created_at, updated_at. Reusable workflows,
+  optionally bound to one profile.
+- `agent_instructions` — id, user_id, task_id, scope, name, content, priority,
+  enabled, version, created_at, updated_at. Prompt Studio layers.
+- `agent_memories` — id, user_id, task_id, scope, kind, content, status,
+  confidence, source_task_id, source_message_id, pinned, expires_at, created_at,
+  updated_at. Candidates are `proposed` until the user approves them; only
+  approved memories are compiled into run context.
 
 Do not add tables without a real, present use. V3 tables must have an end-to-end API, agent, persistence, and UI path.
+
+**Design note: intent metadata.** Intent classification is deterministic and
+re-derivable from the goal (`lib/agent/intent.ts`), so only the resulting
+`intent_kind` is persisted. Confidence and reason are emitted as `intent` events
+in the audit trail rather than duplicated as task columns (rule 1).
+
+**Design note: execution briefs.** A direct-execution decision freezes its brief
+into `approved_plan`, reusing the one immutable-contract column the build loop
+already reads. A second column would be a parallel path to the same behavior.
 
 **Design note: execution_cursor.** There is no persisted step list or cursor.
 The agent loop is model-driven — the LLM decides what to do each iteration.
@@ -134,7 +159,9 @@ Adding a cursor would be dead state that never drives execution.
 
 The agent loop includes runtime guards against common failure modes observed in
 production. These are NOT prompt-level suggestions — they are code-enforced
-checks in `lib/agent/loop.ts` and `lib/agent/runner.ts`.
+checks. The detectors, thresholds and nudge copy live in `lib/agent/guards.ts`
+(one implementation, imported by both dispatch paths in `lib/agent/loop.ts` and
+by the unit tests); the double-fail check lives in `lib/agent/runner.ts`.
 
 **Text-termination guard**: In build mode, the loop does NOT accept text-only
 completions via `finishReason='stop'`. Instead it checks for:
@@ -172,17 +199,24 @@ by a concurrent operation. SQLite keeps the existing re-SELECT (single-writer).
 app/                  # pages + API routes (App Router)
   api/                # auth, tasks, tasks/[id], tasks/[id]/stream,
                       # tasks/[id]/approve, tasks/[id]/reject,
-                      # tasks/[id]/messages, tasks/[id]/mode,
-                      # credits, admin/*
+                      # tasks/[id]/decision, tasks/[id]/messages,
+                      # tasks/[id]/mode, tasks/[id]/preview,
+                      # tasks/[id]/uploads, tasks/[id]/workspace,
+                      # tasks/[id]/export, agent/*, browser/*, runtime,
+                      # credits, settings/model, admin/*
 lib/
-  db/                 # index (adapter), schema, queries  — the ONLY DB writers
+  db/                 # index (adapter), schema, bootstrap, queries — the ONLY DB writers
   auth/               # password, session, guard
-  credits/            # engine (atomic debit/grant/adjust)
-  model/              # config (global, env + DB row id=1)
-  agent/              # runner, loop, tools, files, code, prompts
+  credits/            # engine (atomic debit/grant/adjust), pricing
+  model/              # config (global, env + DB row id=1), errors
+  agent/              # runner, loop, guards, tools, files, code, prompts,
+                      # intent, context, compaction, timeline, preview, uploads
   sse/                # emitter (seq-based, single delivery path)
   types.ts
 components/           # minimal shared UI
+native/runtime-broker # optional Go process broker (loopback + shared secret)
+desktop/electron      # Electron shell: broker + Next supervision, browser bridge
+test/                 # vitest unit tests (import real lib/ modules, never copies)
 ```
 
 ## 7. Agent tools (the only ones)
@@ -201,16 +235,22 @@ All file/code access is confined to that directory (realpath-checked).
 
 - `npm run dev` — local dev.
 - `npm run typecheck` — `tsc --noEmit`, must be clean.
+- `npm run lint` — ESLint, must be clean (no warnings).
 - `npm test` — vitest unit tests.
 - `npm run build` — production build.
 - `npm run db:init` — create schema + seed root admin from env.
+- `go test ./...` in `native/runtime-broker` — broker auth and bind tests.
 
 ## 9. Definition of done
 
 A user creates a task → agent executes it → credits are consumed correctly →
 result is stored in history → admin can inspect and modify user state → all
 users use the same global model → no duplicate writers, no silent failures →
-typecheck + tests + build all pass.
+typecheck + lint + tests + build all pass.
+
+Tests must exercise the shipped implementation. A test that re-declares the
+logic it is checking is not a test — it is a second copy that will silently
+diverge (rule 1).
 
 ## 10. Intent-aware execution (core feature)
 

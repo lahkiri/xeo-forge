@@ -13,7 +13,6 @@
  *  - Nothing extracted is ever executed.
  */
 
-import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import zlib from 'node:zlib';
@@ -96,7 +95,7 @@ function parseTar(buf: Buffer): TarEntry[] {
       continue;
     }
 
-    let fullName = longName || (prefix ? `${prefix}/${name}` : name);
+    const fullName = longName || (prefix ? `${prefix}/${name}` : name);
     longName = null;
 
     entries.push({ name: fullName, size: dataSize, typeflag, data, linkname });

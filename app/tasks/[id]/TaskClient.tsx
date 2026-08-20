@@ -2,31 +2,29 @@
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { Button, StatusBadge } from '@/components/ui';
 import { UploadButton } from '@/components/UploadButton';
 import { WorkspaceViewer } from '@/components/WorkspaceViewer';
 import { PreviewPanel } from '@/components/PreviewPanel';
 import { FileActivity } from '@/components/FileActivity';
 import TaskContextPanel from './TaskContextPanel';
 import type { Task, TaskEvent, TaskStatus, Message, Upload, UploadStatus } from '@/lib/types';
+import {
+  buildTimeline,
+  derivePhase,
+  isTerminalStatus,
+  isRunningStatus,
+  canFollowUp as followUpAllowed,
+  latestEventOfType,
+  parseEvents,
+  splitRuns,
+  type ParsedEvent,
+  type Phase,
+} from '@/lib/agent/timeline';
 
 /* ── Event parsing ─────────────────────────────────────────────────── */
-
-interface ParsedEvent {
-  seq: number;
-  type: string;
-  data: Record<string, unknown>;
-  ts: number; // epoch ms — from DB created_at on replay, receipt time for live events
-}
-
-function parseEvents(events: TaskEvent[]): ParsedEvent[] {
-  return events.map((e) => {
-    let data: Record<string, unknown> = {};
-    try { data = JSON.parse(e.content) as Record<string, unknown>; } catch { data = { raw: e.content }; }
-    const ts = e.created_at ? Date.parse(e.created_at) : Date.now();
-    return { seq: e.seq, type: e.type, data, ts: Number.isFinite(ts) ? ts : Date.now() };
-  });
-}
+/* parseEvents, run splitting, timeline construction, and phase derivation
+   all live in lib/agent/timeline.ts so they are unit-testable and shared
+   with the test suite instead of duplicated. */
 
 function formatClock(ts: number): string {
   try {
@@ -193,13 +191,19 @@ function ToolCalls({ events }: { events: ParsedEvent[] }) {
 /* ── Context indicator (tiny, top-right) ───────────────────────────── */
 
 function ContextIndicator({
-  pct, tokens, window,
+  pct, tokens, window: contextWindow,
 }: { pct: number | null; tokens: number; window: number }) {
   if (pct === null) return null;
   const color = pct >= 90 ? 'text-red-400' : pct >= 70 ? 'text-amber-400' : 'text-gray-500';
+  // The token counts were already streamed on every `context` event but never
+  // shown; surfacing them in the tooltip makes the percentage verifiable.
+  const detail = contextWindow > 0
+    ? `${tokens.toLocaleString()} of ${contextWindow.toLocaleString()} context tokens used`
+    : `${tokens.toLocaleString()} context tokens used`;
   return (
-    <div className="flex items-center gap-2 text-[11px]">
+    <div className="flex items-center gap-2 text-[11px]" title={detail}>
       <span className={color}>{Math.round(pct)}%</span>
+      <span className="sr-only">{detail}</span>
       <div className="w-16 h-1 rounded-full bg-white/10 overflow-hidden">
         <div
           className={`h-full rounded-full transition-all duration-500 ${
@@ -255,9 +259,8 @@ function UploadChip({ upload }: { upload: Upload }) {
 /* ── Plan → Execute → Verify phase indicator ───────────────────────────
    PURELY VISUAL. Derived from existing task state + SSE events. Drives no
    logic and introduces no execution flow — if removed, the system is
-   unchanged. It only reflects the phase the agent loop is already in. */
-
-type Phase = 'plan' | 'execute' | 'verify' | 'done';
+   unchanged. It only reflects the phase the agent loop is already in.
+   The `Phase` type and the derivation live in lib/agent/timeline.ts. */
 
 function PhaseIndicator({ phase }: { phase: Phase }) {
   const steps: { key: Phase; label: string }[] = [
@@ -411,7 +414,7 @@ export default function TaskClient({
     } else if (ev.type === 'file_activity') {
       setFileActivities((prev) => [...prev.slice(-49), { data: ev.data, ts: ev.ts }]);
     }
-  }, []);
+  }, [initialTask.id]);
 
   // SSE lifecycle
   useEffect(() => {
@@ -427,9 +430,15 @@ export default function TaskClient({
       addEvent({ seq, type: e.type, data, ts: Date.now() });
     };
     types.forEach((t) => es.addEventListener(t, handler as EventListener));
-    es.onerror = () => {};
+    // EventSource retries on its own; the browser reconnects and the stream
+    // replays from the DB by seq, so there is nothing to recover here.
+    es.onerror = () => {
+      if (es.readyState === EventSource.CLOSED) {
+        console.warn(`[task] event stream closed for task=${initialTask.id}`);
+      }
+    };
     return () => { types.forEach((t) => es.removeEventListener(t, handler as EventListener)); es.close(); esRef.current = null; };
-  }, [initialTask.id, status]);
+  }, [initialTask.id, status, addEvent]);
 
   // The countdown is presentation only. The API enforces the same deadline and
   // performs the conditional transition, so a late click can never execute.
@@ -520,98 +529,34 @@ export default function TaskClient({
 
   // ── Derived state ──
 
-  const isTerminal = status === 'completed' || status === 'failed';
+  const isTerminal = isTerminalStatus(status);
   const isChat = initialTask.mode === 'chat';
   const awaitingDecision = status === 'awaiting_decision' && initialTask.decision_state === 'pending' && decisionSeconds > 0;
   const decisionExpired = status === 'awaiting_decision' && decisionSeconds <= 0;
   const isPlanned = !isChat && status === 'planned';
-  const isRunning = status === 'running' || status === 'pending';
-  const canFollowUp = isTerminal;
+  const isRunning = isRunningStatus(status);
+  // The messages route also accepts follow-ups on 'planned' tasks, but the UI
+  // deliberately routes those through Approve/Reject instead.
+  const canFollowUp = isTerminal && followUpAllowed(status);
 
-  // Split events by run boundary
-  const doneSeqs = events.filter((e) => e.type === 'done').map((e) => e.seq);
-  const lastDoneSeq = doneSeqs.length > 0 ? Math.max(...doneSeqs) : 0;
-  const currentRunEvents = events.filter((e) => e.seq > lastDoneSeq);
-  const currentRunText = currentRunEvents
-    .filter((e) => e.type === 'text')
-    .map((e) => (typeof e.data.delta === 'string' ? e.data.delta : ''))
-    .join('');
-  const currentRunToolEvents = currentRunEvents.filter(
-    (e) => e.type === 'tool_call' || e.type === 'tool_result',
+  // Split events by run boundary (lib/agent/timeline).
+  const { currentRunEvents } = useMemo(() => splitRuns(events), [events]);
+
+  const timeline = useMemo(
+    () => buildTimeline({ events, messages, status, goal: initialTask.goal }),
+    [events, messages, status, initialTask.goal],
   );
 
-  // Run-indexed tool events for completed runs
-  const doneEvents = events.filter((e) => e.type === 'done');
-  const runToolEvents: ParsedEvent[][] = [];
-  { let prevSeq = 0;
-    for (const de of doneEvents) {
-      runToolEvents.push(events.filter(
-        (e) => (e.type === 'tool_call' || e.type === 'tool_result') && e.seq > prevSeq && e.seq <= de.seq,
-      ));
-      prevSeq = de.seq;
-    }
-  }
-
-  // Build timeline
-  let assistantIdx = 0;
-  const timeline = useMemo(() => {
-    // Older threads may have been created before the API persisted the opening
-    // turn. Keep them readable instead of rendering an apparently empty chat.
-    const sourceMessages = messages.length > 0
-      ? messages
-      : [{ id: -2, role: 'user' as const, content: initialTask.goal }];
-    const turns = sourceMessages.map((msg, i) => {
-      let content = msg.content;
-      // Strip <user_task> framing tags (added by agent loop for LLM safety)
-      content = content.replace(/^<user_task>\n?/, '').replace(/\n?<\/user_task>$/, '');
-      // Strip Task: prefix from first message
-      if (i === 0 && content.startsWith('Task:\n')) content = content.slice(6);
-      return {
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant' | 'system',
-        content,
-        toolEvents: undefined as ParsedEvent[] | undefined,
-      };
-    });
-    let aIdx = 0;
-    for (const turn of turns) {
-      if (turn.role === 'assistant') {
-        if (aIdx < runToolEvents.length && runToolEvents[aIdx].length > 0) {
-          turn.toolEvents = runToolEvents[aIdx];
-        }
-        aIdx++;
-      }
-    }
-    return turns;
-  }, [messages, runToolEvents, initialTask.goal]);
-
-  // Append streaming assistant turn
-  if (isRunning && (currentRunText || currentRunToolEvents.length > 0)) {
-    timeline.push({
-      id: -1, role: 'assistant', content: currentRunText,
-      toolEvents: currentRunToolEvents.length > 0 ? currentRunToolEvents : undefined,
-    });
-  }
-
-  const errorEvent = [...events].reverse().find((e) => e.type === 'error');
+  const errorEvent = latestEventOfType(events, 'error');
   const errorMessage = errorEvent ? String(errorEvent.data.message ?? 'An error occurred') : '';
   const normalizedError = errorMessage.toLowerCase();
-  const modelRetryEvent = [...events].reverse().find((e) => e.type === 'model_retry');
+  const modelRetryEvent = latestEventOfType(events, 'model_retry');
   const rateLimitError = normalizedError.includes('429') || normalizedError.includes('rate-limit') || normalizedError.includes('rate limit');
   const modelAuthError = normalizedError.includes('401') || normalizedError.includes('403') || normalizedError.includes('api key') || normalizedError.includes('authentication');
   const modelSetupError = normalizedError.includes('no global model') || normalizedError.includes('model is not configured');
 
   // Derive Plan→Execute→Verify phase PURELY from existing state/events (visual only).
-  const hasCurrentToolActivity = currentRunToolEvents.length > 0;
-  const verificationInCurrentRun = currentRunEvents.some((e) => e.type === 'verification');
-  const phase: Phase = (() => {
-    if (isTerminal) return 'done';
-    if (isPlanned) return 'plan';
-    // Running — derive from actual activity
-    if (verificationInCurrentRun) return 'verify';
-    if (hasCurrentToolActivity) return 'execute';
-    return 'plan';
-  })();
+  const phase: Phase = derivePhase({ status, isChat, currentRunEvents });
   const showPhase = !isChat && (isRunning || isTerminal) && timeline.length > 0;
 
   const reasoningDeltas = events
@@ -660,6 +605,17 @@ export default function TaskClient({
             {status === 'running' && <span className="mr-1 h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />}
             {isChat && status === 'failed' ? 'needs setup' : status === 'awaiting_decision' ? 'needs your choice' : status}
           </span>
+          {/* Credits were streamed on every `credits` event but never rendered.
+              Showing the running total makes per-run cost visible where it is
+              incurred, not only in the ledger. */}
+          {creditsSpent > 0 && (
+            <span
+              className="hidden text-[10px] tabular-nums text-gray-600 sm:inline"
+              title={`${creditsSpent} credit${creditsSpent === 1 ? '' : 's'} spent on this task`}
+            >
+              {creditsSpent} cr
+            </span>
+          )}
           {isTerminal && (
             <a href={`/api/tasks/${initialTask.id}/export`}
                className="text-[11px] text-gray-500 hover:text-gray-300 transition-colors">
@@ -857,8 +813,11 @@ export default function TaskClient({
           {/* Reasoning (collapsed) */}
           {reasoningDeltas && (
             <div className="flex justify-start">
-              <details className="group">
-                <summary className="cursor-pointer text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
+              <details className="group" open={expandedReasoning}>
+                <summary
+                  className="cursor-pointer text-[11px] text-gray-600 hover:text-gray-400 transition-colors"
+                  onClick={(e) => { e.preventDefault(); setExpandedReasoning((v) => !v); }}
+                >
                   reasoning
                 </summary>
                 <div className="mt-1 rounded-lg bg-white/[0.02] px-3 py-2 text-[11px] text-gray-600 leading-relaxed max-h-48 overflow-y-auto">

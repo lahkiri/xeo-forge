@@ -5,7 +5,6 @@ import { requireUser } from '@/lib/auth/guard';
 import { isDesktopLocalMode } from '@/lib/auth/session';
 import { normalizeBaseUrl, resolveModel } from '@/lib/model/config';
 import { classifyModelError, publicModelErrorMessage } from '@/lib/model/errors';
-import { errorResponse } from '../../../_lib/respond';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,7 +28,7 @@ function statusFor(kind: ReturnType<typeof classifyModelError>['kind']): number 
   return 500;
 }
 
-/** POST /api/settings/model/test — validate the active provider without saving changes. */
+/** POST /api/settings/model/test â€” validate the active provider without saving changes. */
 export async function POST(req: NextRequest) {
   let testedBaseUrl = '';
   let testedModelId = 'model';

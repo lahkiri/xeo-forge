@@ -10,14 +10,18 @@ const bridge = startBrowserBridge({ port, token, preferencePath, policyPath });
 const sockets = [];
 
 async function waitForBridge() {
+  let lastError;
   for (let attempt = 0; attempt < 20; attempt += 1) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/state`, { headers: { 'x-xeo-browser-token': token } });
       if (response.status === 200) return;
-    } catch {}
+    } catch (error) {
+      // Expected while the bridge binds its port; surfaced if it never does.
+      lastError = error;
+    }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error('Browser bridge did not start.');
+  throw new Error(`Browser bridge did not start.${lastError ? ` Last error: ${lastError.message || lastError}` : ''}`);
 }
 
 async function waitFor(predicate, label) {

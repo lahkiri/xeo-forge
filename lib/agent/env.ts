@@ -78,7 +78,12 @@ export function detectEnvVars(taskId: string): DetectResult {
           }
         }
       }
-    } catch {}
+    } catch (err) {
+      // An unreadable subdirectory (permissions, broken symlink, race with the
+      // agent writing files) must not abort the whole scan — but it is logged
+      // so a systematically unreadable workspace is visible (AGENTS.md rule 3).
+      console.warn(`[env] skipped unreadable directory ${dir}:`, err instanceof Error ? err.message : err);
+    }
   };
 
   walk(root, '');
