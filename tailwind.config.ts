@@ -3,106 +3,105 @@ import type { Config } from 'tailwindcss';
 /**
  * Xeo Forge design tokens.
  *
- * WHY THIS EXISTS: `theme.extend` was empty, so every colour, size, radius and
- * shadow in the app was an arbitrary Tailwind value chosen per component
- * (`text-[11px]`, `bg-white/[0.035]`, `border-white/[0.07]`…). There was no
- * system to design with, which is why the interface read as inconsistent in its
- * details even where the structure was sound.
+ * Calibrated for an operations console, not a marketing page. Two themes share
+ * one token vocabulary via CSS variables declared in globals.css, so every
+ * component is theme-agnostic — a component never branches on light/dark.
  *
- * The palette is built for an operations console, not a marketing page:
- *  - `ink`    surfaces, from the app background up through raised panels
- *  - `line`   borders, three weights only
- *  - `text`   four content levels, so hierarchy is a choice not an accident
- *  - `signal` semantic state — the ONLY place hue carries meaning
+ *  - `ink`     surfaces, from app background up through dialogs
+ *  - `line`    borders, three weights only
+ *  - `content` four content levels, so hierarchy is a choice not an accident
+ *  - `signal`  semantic state — the ONLY place hue carries meaning
  *
  * Semantic naming is deliberate. `signal-run` and `signal-gate` say what the
- * colour means, so a component cannot accidentally use "success green" for a
- * pending state.
+ * colour means, so a component cannot use "success green" for a pending state.
  */
 const config: Config = {
   content: ['./app/**/*.{ts,tsx}', './components/**/*.{ts,tsx}'],
+  darkMode: ['class', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
-        /* Surfaces — deep, slightly blue, never pure black. */
         ink: {
-          900: '#070b12', // app background, header
-          800: '#0b1220', // primary surface
-          700: '#0f1725', // raised panel
-          600: '#141d2e', // dialog, popover
-          500: '#1a2436', // hover on raised
+          900: 'rgb(var(--ink-900) / <alpha-value>)',
+          800: 'rgb(var(--ink-800) / <alpha-value>)',
+          700: 'rgb(var(--ink-700) / <alpha-value>)',
+          600: 'rgb(var(--ink-600) / <alpha-value>)',
+          500: 'rgb(var(--ink-500) / <alpha-value>)',
         },
-        /* Borders. Three weights is enough for any interface. */
         line: {
-          subtle: 'rgba(180, 205, 230, 0.07)',
-          DEFAULT: 'rgba(180, 205, 230, 0.12)',
-          strong: 'rgba(180, 205, 230, 0.20)',
+          subtle: 'rgb(var(--line-subtle) / <alpha-value>)',
+          DEFAULT: 'rgb(var(--line) / <alpha-value>)',
+          strong: 'rgb(var(--line-strong) / <alpha-value>)',
         },
-        /* Content hierarchy. */
         content: {
-          primary: '#e8edf5', // headings, active values
-          secondary: '#9aa7bd', // body
-          muted: '#67748c', // labels, metadata
-          faint: '#44506680', // disabled, decorative
+          primary: 'rgb(var(--content-primary) / <alpha-value>)',
+          secondary: 'rgb(var(--content-secondary) / <alpha-value>)',
+          muted: 'rgb(var(--content-muted) / <alpha-value>)',
+          faint: 'rgb(var(--content-faint) / <alpha-value>)',
         },
-        /* Semantic state. Hue means something here and nowhere else. */
         signal: {
-          run: '#67e8f9', // executing, active, live
-          gate: '#fbbf24', // awaiting a human decision
-          pass: '#4ade80', // verified, succeeded, allowed
-          fail: '#f87171', // failed, denied
-          plan: '#a78bfa', // planning, governed mode
+          run: 'rgb(var(--signal-run) / <alpha-value>)',
+          gate: 'rgb(var(--signal-gate) / <alpha-value>)',
+          pass: 'rgb(var(--signal-pass) / <alpha-value>)',
+          fail: 'rgb(var(--signal-fail) / <alpha-value>)',
+          plan: 'rgb(var(--signal-plan) / <alpha-value>)',
         },
+        /** Text that sits on a filled signal surface. Flips per theme. */
+        'on-signal': 'rgb(var(--on-signal) / <alpha-value>)',
       },
-      /* Type ramp. Named steps stop ad-hoc `text-[11px]` choices. */
+      /* Type ramp. Named steps stop ad-hoc `text-[11px]` choices.
+         Calibrated up one notch from the first pass: 10px labels were
+         illegible in the rail at 1440px. */
       fontSize: {
-        micro: ['0.625rem', { lineHeight: '0.875rem', letterSpacing: '0.12em' }], // 10px — labels
-        meta: ['0.6875rem', { lineHeight: '1rem' }], // 11px — metadata
-        ui: ['0.75rem', { lineHeight: '1.125rem' }], // 12px — dense UI
-        body: ['0.8125rem', { lineHeight: '1.5rem' }], // 13px — reading
-        title: ['0.9375rem', { lineHeight: '1.375rem' }], // 15px — section
-        display: ['1.375rem', { lineHeight: '1.75rem', letterSpacing: '-0.01em' }], // 22px
+        micro: ['0.6875rem', { lineHeight: '0.9375rem', letterSpacing: '0.1em' }], // 11 labels
+        meta: ['0.75rem', { lineHeight: '1.0625rem' }], // 12 metadata
+        ui: ['0.8125rem', { lineHeight: '1.1875rem' }], // 13 dense UI
+        body: ['0.875rem', { lineHeight: '1.5625rem' }], // 14 reading
+        title: ['1rem', { lineHeight: '1.4375rem', letterSpacing: '-0.005em' }], // 16 section
+        display: ['1.5rem', { lineHeight: '1.875rem', letterSpacing: '-0.015em' }], // 24
       },
       fontFamily: {
         sans: ['ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
         mono: ['ui-monospace', 'SF Mono', 'Cascadia Code', 'Fira Code', 'monospace'],
       },
       borderRadius: {
-        control: '0.5rem', // buttons, inputs
-        panel: '0.75rem', // cards, panels
-        modal: '1rem', // dialogs
+        control: '0.375rem', // buttons, inputs — tighter reads as tooling
+        panel: '0.625rem',
+        modal: '0.875rem',
       },
       spacing: {
-        /* Fixed chrome dimensions, so panes line up across surfaces. */
-        header: '3.5rem',
-        pane: '2.75rem',
-        rail: '17rem',
+        header: '3rem', // 48px, was 56 — reclaim vertical for the workbench
+        pane: '2.5rem',
+        rail: '18rem',
         nav: '14rem',
       },
       boxShadow: {
-        raised: '0 1px 2px rgba(0, 0, 0, 0.3)',
-        panel: '0 8px 24px -8px rgba(0, 0, 0, 0.4)',
-        modal: '0 24px 64px -12px rgba(0, 0, 0, 0.6)',
-        /* Focus ring as a shadow so it composes with borders. */
-        focus: '0 0 0 3px rgba(103, 232, 249, 0.16)',
+        raised: '0 1px 2px rgb(var(--shadow-color) / 0.28)',
+        panel: '0 10px 30px -12px rgb(var(--shadow-color) / 0.42)',
+        modal: '0 28px 72px -16px rgb(var(--shadow-color) / 0.58)',
+        focus: '0 0 0 3px rgb(var(--signal-run) / 0.22)',
       },
       transitionDuration: {
-        instant: '80ms', // hover, press
-        quick: '140ms', // state change
-        panel: '220ms', // layout
+        instant: '80ms',
+        quick: '140ms',
+        panel: '220ms',
       },
       keyframes: {
         'live-pulse': {
           '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.35' },
+          '50%': { opacity: '0.3' },
         },
         'panel-in': {
           from: { opacity: '0', transform: 'translateY(4px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
         },
         'row-in': {
-          from: { opacity: '0', transform: 'translateX(-4px)' },
+          from: { opacity: '0', transform: 'translateX(-3px)' },
           to: { opacity: '1', transform: 'translateX(0)' },
+        },
+        'sweep': {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
         },
       },
       animation: {
@@ -110,6 +109,7 @@ const config: Config = {
         'live-pulse': 'live-pulse 1.6s ease-in-out infinite',
         'panel-in': 'panel-in 220ms cubic-bezier(0.16, 1, 0.3, 1)',
         'row-in': 'row-in 180ms cubic-bezier(0.16, 1, 0.3, 1)',
+        'sweep': 'sweep 1.8s ease-in-out infinite',
       },
     },
   },

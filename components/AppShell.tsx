@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { AuthUser } from '@/lib/types';
 import { Badge, Button, KeyHint, ToastProvider, cx, useModKey } from './ui';
+import { ThemeToggle } from './Theme';
 import { CommandPalette, useBaseCommands, useHotkeys, type Command } from './CommandPalette';
 
 const NAV = [
@@ -104,8 +105,9 @@ export default function AppShell({
 
   const shell = (
     <div className="app-shell flex min-h-screen flex-col text-content-primary">
+      <a href="#main" className="skip-link">Skip to main content</a>
       {/* ── Top bar: one row, always the same height ── */}
-      <header className="sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b border-line-subtle bg-ink-900/92 px-3 backdrop-blur-xl sm:px-4">
+      <header className="sticky top-0 z-30 flex h-header shrink-0 items-center gap-3 border-b border-line-subtle bg-ink-900/92 px-3 backdrop-blur-xl sm:px-4">
         <Link href="/chat" className="flex shrink-0 items-center gap-2.5" aria-label="Xeo Forge">
           <span className="brand-mark h-7 w-7 rounded-control" aria-hidden="true"><span /></span>
           <span className="hidden text-sm font-semibold tracking-tight text-white sm:block">Xeo Forge</span>
@@ -178,6 +180,7 @@ export default function AppShell({
             )
           )}
 
+          <ThemeToggle className="hidden sm:inline-flex" />
           {!isLocalSurface && user && (
             <Button variant="ghost" size="sm" onClick={signOut}>Sign out</Button>
           )}
@@ -223,9 +226,9 @@ export default function AppShell({
       )}
 
       {flush ? (
-        <div className="min-h-0 flex-1">{children}</div>
+        <div id="main" className="min-h-0 flex-1">{children}</div>
       ) : (
-        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
+        <main id="main" className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-6xl">
             {(title || subtitle) && (
               <div className="mb-6">
