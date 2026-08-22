@@ -50,6 +50,8 @@ import { WorkspaceViewer } from '@/components/WorkspaceViewer';
 import { PreviewPanel } from '@/components/PreviewPanel';
 import TaskContextPanel from '@/app/tasks/[id]/TaskContextPanel';
 import { UploadButton } from '@/components/UploadButton';
+import { DiffView } from '@/components/DiffView';
+import Terminal from '@/components/Terminal';
 
 /* ------------------------------------------------------------------ */
 /*  WORK SURFACE                                                       */
@@ -59,7 +61,7 @@ import { UploadButton } from '@/components/UploadButton';
 /*  what it costs. Three panes — run log, artifact, governance rail.    */
 /* ------------------------------------------------------------------ */
 
-type CenterTab = 'run' | 'activity' | 'project' | 'preview' | 'context' | 'memory';
+type CenterTab = 'run' | 'activity' | 'project' | 'preview' | 'context' | 'memory' | 'terminal' | 'diff';
 
 export default function WorkClient({
   runs,
@@ -94,6 +96,8 @@ export default function WorkClient({
   // Count of memory candidates awaiting a decision. Drives the Memory tab badge
   // so a proposal is never silently dropped.
   const [pendingMemory, setPendingMemory] = useState(0);
+  const [diffText, setDiffText] = useState<string | null>(null);
+  const [fileChanges, setFileChanges] = useState<{ action: string; path: string }[]>([]);
   const [decisionSeconds, setDecisionSeconds] = useState(() =>
     task.decision_expires_at
       ? Math.max(0, Math.ceil((Date.parse(task.decision_expires_at) - Date.now()) / 1000))
@@ -230,6 +234,8 @@ export default function WorkClient({
       setTodos(data.items as { id: string; description: string; status: string }[]);
     } else if (type === 'upload' && typeof data.id === 'string') {
       setUploads((prev) => prev.map((u) => (u.id === data.id ? { ...u, ...(data as Partial<Upload>) } : u)));
+    } else if (type === 'file_activity' && typeof data.path === 'string') {
+      setFileChanges((prev) => [...prev, { action: String(data.action ?? 'changed'), path: String(data.path) }]);
     }
   }, [task.id]);
 
@@ -336,6 +342,8 @@ export default function WorkClient({
     { combo: 'mod+4', run: () => setTab('preview') },
     { combo: 'mod+5', run: () => setTab('context') },
     { combo: 'mod+6', run: () => setTab('memory') },
+    { combo: 'mod+7', run: () => setTab('terminal') },
+    { combo: 'mod+8', run: () => setTab('diff') },
     { combo: 'mod+Enter', run: () => void sendFollowUp(), allowInInput: true },
   ]);
 
@@ -346,16 +354,18 @@ export default function WorkClient({
     { id: 'preview', label: 'Preview', hint: `${mod}+4` },
     { id: 'context', label: 'Context', hint: `${mod}+5` },
     { id: 'memory', label: 'Memory', hint: `${mod}+6`, count: pendingMemory },
+    { id: 'terminal', label: 'Terminal', hint: `${mod}+7` },
+    { id: 'diff', label: 'Diff', hint: `${mod}+8` },
   ];
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] min-h-0">
+    <div className="flex h-[calc(100vh-theme(spacing.header))] min-h-0">
       {/* ── Run list ── */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle xl:flex">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle 2xl:flex">
         <PanelHeader title="Work">
           <Link href="/work">
             <IconButton label="New work" size="sm">
-              <span aria-hidden="true" className="text-sm leading-none">+</span>
+              <span aria-hidden="true" className="text-ui leading-none">+</span>
             </IconButton>
           </Link>
         </PanelHeader>
@@ -534,10 +544,53 @@ export default function WorkClient({
             <MemoryReview taskId={task.id} onChanged={loadPendingMemory} />
           </div>
         )}
+        {tab === 'terminal' && (
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Terminal taskId={task.id} />
+          </div>
+        )}
+        {tab === 'diff' && (
+          <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            {diffText ? (
+              <DiffView unifiedText={diffText} />
+            ) : fileChanges.length > 0 ? (
+              <div className="space-y-1">
+                <p className="mb-3 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
+                  Files changed ({fileChanges.length})
+                </p>
+                {fileChanges.map((fc, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-control border border-line-subtle bg-ink-700/40 px-3 py-2"
+                  >
+                    <span
+                      className={
+                        fc.action === 'created'
+                          ? 'text-signal-pass'
+                          : fc.action === 'deleted'
+                            ? 'text-signal-fail'
+                            : 'text-signal-gate'
+                      }
+                    >
+                      {fc.action === 'created' ? 'A' : fc.action === 'deleted' ? 'D' : 'M'}
+                    </span>
+                    <span className="truncate font-mono text-ui text-content-secondary">{fc.path}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                icon={<span aria-hidden="true">Diff</span>}
+                title="No changes yet"
+                description="File changes made by the agent will appear here."
+              />
+            )}
+          </div>
+        )}
       </Panel>
 
       {/* ── Governance rail ── */}
-      <aside className="hidden w-72 shrink-0 flex-col overflow-y-auto lg:flex">
+      <aside className="hidden w-rail shrink-0 flex-col overflow-y-auto border-l border-line-subtle xl:flex">
         <PanelHeader title="Governance" />
         <div className="space-y-4 p-3">
           <div>
