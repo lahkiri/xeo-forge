@@ -36,6 +36,9 @@ export const AGENT_EVENT_TYPES = [
   'file_activity',
   'memory',
   'memory_decision',
+  'git_status',
+  'git_commit',
+  'terminal',
 ] as const;
 
 export type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];
@@ -84,6 +87,12 @@ export const AGENT_EVENTS: Record<AgentEventType, EventDescriptor> = {
   file_activity: { purpose: 'A workspace file was created, edited, or deleted.', surfaces: ['work'] },
   memory: { purpose: 'A memory candidate was proposed. NOT yet in context.', surfaces: ['work'] },
   memory_decision: { purpose: 'The user kept, rejected, or deleted a memory.', surfaces: ['work'] },
+  // Git and terminal are Work-only. Both are supervision of a real repository and
+  // a real host process; Chat cannot reach either, so subscribing there would
+  // advertise an authority that surface does not have.
+  git_status: { purpose: 'Repository state after a git operation: branch, dirty count, last commit.', surfaces: ['work'] },
+  git_commit: { purpose: 'A commit was created in the task workspace.', surfaces: ['work'] },
+  terminal: { purpose: 'A terminal session opened, closed, or was terminated with the task.', surfaces: ['work'] },
 };
 
 /** Event types a surface should subscribe to. Use this, never a literal array. */
@@ -266,6 +275,70 @@ export function readMemoryDecision(data: Record<string, unknown>): MemoryDecisio
   };
 }
 
+/**
+ * Git status payload. `branch` is null on a detached HEAD, which is a real state
+ * the agent can reach via `git_op checkout <sha>` — the reader must not invent a
+ * branch name for it, so the governance rail can say "detached" truthfully.
+ */
+export interface GitStatusPayload {
+  branch?: string;
+  detached: boolean;
+  dirtyCount: number;
+  staged?: number;
+  unstaged?: number;
+  untracked?: number;
+  lastCommitHash?: string;
+  lastCommitSubject?: string;
+}
+
+export function readGitStatus(data: Record<string, unknown>): GitStatusPayload {
+  return {
+    branch: str(data.branch),
+    detached: data.detached === true,
+    dirtyCount: num(data.dirty_count) ?? 0,
+    staged: num(data.staged),
+    unstaged: num(data.unstaged),
+    untracked: num(data.untracked),
+    lastCommitHash: str(data.last_commit_hash),
+    lastCommitSubject: str(data.last_commit_subject),
+  };
+}
+
+export interface GitCommitPayload {
+  hash?: string;
+  subject?: string;
+  filesChanged?: number;
+}
+
+export function readGitCommit(data: Record<string, unknown>): GitCommitPayload {
+  return {
+    hash: str(data.hash),
+    subject: str(data.subject),
+    filesChanged: num(data.files_changed),
+  };
+}
+
+/**
+ * Terminal session lifecycle. This is a REAL host PTY in the task workspace, not
+ * an isolated environment — the label deliberately says "session", never
+ * "sandbox", matching the restricted-host language used everywhere else.
+ */
+export interface TerminalPayload {
+  sessionId?: string;
+  status?: string;
+  reason?: string;
+  exitCode?: number;
+}
+
+export function readTerminal(data: Record<string, unknown>): TerminalPayload {
+  return {
+    sessionId: str(data.session_id),
+    status: str(data.status),
+    reason: str(data.reason),
+    exitCode: num(data.exit_code),
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /*  Human-readable activity labels                                     */
 /*                                                                     */
@@ -366,6 +439,44 @@ export function describeEvent(type: string, data: Record<string, unknown>): Acti
       const decision = readMemoryDecision(data);
       return { title: `Memory ${decision.decision ?? 'decided'}`, tone: 'neutral' };
     }
+    case 'git_status': {
+      const status = readGitStatus(data);
+      const where = status.detached ? 'detached HEAD' : status.branch ?? 'unknown branch';
+      const clean = status.dirtyCount === 0;
+      return {
+        title: 'Repository inspected',
+        detail: clean
+          ? `${where} · clean`
+          : `${where} · ${status.dirtyCount} change${status.dirtyCount === 1 ? '' : 's'}`,
+        tone: 'neutral',
+      };
+    }
+    case 'git_commit': {
+      const commit = readGitCommit(data);
+      const short = commit.hash?.slice(0, 7);
+      return {
+        title: 'Commit created',
+        detail: [short, commit.subject].filter(Boolean).join(' · ') || undefined,
+        tone: 'good',
+      };
+    }
+    case 'terminal': {
+      const session = readTerminal(data);
+      switch (session.status) {
+        case 'opened':
+          return { title: 'Terminal session opened', detail: session.sessionId, tone: 'active' };
+        case 'closed':
+          return {
+            title: 'Terminal session closed',
+            detail: session.exitCode === undefined ? session.reason : `exit ${session.exitCode}`,
+            tone: session.exitCode ? 'warn' : 'neutral',
+          };
+        case 'rejected':
+          return { title: 'Terminal session refused', detail: session.reason, tone: 'warn' };
+        default:
+          return { title: 'Terminal session updated', detail: session.status, tone: 'neutral' };
+      }
+    }
     case 'todo_update': {
       const items = Array.isArray(data.items) ? data.items.length : 0;
       return { title: 'Checklist updated', detail: `${items} item${items === 1 ? '' : 's'}`, tone: 'neutral' };
@@ -379,10 +490,13 @@ export function describeEvent(type: string, data: Record<string, unknown>): Acti
       return spent === undefined ? null : { title: 'Credits spent', detail: String(spent), tone: 'neutral' };
     }
     case 'error':
-      return { title: 'Run failed', detail: str(data.message), tone: 'bad' };
+      // The cause. 'done' reports the terminal transition separately, so these
+      // two must never share a label or the timeline reads as a duplicate.
+      return { title: 'Error', detail: str(data.message), tone: 'bad' };
     case 'done': {
       const status = str(data.status) ?? 'finished';
-      return { title: status === 'completed' ? 'Completed' : `Run ${status}`, tone: status === 'completed' ? 'good' : 'bad' };
+      if (status === 'completed') return { title: 'Run completed', tone: 'good' };
+      return { title: `Run ended: ${status}`, tone: 'bad' };
     }
     // text/reasoning/task_status carry no standalone timeline entry — they are
     // rendered as the message stream and the status badge instead.

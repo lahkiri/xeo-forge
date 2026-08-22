@@ -219,7 +219,7 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
   `);
 
   // Uploads ingested for a task. Files live under the task workspace
-  // (_uploads/<id>) — the same realpath-confined sandbox the agent file tools
+  // (_uploads/<id>) — the same realpath-confined workspace the agent file tools
   // use. Uploaded content is untrusted DATA; status gates agent exposure.
   statements.push(`
     CREATE TABLE IF NOT EXISTS uploads (
@@ -239,8 +239,33 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
     )
   `);
 
+  // MCP server configuration, per user.
+  //
+  // A stdio MCP server config is `command` + `args` + `env` — that is arbitrary
+  // code execution on the user's own machine. It is therefore USER-OWNED and
+  // USER-INITIATED ONLY: nothing the agent can reach writes this table (see the
+  // header of lib/mcp/registry.ts). `args` and `env` are JSON TEXT, matching how
+  // the rest of the schema stores structured columns; `enabled` is 0/1 like every
+  // other boolean here. `env` may hold third-party tokens the user pasted, so it
+  // is owner-scoped on every read — there is no lookup without a user_id.
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      transport TEXT NOT NULL DEFAULT 'stdio',
+      command TEXT NOT NULL,
+      args TEXT NOT NULL DEFAULT '[]',
+      env TEXT NOT NULL DEFAULT '{}',
+      enabled ${bool} NOT NULL DEFAULT 1,
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault}
+    )
+  `);
+
   // Indexes for the hot lookups.
   statements.push(`CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id)`);
+  statements.push(`CREATE INDEX IF NOT EXISTS idx_mcp_servers_user ON mcp_servers(user_id, enabled, created_at)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_profiles_user ON agent_profiles(user_id, enabled, updated_at)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_skills_user ON agent_skills(user_id, enabled, updated_at)`);
   statements.push(`CREATE INDEX IF NOT EXISTS idx_events_task ON task_events(task_id, seq)`);

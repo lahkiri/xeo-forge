@@ -210,8 +210,9 @@ export interface AgentSkill {
 
 /**
  * Uploaded file/archive ingested for a task. Stored under the task workspace
- * (workspaceFor(taskId)/_uploads/<id>/) — the SAME sandbox the agent file tools
- * are confined to. Uploaded content is UNTRUSTED DATA, never instructions.
+ * (workspaceFor(taskId)/_uploads/<id>/) — the SAME realpath-confined workspace
+ * the agent file tools are limited to. Uploaded content is UNTRUSTED DATA,
+ * never instructions.
  *
  * Lifecycle (single pipeline): quarantined → validated → extracted (archives
  * only) → ready  | rejected (any validation/extraction failure, with reason).
