@@ -32,10 +32,31 @@ export interface Statement<T = any> {
   run(...params: unknown[]): Promise<RunResult>;
 }
 
+/**
+ * The subset of the adapter available inside a transaction. Deliberately has no
+ * `transaction` of its own: nesting is not supported (see Database.transaction).
+ */
+export interface Transactional {
+  kind: DbKind;
+  prepare<T = any>(sql: string): Statement<T>;
+}
+
 export interface Database {
   kind: DbKind;
   prepare<T = any>(sql: string): Statement<T>;
   exec(sql: string): Promise<void>;
+  /**
+   * Run `fn` inside a single database transaction, committing on return and
+   * rolling back on throw. Every statement issued through the `tx` handle lands
+   * on the same connection, which is the point: `db.prepare(...)` on the PG path
+   * takes an arbitrary pooled client, so a BEGIN issued that way would not
+   * enclose the statements that follow it.
+   *
+   * Nesting is NOT supported — calling transaction() from inside a transaction
+   * callback deadlocks (SQLite) or opens an unrelated second transaction (PG).
+   * Callers must keep transactions flat.
+   */
+  transaction<T>(fn: (tx: Transactional) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
 
@@ -100,21 +121,63 @@ function createSqlite(): Database {
   // foreign_keys intentionally OFF: we manage soft-cascades in queries.ts.
   sqlite.pragma('foreign_keys = OFF');
 
+  const prepare = <T = any>(sql: string): Statement<T> => {
+    const stmt = sqlite.prepare(sql);
+    return {
+      get: async (...params: unknown[]) => stmt.get(...params) as T | undefined,
+      all: async (...params: unknown[]) => stmt.all(...params) as T[],
+      run: async (...params: unknown[]) => {
+        const r = stmt.run(...params);
+        return { changes: r.changes, lastInsertRowid: r.lastInsertRowid };
+      },
+    };
+  };
+
+  // better-sqlite3 is synchronous, so its own .transaction() helper cannot
+  // wrap an async callback — the transaction would commit before any awaited
+  // statement ran. We drive BEGIN/COMMIT/ROLLBACK explicitly instead.
+  //
+  // There is exactly ONE connection, so transactions must be serialised: a
+  // second BEGIN while another is open throws "cannot start a transaction
+  // within a transaction". Callers legitimately overlap (ten concurrent debits
+  // for the same user is a normal request pattern), and they must queue rather
+  // than fail, so each transaction chains onto the previous one's settlement.
+  // This makes SQLite transactions strictly serial, which is what a single
+  // synchronous connection can honestly offer. PG gets real concurrency below.
+  let sqliteTxQueue: Promise<unknown> = Promise.resolve();
+
+  const runSqliteTransaction = async <T,>(fn: (tx: Transactional) => Promise<T>): Promise<T> => {
+    sqlite.exec('BEGIN IMMEDIATE');
+    try {
+      const result = await fn({ kind: 'sqlite', prepare });
+      sqlite.exec('COMMIT');
+      return result;
+    } catch (err) {
+      try {
+        sqlite.exec('ROLLBACK');
+      } catch {
+        // Already rolled back (or never opened) — the original error is the
+        // one worth propagating.
+      }
+      throw err;
+    }
+  };
+
   return {
     kind: 'sqlite',
-    prepare<T = any>(sql: string): Statement<T> {
-      const stmt = sqlite.prepare(sql);
-      return {
-        get: async (...params: unknown[]) => stmt.get(...params) as T | undefined,
-        all: async (...params: unknown[]) => stmt.all(...params) as T[],
-        run: async (...params: unknown[]) => {
-          const r = stmt.run(...params);
-          return { changes: r.changes, lastInsertRowid: r.lastInsertRowid };
-        },
-      };
-    },
+    prepare,
     exec: async (sql: string) => {
       sqlite.exec(sql);
+    },
+    transaction: <T,>(fn: (tx: Transactional) => Promise<T>): Promise<T> => {
+      // Chain on settlement, not resolution, so one failed transaction does not
+      // poison the queue for everyone behind it.
+      const next = sqliteTxQueue.then(
+        () => runSqliteTransaction(fn),
+        () => runSqliteTransaction(fn),
+      );
+      sqliteTxQueue = next.catch(() => undefined);
+      return next;
     },
     close: async () => {
       sqlite.close();
@@ -166,6 +229,40 @@ function createPg(): Database {
     exec: async (sql: string) => {
       // exec runs DDL authored in a PG-compatible way (schema.ts handles dialect).
       await pool.query(sql);
+    },
+    // A dedicated client for the whole transaction: BEGIN and COMMIT must land
+    // on the same connection, and pool.query() picks an arbitrary one per call.
+    transaction: async <T,>(fn: (tx: Transactional) => Promise<T>): Promise<T> => {
+      const client = await pool.connect();
+      const txPrepare = <U = any>(sql: string): Statement<U> => ({
+        get: async (...params: unknown[]) => {
+          const res = await client.query(translateForPg(sql), params);
+          return res.rows[0] as U | undefined;
+        },
+        all: async (...params: unknown[]) => {
+          const res = await client.query(translateForPg(sql), params);
+          return res.rows as U[];
+        },
+        run: async (...params: unknown[]) => {
+          const res = await client.query(translateForPg(sql), params);
+          return { changes: res.rowCount ?? 0, lastInsertRowid: 0 };
+        },
+      });
+      try {
+        await client.query('BEGIN');
+        const result = await fn({ kind: 'pg', prepare: txPrepare });
+        await client.query('COMMIT');
+        return result;
+      } catch (err) {
+        try {
+          await client.query('ROLLBACK');
+        } catch {
+          // Connection may already be unusable; the original error matters more.
+        }
+        throw err;
+      } finally {
+        client.release();
+      }
     },
     close: async () => {
       await pool.end();

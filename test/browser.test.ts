@@ -18,11 +18,19 @@ describe('local browser capability policy', () => {
     expect(browserActionIsReadOnly('type')).toBe(false);
   });
 
-  it('advertises browser inspection to Chat and Planning but never write tools', () => {
-    expect(CHAT_TOOLS.has('browser')).toBe(true);
-    expect(PLANNING_TOOLS.has('browser')).toBe(true);
-    expect(schemasForMode('chat').some((tool) => tool.function.name === 'browser')).toBe(true);
+  it('withholds the browser from read-only modes entirely', () => {
+    // The browser drives the user's real, logged-in session. That authority is
+    // not the task's to exercise, so read-only modes do not get the tool at all
+    // — not even for `state`/`read_page`. Chat and Planning inspect the
+    // workspace; only Build can be granted the browser.
+    expect(CHAT_TOOLS.has('browser')).toBe(false);
+    expect(PLANNING_TOOLS.has('browser')).toBe(false);
+    expect(schemasForMode('chat').some((tool) => tool.function.name === 'browser')).toBe(false);
+    expect(schemasForMode('planning').some((tool) => tool.function.name === 'browser')).toBe(false);
     expect(schemasForMode('planning').some((tool) => tool.function.name === 'file_write')).toBe(false);
+    // The checklist is run bookkeeping, not an action on the world, so it stays.
+    expect(CHAT_TOOLS.has('todo_update')).toBe(true);
+    expect(PLANNING_TOOLS.has('todo_update')).toBe(true);
   });
 
   it('permits a fully confirmed navigate/click/type smoke flow only on an allowlisted domain', async () => {
@@ -37,10 +45,19 @@ describe('local browser capability policy', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ ok: true, result: { typed: true } }), { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(browserRequest('navigate', { url: 'https://example.com' })).resolves.toEqual({ navigated: true });
+    // navigate now carries confirmSensitive like click/type: moving the user's
+    // real tab is a state change on the world, not an inspection.
+    await expect(browserRequest('navigate', { url: 'https://example.com', confirmSensitive: true })).resolves.toEqual({ navigated: true });
     await expect(browserRequest('click', { selector: '#save', confirmSensitive: true })).resolves.toEqual({ clicked: true });
     await expect(browserRequest('type', { selector: '#name', text: 'Xeo', confirmSensitive: true })).resolves.toEqual({ typed: true });
     expect(fetchMock).toHaveBeenCalledTimes(6);
+  });
+
+  it('blocks an unconfirmed navigate', async () => {
+    process.env.XEO_BROWSER_TOKEN = 'test-token';
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ browserPolicy: { interactionEnabled: true, allowedDomains: ['example.com'], allowSensitiveActions: true }, tab: { url: 'https://example.com' } }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(browserRequest('navigate', { url: 'https://example.com' })).rejects.toThrow('explicit confirmation');
   });
 
   it('blocks interaction when the local policy is read-only', async () => {

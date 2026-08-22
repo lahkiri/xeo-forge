@@ -1,16 +1,21 @@
 /**
- * File tool — sandboxed file operations confined to a task workspace.
+ * File tool — workspace-confined file operations.
  *
  * All paths are resolved with realpath and checked to stay within the task
  * workspace root (AGENTS.md §7). Path-traversal attempts (.., symlinks,
- * absolute paths outside the root) are rejected.
+ * absolute paths outside the root) are rejected. This confinement is real for
+ * the file tools; it is not an OS sandbox, and code_execute is a separate,
+ * weaker boundary — see lib/agent/code.ts.
  */
 
 import path from 'node:path';
+import os from 'node:os';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 
-const WORK_ROOT = process.env.TASK_WORK_DIR || '/tmp/xeo-tasks';
+// os.tmpdir() rather than a hardcoded '/tmp' so the default is correct on
+// Windows (%TEMP%) as well as POSIX. TASK_WORK_DIR still overrides.
+const WORK_ROOT = process.env.TASK_WORK_DIR || path.join(os.tmpdir(), 'xeo-tasks');
 const MAX_READ_BYTES = 1024 * 1024; // 1 MB
 const MAX_WRITE_BYTES = 5 * 1024 * 1024; // 5 MB per write
 

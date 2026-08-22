@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import {
   ACTION_REQUIRED_NUDGE,
   AUTONOMY_VIOLATION_NUDGE,
@@ -252,5 +254,69 @@ describe('Agent loop guards', () => {
       expect(nudge).toContain('in_progress');
       expect(nudge).toContain('2 todo item(s)');
     });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Both loop paths share one guard implementation (AGENTS.md rule 1). */
+/*                                                                     */
+/*  loop.ts drives two protocols: native tool-calling, and an          */
+/*  `<action>` fallback for models without function calling. Each used  */
+/*  to carry its own copy of evidence recording and read counting, and  */
+/*  they had already diverged — the fallback hand-rolled an if/else     */
+/*  instead of calling nextConsecutiveReads(), and never called         */
+/*  readOnlyLoopDetected() at all. On a model without function calling  */
+/*  the read-only loop guard silently did not exist.                    */
+/*                                                                     */
+/*  A behavioural test would need a live model, a workspace and a DB.   */
+/*  What actually needs locking is structural: that there is ONE        */
+/*  implementation and BOTH paths reach it. So we assert on the source  */
+/*  — the same technique test/events.test.ts uses to scan emit sites.   */
+/* ------------------------------------------------------------------ */
+
+describe('the read-only loop guard is reachable from both loop paths', () => {
+  const loopSource = fs.readFileSync(
+    path.resolve(__dirname, '..', 'lib', 'agent', 'loop.ts'),
+    'utf8',
+  );
+
+  it('defines the shared helpers exactly once', () => {
+    const count = (needle: string) => loopSource.split(needle).length - 1;
+    expect(count('const recordToolEvidence =')).toBe(1);
+    expect(count('const checkReadOnlyLoop =')).toBe(1);
+    expect(count('const evaluateCompletion =')).toBe(1);
+  });
+
+  it('calls each shared helper from both the fallback and native paths', () => {
+    const count = (needle: string) => loopSource.split(needle).length - 1;
+    // Two call sites each: one per protocol path.
+    expect(count('await recordToolEvidence(')).toBe(2);
+    expect(count('await checkReadOnlyLoop()')).toBe(2);
+    expect(count('await evaluateCompletion(')).toBe(2);
+  });
+
+  it('routes the fallback path through the shared helpers by name', () => {
+    // `action.tool` only exists on the fallback path; `call.name` only on the
+    // native one. Both must appear as arguments to the shared recorder.
+    expect(loopSource).toContain('await recordToolEvidence(action.tool, action.args, obs)');
+    expect(loopSource).toContain('await recordToolEvidence(call.name, args, obs)');
+  });
+
+  it('does not hand-roll read counting anywhere', () => {
+    // The old fallback path incremented/reset a counter inline. Any assignment
+    // to consecutiveReads outside the shared helper is that bug returning.
+    const assignments = loopSource.match(/consecutiveReads\s*=/g) ?? [];
+    // Exactly three: the initial declaration, the update inside
+    // recordToolEvidence, and the reset inside checkReadOnlyLoop.
+    expect(assignments).toHaveLength(3);
+    expect(loopSource).toContain('consecutiveReads = nextConsecutiveReads(consecutiveReads, toolName)');
+  });
+
+  it('drives detection through the guards module rather than a local literal', () => {
+    expect(loopSource).toContain("from './guards'");
+    expect(loopSource).toContain('readOnlyLoopDetected(consecutiveReads)');
+    expect(loopSource).toContain('readOnlyLoopNudge(consecutiveReads)');
+    // MAX_CONSECUTIVE_READS must not be re-declared as a local literal.
+    expect(loopSource).not.toMatch(/const MAX_CONSECUTIVE_READS\s*=/);
   });
 });

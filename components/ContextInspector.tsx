@@ -142,7 +142,7 @@ export function ContextInspector({ taskId }: { taskId: string }) {
         <p className="text-micro font-semibold uppercase tracking-[0.2em] text-signal-run/80">
           Effective context
         </p>
-        <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-white">
+        <h2 className="mt-1.5 text-title font-semibold tracking-tight text-content-primary">
           What actually reaches the model
         </h2>
         <p className="mt-1.5 text-ui leading-5 text-content-muted">
@@ -154,21 +154,21 @@ export function ContextInspector({ taskId }: { taskId: string }) {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Card className="px-3 py-2.5">
           <p className="text-micro uppercase tracking-[0.12em] text-content-muted">In prompt</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-signal-pass">{data.totals.activeLayers}</p>
+          <p className="mt-0.5 text-title font-semibold tabular-nums text-signal-pass">{data.totals.activeLayers}</p>
         </Card>
         <Card className="px-3 py-2.5">
           <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Withheld</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-content-secondary">{data.totals.excludedLayers}</p>
+          <p className="mt-0.5 text-title font-semibold tabular-nums text-content-secondary">{data.totals.excludedLayers}</p>
         </Card>
         <Card className="px-3 py-2.5">
           <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Your context</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-content-primary">
+          <p className="mt-0.5 text-title font-semibold tabular-nums text-content-primary">
             {data.totals.contextTokens.toLocaleString()}
           </p>
         </Card>
         <Card className="px-3 py-2.5">
           <p className="text-micro uppercase tracking-[0.12em] text-content-muted">Whole prompt</p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-content-primary">
+          <p className="mt-0.5 text-title font-semibold tabular-nums text-content-primary">
             {data.totals.promptTokens.toLocaleString()}
           </p>
         </Card>

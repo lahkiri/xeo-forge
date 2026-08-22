@@ -20,26 +20,67 @@ export interface IntentDecision {
   options?: Array<'direct' | 'plan'>;
 }
 
+/**
+ * Language coverage note.
+ *
+ * `detectLanguage()` in loop.ts advertises en/ar/zh/ru/fr, so the intent router
+ * must recognise action and planning language in all five — otherwise a Chinese
+ * user typing "实现这个功能" falls through to `conversation` and Work silently
+ * refuses to act on a direct request.
+ *
+ * CJK ALTERNATIONS MUST NOT USE `\b`. A word boundary is defined as a
+ * transition between `\w` and non-`\w`, and CJK ideographs are not `\w`, so
+ * `/\b完成\b/` matches only when the ideograph happens to sit next to ASCII —
+ * essentially never in real Chinese text. `完成` used to sit inside the English
+ * `\b`-anchored group for exactly this reason: it looked like coverage and was
+ * dead. Scripts without word separators get their own unanchored, /u-flagged
+ * patterns below.
+ */
 const PLAN_PATTERNS: RegExp[] = [
   /\b(plan|planning|propose a plan|draft a plan|map out|design first|analyze first)\b/i,
   /\b(create|write|prepare)\s+(?:a\s+)?(?:detailed\s+)?plan\b/i,
   /(خ(?:ط|طّ)ط|تخطيط|خطة|حلل|حلّل|اقترح خطة|صمم خطة|خطط أولا|خطط أولًا)/u,
+  // zh — no word boundaries in Chinese; match the substrings directly.
+  /(计划|規劃|规划|方案|先分析|先设计|先規劃|先规划|制定计划|拟一个计划|擬一個計畫|计画)/u,
+  // ru — Cyrillic is \w under /u in modern V8, but keep these unanchored for
+  // safety across inflected endings (планировать / план / спланируй).
+  /(план|планир|спланир|продум|сначала проанализируй|сначала спроектируй)/iu,
+  // fr — accented forms and the common imperative spellings.
+  /(\bplanifie|\bplanifier|\bun plan\b|\bplan d[eu]\b|analyse d'abord|conçois d'abord|propose un plan)/iu,
 ];
 
 const DIRECT_PATTERNS: RegExp[] = [
-  /\b(do it|just do it|execute|implement|build|fix|change|edit|modify|create|run|ship|完成)\b/i,
+  /\b(do it|just do it|execute|implement|build|fix|change|edit|modify|create|run|ship)\b/i,
   /\b(go ahead|make the change|apply the change|start working|take care of)\b/i,
   /(نفذ|نفّذ|اعمل|طب(?:ّ|ي)ق|إصلح|اصلح|عدّل|عدل|أنشئ|انشئ|شغّل|شغل|ابدأ التنفيذ|طبق التغيير)/u,
+  // zh — execution verbs. `完成` lives here, where it can actually match.
+  /(完成|执行|執行|实现|實現|修复|修複|修理|修改|创建|創建|新建|构建|建構|運行|运行|开始做|開始做|直接做|帮我改|幫我改|去做)/u,
+  // ru — imperative and infinitive stems for the same verbs.
+  /(сделай|выполни|реализуй|исправ|измени|поменяй|создай|запусти|собери|начни|примени)/iu,
+  // fr — imperative/infinitive, with and without accents.
+  /(\bfais(-le)?\b|\bfaire\b|\bexécute|\bexecute|\bimplémente|\bimplemente|\bcorrige|\bmodifie|\bchange\b|\bcrée|\bcree\b|\blance\b|\bvas-y\b|\bconstruis)/iu,
 ];
 
 const QUESTION_PATTERNS: RegExp[] = [
   /\b(can you|could you|would you|what|how|why|which|should i)\b/i,
   /(هل|كيف|لماذا|ما هو|ماذا|أي|هل يمكنك)/u,
+  // zh — interrogatives plus the sentence-final question particle 吗/嗎.
+  /(吗|嗎|什么|什麼|怎么|怎麼|为什么|為什麼|哪个|哪個|是否|可以.*吗|能不能)/u,
+  // ru
+  /(\bчто\b|\bкак\b|\bпочему\b|\bзачем\b|\bкакой\b|\bкакая\b|\bможно ли\b|\bможешь ли\b|\bстоит ли\b)/iu,
+  // fr
+  /(\bqu(?:e|oi|el|elle)\b|\bcomment\b|\bpourquoi\b|\best-ce que\b|\bpeux-tu\b|\bpourrais-tu\b|\bdevrais-je\b)/iu,
 ];
 
 const TARGET_PATTERNS: RegExp[] = [
   /\b(file|folder|project|code|app|website|browser|page|repository|repo|component|api|database)\b/i,
   /(ملف|مجلد|مشروع|كود|تطبيق|موقع|متصفح|صفحة|مستودع|قاعدة بيانات)/u,
+  // zh
+  /(文件|檔案|文件夹|文件夾|目录|目錄|项目|項目|专案|專案|代码|程式碼|代碼|应用|應用|网站|網站|浏览器|瀏覽器|页面|頁面|仓库|倉庫|组件|組件|元件|接口|介面|数据库|資料庫|函数|函數)/u,
+  // ru
+  /(файл|папк|проект|код|приложени|сайт|браузер|страниц|репозитор|компонент|api|база данных|базу данных)/iu,
+  // fr
+  /(\bfichier|\bdossier|\bprojet|\bcode\b|\bapplication|\bsite\b|\bnavigateur|\bpage\b|\bdépôt|\bdepot\b|\bcomposant|\bapi\b|\bbase de données)/iu,
 ];
 
 function normalize(input: string): string {

@@ -156,7 +156,7 @@ export function MemoryReview({ taskId, onChanged }: { taskId: string; onChanged?
     <div className="mx-auto max-w-3xl space-y-4">
       <div>
         <p className="text-micro font-semibold uppercase tracking-[0.2em] text-signal-gate/80">Memory</p>
-        <h2 className="mt-1.5 text-lg font-semibold tracking-tight text-white">
+        <h2 className="mt-1.5 text-title font-semibold tracking-tight text-content-primary">
           {candidates.length > 0 ? 'The agent proposed something to remember' : 'Approved memory'}
         </h2>
         <p className="mt-1.5 text-ui leading-5 text-content-muted">

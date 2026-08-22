@@ -126,12 +126,12 @@ export default function WorkIntake({
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] min-h-0">
+    <div className="flex h-[calc(100vh-theme(spacing.header))] min-h-0">
       {/* ── Run history ── */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle xl:flex">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle 2xl:flex">
         <PanelHeader title="Work">
           <IconButton label="New work" size="sm" onClick={() => setGoal('')}>
-            <span aria-hidden="true" className="text-sm leading-none">+</span>
+            <span aria-hidden="true" className="text-ui leading-none">+</span>
           </IconButton>
         </PanelHeader>
         <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
@@ -155,7 +155,7 @@ export default function WorkIntake({
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6">
           <Eyebrow tone="violet">Governed run</Eyebrow>
-          <h1 className="mt-3 text-2xl font-semibold tracking-tight text-white">
+          <h1 className="mt-3 text-display font-semibold tracking-tight text-content-primary">
             Describe the outcome. Approve the plan.
           </h1>
           <p className="mt-2 text-body leading-6 text-content-secondary">
@@ -197,7 +197,7 @@ export default function WorkIntake({
                     type="button"
                     onClick={() => setStaged((p) => p.filter((_, i) => i !== index))}
                     aria-label={`Remove ${file.name}`}
-                    className="text-content-muted hover:text-white"
+                    className="text-content-muted hover:text-content-primary"
                   >
                     ×
                   </button>

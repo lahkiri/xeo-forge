@@ -409,7 +409,7 @@ export function Tabs({
               'group relative inline-flex h-8 items-center gap-1.5 rounded-control px-2.5 text-ui font-medium transition',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50',
               'disabled:pointer-events-none disabled:opacity-30',
-              isActive ? 'bg-ink-600 text-white' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
+              isActive ? 'bg-ink-600 text-content-primary' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
             )}
           >
             {item.label}
@@ -479,7 +479,7 @@ export function EmptyState({
           {icon}
         </div>
       )}
-      <p className="text-sm font-semibold text-content-primary">{title}</p>
+      <p className="text-ui font-semibold text-content-primary">{title}</p>
       {description && <p className="mt-1.5 max-w-sm text-ui leading-5 text-content-muted">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
@@ -513,7 +513,7 @@ export function Metric({
   return (
     <div className="rounded-control border border-line-subtle bg-black/20 px-3 py-2.5">
       <p className="text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">{label}</p>
-      <p className={cx('mt-1 text-lg font-semibold tabular-nums tracking-tight', tones[tone])}>{value}</p>
+      <p className={cx('mt-1 text-title font-semibold tabular-nums tracking-tight', tones[tone])}>{value}</p>
       {detail && <p className="mt-0.5 text-micro text-content-muted">{detail}</p>}
     </div>
   );
@@ -603,7 +603,7 @@ export function Dialog({
       >
         <div className="flex items-start justify-between gap-4 border-b border-line-subtle px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold text-white">{title}</h2>
+            <h2 className="text-ui font-semibold text-content-primary">{title}</h2>
             {description && <p className="mt-1 text-ui leading-5 text-content-muted">{description}</p>}
           </div>
           <IconButton label="Close" onClick={onClose}>

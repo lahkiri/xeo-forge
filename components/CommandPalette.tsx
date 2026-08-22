@@ -195,7 +195,7 @@ export function CommandPalette({
                   onClick={() => commit(command)}
                   className={cx(
                     'flex w-full items-center justify-between gap-3 rounded-control px-2.5 py-2 text-left transition',
-                    active ? 'bg-signal-run/12 text-white' : 'text-content-secondary hover:bg-ink-700',
+                    active ? 'bg-signal-run/12 text-content-primary' : 'text-content-secondary hover:bg-ink-700',
                   )}
                 >
                   <span className="min-w-0">

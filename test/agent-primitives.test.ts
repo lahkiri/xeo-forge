@@ -41,7 +41,7 @@ describe('Activity rows come only from real events', () => {
       'Context compiled',
       'Reading project context',
       'file_read completed',
-      'Completed',
+      'Run completed',
     ]);
   });
 

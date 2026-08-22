@@ -8,6 +8,7 @@ import { TASK_CREATE_COST } from '@/lib/credits/pricing';
 import { startAgentRun } from '@/lib/agent/runner';
 import { classifyWorkIntent } from '@/lib/agent/intent';
 import { errorResponse } from '../_lib/respond';
+import { rateLimit, RATE_LIMITS } from '../_lib/ratelimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,6 +35,23 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const user = await requireUser();
+    // Keyed by user, not by IP: the route is authenticated, so the session is a
+    // stronger identity than a header we may not be able to trust, and one
+    // account cannot exhaust another's allowance. Creating a task starts an
+    // agent run — host processes, provider calls, credits — so this is the most
+    // expensive thing an authenticated client can ask for in a loop.
+    const limited = rateLimit(
+      `taskCreate:${user.id}`,
+      RATE_LIMITS.taskCreate.limit,
+      RATE_LIMITS.taskCreate.windowMs,
+    );
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: 'Too many tasks started. Please wait before starting another.' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } },
+      );
+    }
+
     const body = await req.json();
     const parsed = CreateTaskSchema.safeParse(body);
     if (!parsed.success) {

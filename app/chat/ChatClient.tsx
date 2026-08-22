@@ -250,7 +250,7 @@ export default function ChatClient({
   }, [messages, isStreaming, currentRunText]);
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] min-h-0">
+    <div className="flex h-[calc(100vh-theme(spacing.header))] min-h-0">
       {/* ── Thread list ── */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-line-subtle md:flex">
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-subtle px-3">
@@ -259,7 +259,7 @@ export default function ChatClient({
           </span>
           <Link href="/chat">
             <IconButton label="New chat" size="sm">
-              <span aria-hidden="true" className="text-sm leading-none">+</span>
+              <span aria-hidden="true" className="text-ui leading-none">+</span>
             </IconButton>
           </Link>
         </div>
@@ -294,7 +294,7 @@ export default function ChatClient({
             {turns.length === 0 ? (
               <div className="pt-[12vh]">
                 <EmptyState
-                  icon={<span aria-hidden="true" className="text-lg">✦</span>}
+                  icon={<span aria-hidden="true" className="text-title">✦</span>}
                   title="Ask anything"
                   description="Chat is read-only conversation. It never writes files, runs commands, or creates a plan. Switch a thread to Work when you want the agent to act."
                 />

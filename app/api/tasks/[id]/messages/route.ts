@@ -4,6 +4,7 @@ import { requireUser, assertOwnerOrAdmin } from '@/lib/auth/guard';
 import { getTaskById, appendMessage, claimTaskForFollowUp, updateTaskStatus } from '@/lib/db/queries';
 import { startAgentRun } from '@/lib/agent/runner';
 import { errorResponse } from '../../../_lib/respond';
+import { rateLimit, RATE_LIMITS } from '../../../_lib/ratelimit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -25,6 +26,20 @@ const MessageSchema = z.object({
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireUser();
+    // Checked before the task lookup so a hammered endpoint does not cost a DB
+    // read per refused call. Each accepted message can resume an agent run, so
+    // the ceiling here is about provider spend and host work, not just traffic.
+    const limited = rateLimit(
+      `taskMessage:${user.id}`,
+      RATE_LIMITS.taskMessage.limit,
+      RATE_LIMITS.taskMessage.windowMs,
+    );
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: 'Too many messages. Please slow down.' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } },
+      );
+    }
     const task = await getTaskById(params.id);
     if (!task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });

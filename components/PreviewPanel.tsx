@@ -153,17 +153,17 @@ export function PreviewPanel({ taskId, isTerminal }: { taskId: string; isTermina
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="text-micro font-semibold uppercase tracking-[0.16em] text-signal-run/80">Browser capability check</div>
-          <h3 className="mt-1 text-sm font-medium text-content-primary">Test the connected browser, not just the app server</h3>
+          <h3 className="mt-1 text-ui font-medium text-content-primary">Test the connected browser, not just the app server</h3>
           <p className="mt-1 max-w-2xl text-meta leading-5 text-content-muted">This runs locally through your selected extension profile. Navigate is tested first; click and type run only when you provide selectors and explicitly confirm sensitive interaction.</p>
         </div>
         <span className="rounded-full bg-signal-run/10 px-2 py-1 text-micro text-signal-run">local bridge</span>
       </div>
       <div className="mt-4 grid gap-2 md:grid-cols-2">
-        <label className="space-y-1 md:col-span-2"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">URL in the local allowlist</span><input value={browserUrl} onChange={(event) => setBrowserUrl(event.target.value)} type="url" placeholder="http://127.0.0.1:3000" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-xs text-content-primary outline-none placeholder:text-content-faint focus:border-signal-run/40" /></label>
-        <label className="space-y-1"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">Click selector (optional)</span><input value={browserClickSelector} onChange={(event) => setBrowserClickSelector(event.target.value)} placeholder="button[data-test=save]" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-xs text-content-primary outline-none placeholder:text-content-faint focus:border-signal-run/40" /></label>
-        <label className="space-y-1"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">Type selector (optional)</span><input value={browserTypeSelector} onChange={(event) => setBrowserTypeSelector(event.target.value)} placeholder="input[name=email]" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-xs text-content-primary outline-none placeholder:text-content-faint focus:border-signal-run/40" /></label>
+        <label className="space-y-1 md:col-span-2"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">URL in the local allowlist</span><input value={browserUrl} onChange={(event) => setBrowserUrl(event.target.value)} type="url" placeholder="http://127.0.0.1:3000" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-meta text-content-primary outline-none placeholder:text-content-faint focus:border-signal-run/40" /></label>
+        <label className="space-y-1"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">Click selector (optional)</span><input value={browserClickSelector} onChange={(event) => setBrowserClickSelector(event.target.value)} placeholder="button[data-test=save]" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-meta text-content-primary outline-none placeholder:text-content-faint focus:border-signal-run/40" /></label>
+        <label className="space-y-1"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">Type selector (optional)</span><input value={browserTypeSelector} onChange={(event) => setBrowserTypeSelector(event.target.value)} placeholder="input[name=email]" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-meta text-content-primary outline-none placeholder:text-content-faint focus:border-signal-run/40" /></label>
         {(browserClickSelector.trim() || browserTypeSelector.trim()) && <label className="flex items-center gap-2 text-meta text-content-secondary md:col-span-2"><input type="checkbox" checked={confirmSensitive} onChange={(event) => setConfirmSensitive(event.target.checked)} className="accent-cyan-400" />I understand click/type can change the page and I explicitly approve this local test.</label>}
-        {browserTypeSelector.trim() && <label className="space-y-1 md:col-span-2"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">Text to type</span><input value={browserText} onChange={(event) => setBrowserText(event.target.value)} className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-xs text-content-primary outline-none focus:border-signal-run/40" /></label>}
+        {browserTypeSelector.trim() && <label className="space-y-1 md:col-span-2"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">Text to type</span><input value={browserText} onChange={(event) => setBrowserText(event.target.value)} className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-meta text-content-primary outline-none focus:border-signal-run/40" /></label>}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <button onClick={runBrowserTest} disabled={browserTesting || !browserUrl.trim() || (!!(browserClickSelector.trim() || browserTypeSelector.trim()) && !confirmSensitive)} className="rounded-control bg-cyan-400/15 px-3 py-1.5 text-meta font-medium text-signal-run transition hover:bg-cyan-400/25 disabled:cursor-not-allowed disabled:opacity-40">{browserTesting ? 'running navigate → read → interaction…' : 'run browser check'}</button>
@@ -309,7 +309,7 @@ export function PreviewPanel({ taskId, isTerminal }: { taskId: string; isTermina
         ) : (
           <button
             onClick={start} disabled={loading}
-            className="rounded-control bg-indigo-600 text-white text-meta font-medium px-3 py-1.5 hover:bg-indigo-500 transition disabled:opacity-40"
+            className="rounded-control bg-indigo-600 text-content-primary text-meta font-medium px-3 py-1.5 hover:bg-indigo-500 transition disabled:opacity-40"
           >
             {loading ? 'analyzing + starting…' : 'launch preview'}
           </button>

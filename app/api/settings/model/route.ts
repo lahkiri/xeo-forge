@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireUser } from '@/lib/auth/guard';
+import { requireUser, requireAdmin } from '@/lib/auth/guard';
 import { isDesktopLocalMode } from '@/lib/auth/session';
 import { getModelSafe, updateModel } from '@/lib/model/config';
 import { errorResponse } from '../../_lib/respond';
@@ -8,22 +8,27 @@ import { errorResponse } from '../../_lib/respond';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-function assertLocalSettings(): void {
-  if (!isDesktopLocalMode()) {
-    throw new Error('Local settings are unavailable in Web SaaS mode.');
-  }
-}
-
-/** GET /api/settings/model — local model configuration with a masked key state. */
+/**
+ * Model configuration.
+ *
+ * This route used to 404 whenever `XEO_DESKTOP_LOCAL !== '1'`, which meant the
+ * only path to configure a provider was unreachable in web mode — the agent was
+ * permanently unrunnable there. That is exactly the half-working path AGENTS.md
+ * rule 4 forbids, so the gate is gone.
+ *
+ * Authorization instead follows the deployment shape:
+ *  - Desktop local mode has a single implicit owner, so any session may write.
+ *  - Hosted mode shares ONE global model across users (rule 5), so only an
+ *    admin may write it. Every session may read the masked view.
+ *
+ * The API key is never returned by `getModelSafe()` — callers receive
+ * `api_key_set` and `api_key_issue` only.
+ */
 export async function GET() {
   try {
-    assertLocalSettings();
     await requireUser();
-    return NextResponse.json({ model: await getModelSafe() });
+    return NextResponse.json({ model: await getModelSafe(), scope: isDesktopLocalMode() ? 'local' : 'workspace' });
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith('Local settings are unavailable')) {
-      return NextResponse.json({ error: 'Local settings are unavailable in Web SaaS mode.' }, { status: 404 });
-    }
     return errorResponse('settings/model/get', err);
   }
 }
@@ -39,11 +44,12 @@ const UpdateSchema = z.object({
   autoCompactThreshold: z.number().int().min(10).max(95).optional(),
 });
 
-/** PUT /api/settings/model — update local model configuration without SaaS admin. */
 export async function PUT(req: NextRequest) {
   try {
-    assertLocalSettings();
-    await requireUser();
+    // Hosted mode: the model is global, so writing it is an admin action.
+    if (isDesktopLocalMode()) await requireUser();
+    else await requireAdmin();
+
     const parsed = UpdateSchema.safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json(
@@ -54,9 +60,6 @@ export async function PUT(req: NextRequest) {
     await updateModel(parsed.data);
     return NextResponse.json({ ok: true, model: await getModelSafe() });
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith('Local settings are unavailable')) {
-      return NextResponse.json({ error: 'Local settings are unavailable in Web SaaS mode.' }, { status: 404 });
-    }
     return errorResponse('settings/model/update', err);
   }
 }

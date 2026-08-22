@@ -5,7 +5,7 @@ import { verifyPassword } from '@/lib/auth/password';
 import { createSession, isDesktopLocalMode } from '@/lib/auth/session';
 import { ensureUserCredits } from '@/lib/credits/engine';
 import { errorResponse } from '../../_lib/respond';
-import { rateLimit, clientIp } from '../../_lib/ratelimit';
+import { rateLimit, clientIp, RATE_LIMITS } from '../../_lib/ratelimit';
 import { ensureSchema } from '@/lib/db/bootstrap';
 
 export const runtime = 'nodejs';
@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
       );
     }
     await ensureSchema();
-    // Throttle by IP: 10 login attempts per 5 minutes.
-    const limited = rateLimit(`login:${clientIp(req)}`, 10, 5 * 60 * 1000);
+    // Throttle by IP. The limit lives in RATE_LIMITS so every ceiling in the
+    // app is visible in one place rather than inlined at the call site.
+    const limited = rateLimit(`login:${clientIp(req)}`, RATE_LIMITS.login.limit, RATE_LIMITS.login.windowMs);
     if (!limited.ok) {
       return NextResponse.json(
         { error: 'Too many attempts. Please try again later.' },

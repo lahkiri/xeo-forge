@@ -219,29 +219,29 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       <header className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Admin</h1>
-        <Link href="/chat" className="text-sm text-indigo-300 hover:underline">
+        <h1 className="text-display font-semibold">Admin</h1>
+        <Link href="/chat" className="text-ui text-indigo-300 hover:underline">
           ← Back to dashboard
         </Link>
       </header>
 
       {error && (
-        <div className="mb-4 rounded-md border border-red-500/30 bg-signal-fail/10 px-3 py-2 text-sm text-signal-fail">
+        <div className="mb-4 rounded-md border border-red-500/30 bg-signal-fail/10 px-3 py-2 text-ui text-signal-fail">
           {error}
         </div>
       )}
       {notice && (
-        <div className="mb-4 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-300">
+        <div className="mb-4 rounded-md border border-green-500/30 bg-green-500/10 px-3 py-2 text-ui text-green-300">
           {notice}
         </div>
       )}
 
       {/* Users */}
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-medium">Users ({users.length})</h2>
+        <h2 className="mb-3 text-title font-medium">Users ({users.length})</h2>
         <Card className="overflow-x-auto p-0">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase text-content-secondary">
+          <table className="w-full text-left text-ui">
+            <thead className="border-b border-line text-meta uppercase text-content-secondary">
               <tr>
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Name</th>
@@ -298,11 +298,11 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
 
       {/* Create user */}
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-medium">Create user</h2>
+        <h2 className="mb-3 text-title font-medium">Create user</h2>
         <Card>
           <form onSubmit={createUser} className="grid gap-3 sm:grid-cols-2">
             <input
-              className="rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+              className="rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
               type="email"
               placeholder="email"
               value={cuEmail}
@@ -310,7 +310,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               required
             />
             <input
-              className="rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+              className="rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
               type="text"
               placeholder="display name"
               value={cuName}
@@ -318,7 +318,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               required
             />
             <input
-              className="rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+              className="rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
               type="password"
               placeholder="password (min 8 chars)"
               value={cuPassword}
@@ -326,7 +326,7 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
               minLength={8}
               required
             />
-            <label className="flex items-center gap-2 text-sm text-content-secondary">
+            <label className="flex items-center gap-2 text-ui text-content-secondary">
               <input
                 type="checkbox"
                 checked={cuAdmin}
@@ -345,9 +345,9 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
 
       {/* Model settings */}
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-medium">Global model</h2>
+        <h2 className="mb-3 text-title font-medium">Global model</h2>
         <Card>
-          <p className="mb-3 text-xs text-content-secondary">
+          <p className="mb-3 text-meta text-content-secondary">
             One model configuration for the entire platform. API key:{' '}
             {model?.api_key_set ? (
               <span className="text-green-300">set</span>
@@ -357,38 +357,38 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
             {' '}— the stored key is never displayed. Leave the API key field blank to keep the current key.
           </p>
           <form onSubmit={saveModel} className="grid gap-3 sm:grid-cols-2">
-            <label className="text-sm">
+            <label className="text-ui">
               <span className="mb-1 block text-content-secondary">Name</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 value={mName}
                 onChange={(e) => setMName(e.target.value)}
                 required
               />
             </label>
-            <label className="text-sm">
+            <label className="text-ui">
               <span className="mb-1 block text-content-secondary">Model ID</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 value={mModelId}
                 onChange={(e) => setMModelId(e.target.value)}
                 required
               />
             </label>
-            <label className="text-sm sm:col-span-2">
+            <label className="text-ui sm:col-span-2">
               <span className="mb-1 block text-content-secondary">Base URL</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 type="url"
                 value={mBaseUrl}
                 onChange={(e) => setMBaseUrl(e.target.value)}
                 required
               />
             </label>
-            <label className="text-sm">
+            <label className="text-ui">
               <span className="mb-1 block text-content-secondary">Temperature (0–2)</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 type="number"
                 step="0.1"
                 min="0"
@@ -398,10 +398,10 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
                 required
               />
             </label>
-            <label className="text-sm">
+            <label className="text-ui">
               <span className="mb-1 block text-content-secondary">Max tokens</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 type="number"
                 min="1"
                 value={mMaxTokens}
@@ -409,24 +409,24 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
                 required
               />
             </label>
-            <label className="text-sm">
+            <label className="text-ui">
               <span className="mb-1 block text-content-secondary">Context window (tokens)</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 type="number"
                 min="1024"
                 value={mContextWindow}
                 onChange={(e) => setMContextWindow(e.target.value)}
                 required
               />
-              <span className="mt-1 block text-xs text-content-muted">
+              <span className="mt-1 block text-meta text-content-muted">
                 Total tokens the model can hold. Used to calculate context usage %.
               </span>
             </label>
-            <label className="text-sm">
+            <label className="text-ui">
               <span className="mb-1 block text-content-secondary">Auto-compact threshold (%)</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 type="number"
                 min="10"
                 max="95"
@@ -434,14 +434,14 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
                 onChange={(e) => setMThreshold(e.target.value)}
                 required
               />
-              <span className="mt-1 block text-xs text-content-muted">
+              <span className="mt-1 block text-meta text-content-muted">
                 Context usage % that triggers automatic compaction (10–95, default 80).
               </span>
             </label>
-            <label className="text-sm sm:col-span-2">
+            <label className="text-ui sm:col-span-2">
               <span className="mb-1 block text-content-secondary">API key (blank = keep current)</span>
               <input
-                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-sm"
+                className="w-full rounded-md border border-white/15 bg-transparent px-3 py-2 text-ui"
                 type="password"
                 placeholder="••••••••"
                 value={mApiKey}
@@ -459,10 +459,10 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
 
       {/* Recent tasks (admin inspection: any user, any task) */}
       <section>
-        <h2 className="mb-3 text-lg font-medium">Recent tasks</h2>
+        <h2 className="mb-3 text-title font-medium">Recent tasks</h2>
         <Card className="overflow-x-auto p-0">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase text-content-secondary">
+          <table className="w-full text-left text-ui">
+            <thead className="border-b border-line text-meta uppercase text-content-secondary">
               <tr>
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">User</th>
@@ -501,10 +501,10 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
 
       {/* Admin actions log */}
       <section>
-        <h2 className="mb-3 text-lg font-medium">Recent admin actions</h2>
+        <h2 className="mb-3 text-title font-medium">Recent admin actions</h2>
         <Card className="overflow-x-auto p-0">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-line text-xs uppercase text-content-secondary">
+          <table className="w-full text-left text-ui">
+            <thead className="border-b border-line text-meta uppercase text-content-secondary">
               <tr>
                 <th className="px-3 py-2">When</th>
                 <th className="px-3 py-2">Action</th>

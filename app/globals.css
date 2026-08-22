@@ -39,6 +39,16 @@
   --signal-fail: 232 116 116;
   --signal-plan: 154 141 232;
 
+  /* Diff colours are their OWN tokens rather than aliases of signal-pass/fail.
+     A diff is not a pass/fail judgement — an added line is not "good" — and the
+     two need different treatment: signals are used as text and dots at small
+     sizes, diff colours are used as large low-alpha row fills where a
+     desaturated hue would disappear. Green/red rather than the theme accent
+     because every diff tool a developer already knows uses green/red, and
+     inventing a house convention here would cost recognition for nothing. */
+  --diff-add: 74 190 128;
+  --diff-del: 226 106 106;
+
   --on-signal: 6 9 15;
   --shadow-color: 0 0 0;
 
@@ -50,22 +60,28 @@
 [data-theme='light'] {
   color-scheme: light;
 
-  /* Light is a real theme, not an inversion. Surfaces warm very slightly as
-     they rise so panels separate without heavy borders. */
-  --ink-900: 255 255 255;
-  --ink-800: 247 249 252;
-  --ink-700: 255 255 255;
+  /* Light theme surfaces DESCEND as they rise: the page is the darkest step and
+     panels sit lighter on top of it. The first pass made ink-900/700/600 all
+     pure white, so background, panel and dialog were identical and nothing
+     separated - the reported "light mode is empty" bug.
+
+     900 is reserved for inset wells (inputs, code), so it is the darkest. */
+  --ink-900: 232 237 244;
+  --ink-800: 240 244 249;
+  --ink-700: 252 253 255;
   --ink-600: 255 255 255;
-  --ink-500: 238 242 247;
+  --ink-500: 226 232 241;
 
-  --line-subtle: 24 39 62;
-  --line: 24 39 62;
-  --line-strong: 24 39 62;
+  --line-subtle: 30 47 74;
+  --line: 30 47 74;
+  --line-strong: 30 47 74;
 
-  --content-primary: 17 25 40;
-  --content-secondary: 71 85 105;
-  --content-muted: 110 124 145;
-  --content-faint: 148 161 178;
+  /* Darker than the first pass. 71 85 105 on a near-white panel is 4.3:1,
+     under AA for body text; these clear it. */
+  --content-primary: 13 20 33;
+  --content-secondary: 52 66 88;
+  --content-muted: 88 102 124;
+  --content-faint: 130 144 164;
 
   /* Darkened for contrast against white; the dark-theme values fail WCAG AA
      as text on a light field. */
@@ -75,12 +91,18 @@
   --signal-fail: 190 52 52;
   --signal-plan: 99 76 200;
 
+  /* Darker and less saturated than the dark-theme pair: on a near-white panel
+     the dark values read as neon, and the +/- gutter glyphs are text so they
+     must clear AA on the row fill, not just on the page. */
+  --diff-add: 21 122 70;
+  --diff-del: 178 44 44;
+
   --on-signal: 255 255 255;
   --shadow-color: 24 39 62;
 
-  --line-subtle-a: 0.08;
-  --line-a: 0.13;
-  --line-strong-a: 0.22;
+  --line-subtle-a: 0.11;
+  --line-a: 0.17;
+  --line-strong-a: 0.30;
 }
 
 html {
@@ -160,7 +182,10 @@ body {
 }
 
 [data-theme='light'] .panel-edge {
-  box-shadow: 0 1px 2px rgb(var(--shadow-color) / 0.06);
+  /* Panels separate by elevation in light theme, not by border weight. */
+  box-shadow:
+    0 1px 2px rgb(var(--shadow-color) / 0.07),
+    0 4px 12px -6px rgb(var(--shadow-color) / 0.1);
 }
 
 /* ── Brand mark ──────────────────────────────────────────────────── */

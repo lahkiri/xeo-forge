@@ -39,7 +39,7 @@ import {
   STAGNATION_NUDGE,
   buildModePreamble,
 } from './prompts';
-import { createToolContext, executeTool, schemasForMode } from './tools';
+import { createToolContext, executeTool, schemasForRun } from './tools';
 import { isArchive } from './uploads';
 import { CREDITS_PER_TOOL_CALL } from '../credits/pricing';
 import { computeContextUsage, shouldCompact, type ContextUsage } from './context';
@@ -76,13 +76,33 @@ import {
  * POST_ESCALATION_LIMIT: additional consecutive stagnant iterations after
  *   escalation before hard termination.
  *
- * HARD_SAFETY_CAP: absolute maximum iterations per run. Credit economics is
- *   the primary execution budget, but this prevents edge cases where the model
- *   is productive but never calls task_complete.
+ * There is deliberately NO numeric iteration cap (AGENTS.md §12). A cap of 200
+ * lived here and contradicted the documented contract: a productive agent at
+ * iteration 201 should not be killed for being thorough. Termination is
+ * semantic — stagnation fingerprinting above, and credit exhaustion, which is
+ * the real economic budget. Do not reintroduce a count-based limit; if a run
+ * needs bounding, bound it by evidence of non-progress or by credits.
  */
 const STAGNATION_THRESHOLD = 3;
 const POST_ESCALATION_LIMIT = 3;
-const HARD_SAFETY_CAP = 200;
+
+/**
+ * Consecutive failed task_complete verifications before the run is failed.
+ *
+ * Deliberately NOT equal to STAGNATION_THRESHOLD. Repeated task_complete calls
+ * produce an identical fingerprint, so with both at 3 the stagnation detector
+ * and the verification limiter raced on the same iteration and which one
+ * terminated the run depended on statement order. Verification is the more
+ * specific signal and must resolve first, so it is set lower.
+ */
+const MAX_VERIFICATION_ATTEMPTS = 2;
+
+/**
+ * Consecutive empty model responses before the run is failed. A provider that
+ * streams nothing is broken, and without a bound the loop would spin forever
+ * now that there is no iteration cap.
+ */
+const MAX_EMPTY_RESPONSES = 3;
 
 /**
  * HTTP timeout for OpenAI-compatible completions. Without this, a hung
@@ -222,8 +242,19 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   await emitTaskEvent(taskId, 'task_status', { status: 'running' });
 
   const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
-  const ctx = createToolContext(taskId, mode, projectPath);
-  const toolSchemas = schemasForMode(mode);
+  const ctx = createToolContext(taskId, userId, mode, projectPath);
+  // MCP tools are enumerated once, here, so the model sees a stable tool set for
+  // the whole run. A server that fails to connect does NOT fail the run: the
+  // error is surfaced as a tool_result-shaped event so a silently missing tool
+  // never looks like a tool the model simply chose not to call.
+  const { schemas: toolSchemas, mcpErrors } = await schemasForRun(mode, userId);
+  for (const mcpError of mcpErrors) {
+    await emitTaskEvent(taskId, 'tool_result', {
+      name: `mcp:${mcpError.serverLabel}`,
+      ok: false,
+      error: `MCP server unavailable: ${mcpError.message}`.slice(0, 500),
+    });
+  }
 
   // Detected language from the user's first message.
   const detectedLanguage = detectLanguage(goal);
@@ -421,7 +452,8 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   interface TodoItem { id: string; description: string; status: 'pending' | 'in_progress' | 'done'; }
   let todoItems: TodoItem[] = [];
   let verificationAttempts = 0;
-  const MAX_VERIFICATION_ATTEMPTS = 3;
+  // Reset on any non-empty response; see MAX_EMPTY_RESPONSES.
+  let consecutiveEmptyResponses = 0;
 
   // Execution evidence — deterministic system signals for truth-based verification.
   // This is the ONLY source verification trusts. Model self-reporting (todo status)
@@ -573,16 +605,142 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
     return { ok: missing.length === 0, missing };
   };
 
+  /* ---------------------------------------------------------------- */
+  /*  Shared tool-call handling (AGENTS.md rule 1)                      */
+  /*                                                                    */
+  /*  Both the native tool-calling path and the <action> fallback path   */
+  /*  used to carry their own copy of this: evidence recording,          */
+  /*  file_activity emission, and read counting. They had already        */
+  /*  diverged — the fallback hand-rolled an if/else for read counting   */
+  /*  instead of calling nextConsecutiveReads(), and never ran           */
+  /*  readOnlyLoopDetected() at all, so on models without function       */
+  /*  calling the read-only loop guard silently did not exist.           */
+  /*                                                                    */
+  /*  One implementation, two callers.                                   */
+  /* ---------------------------------------------------------------- */
+
+  /** Record deterministic evidence for one completed tool call. */
+  const recordToolEvidence = async (
+    toolName: string,
+    args: Record<string, any>,
+    obs: string,
+  ): Promise<void> => {
+    const toolOk = !obs.startsWith('Error:');
+    executionEvidence.toolCalls.push({ name: toolName, ok: toolOk, ts: Date.now() });
+
+    if (toolName === 'file_write' || toolName === 'file_edit') {
+      executionEvidence.filesModified.add(String(args.path || ''));
+    }
+    if (toolName === 'code_execute') {
+      const exitMatch = obs.match(/^exit=(\d+)/m);
+      executionEvidence.codeExecutions.push({
+        exitCode: exitMatch ? parseInt(exitMatch[1], 10) : -1,
+        ts: Date.now(),
+      });
+    }
+    if (!toolOk) {
+      executionEvidence.errors.push(`${toolName}: ${obs.slice(0, 200)}`);
+    }
+
+    // Live file activity for the UI.
+    if (toolOk && (toolName === 'file_write' || toolName === 'file_edit' || toolName === 'file_list')) {
+      const actionType =
+        toolName === 'file_write' ? 'created' : toolName === 'file_edit' ? 'edited' : 'listed';
+      await emitTaskEvent(taskId, 'file_activity', {
+        action: actionType,
+        path: String(args.path || ''),
+        ts: Date.now(),
+      }).catch(() => {});
+    }
+
+    // Read-vs-write tracking. Classification lives in ./guards.
+    if (mode === 'build') {
+      consecutiveReads = nextConsecutiveReads(consecutiveReads, toolName);
+    }
+  };
+
+  /**
+   * Nudge when the agent keeps inspecting without acting. Called once per
+   * iteration after that iteration's tool calls are recorded.
+   */
+  const checkReadOnlyLoop = async (): Promise<void> => {
+    if (mode !== 'build' || !readOnlyLoopDetected(consecutiveReads)) return;
+    await emitTaskEvent(taskId, 'verification', {
+      status: 'fail',
+      attempt: 0,
+      message: `Agent performed ${consecutiveReads} consecutive read operations without writing or executing. Nudging to act.`,
+    });
+    messages.push({ role: 'system', content: readOnlyLoopNudge(consecutiveReads) });
+    consecutiveReads = 0; // avoid repeated nudges
+  };
+
+  /**
+   * The task_complete gate, shared by both paths.
+   *
+   * Returns 'complete' when the run may finish, 'retry' when the agent has been
+   * told what to fix and the loop should continue, or 'failed' when the run has
+   * already been failed and the caller must return.
+   */
+  const evaluateCompletion = async (summary: string): Promise<'complete' | 'retry' | 'failed'> => {
+    if (mode === 'build' && todoItems.length > 0) {
+      const verified = await verifyWithEvidence();
+      if (!verified) {
+        if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+          await failRun(
+            taskId,
+            `Verification failed after ${MAX_VERIFICATION_ATTEMPTS} attempts. ` +
+              `Incomplete items remain or system evidence contradicts completion claims. ` +
+              `Task terminated — no fake completion allowed.`,
+          );
+          return 'failed';
+        }
+        const incomplete = todoItems.filter((i) => i.status !== 'done');
+        messages.push({
+          role: 'system',
+          content:
+            `VERIFICATION FAILED — cannot complete yet. ` +
+            `${incomplete.length} item(s) still incomplete: ${incomplete
+              .map((i) => `[${i.id}] ${i.description} (${i.status})`)
+              .join('; ')}. ` +
+            `Tool evidence: ${executionEvidence.toolCalls.length} calls, ` +
+            `${executionEvidence.toolCalls.filter((t) => !t.ok).length} failures. ` +
+            `Fix issues, update todo list, then call task_complete again.`,
+        });
+        return 'retry';
+      }
+    }
+
+    const sectionCheck = validateSummarySections(summary);
+    if (!sectionCheck.ok) {
+      if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+        await failRun(
+          taskId,
+          `Summary validation failed after ${MAX_VERIFICATION_ATTEMPTS} attempts. ` +
+            `Missing sections: ${sectionCheck.missing.join(', ')}. ` +
+            `Task terminated — incomplete engineering memory.`,
+        );
+        return 'failed';
+      }
+      verificationAttempts++;
+      messages.push({
+        role: 'system',
+        content:
+          `SUMMARY INCOMPLETE — your task_complete summary is missing mandatory sections: ${sectionCheck.missing.join(', ')}. ` +
+          `Your summary MUST include: assumptions made, decisions taken, issues found, workarounds used. ` +
+          `Rewrite the summary with all sections included, then call task_complete again.`,
+      });
+      return 'retry';
+    }
+
+    return 'complete';
+  };
+
   try {
     while (true) {
       iterationCount++;
-      if (iterationCount > HARD_SAFETY_CAP) {
-        await failRun(
-          taskId,
-          `Agent exceeded hard iteration limit (${HARD_SAFETY_CAP}). This usually indicates the agent is stuck without making forward progress.`,
-        );
-        return;
-      }
+      // No numeric cap here by design (AGENTS.md §12) — see the comment on
+      // STAGNATION_THRESHOLD. Termination is semantic: stagnation detection,
+      // verification limits, and credit exhaustion.
 
       const usage = await emitContextUsage();
       if (shouldCompact(usage.percentage, model.autoCompactThreshold)) {
@@ -687,52 +845,9 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         }
         if (action.tool === 'task_complete') {
           const summary = String(action.args.summary || textBuf || 'Done.');
-          // Completion gate: verify with system truth (build mode, todos exist).
-          if (mode === 'build' && todoItems.length > 0) {
-            const verified = await verifyWithEvidence();
-            if (!verified) {
-              if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-                // FAIL the task — never force-complete with unverified work.
-                await failRun(
-                  taskId,
-                  `Verification failed after ${MAX_VERIFICATION_ATTEMPTS} attempts. ` +
-                  `Incomplete items remain or system evidence contradicts completion claims. ` +
-                  `Task terminated — no fake completion allowed.`,
-                );
-                return;
-              }
-              const incomplete = todoItems.filter((i) => i.status !== 'done');
-              messages.push({
-                role: 'user',
-                content: `VERIFICATION FAILED — cannot complete yet. ` +
-                  `${incomplete.length} item(s) still incomplete: ${incomplete.map((i) => `[${i.id}] ${i.description} (${i.status})`).join('; ')}. ` +
-                  `Tool evidence: ${executionEvidence.toolCalls.length} calls, ` +
-                  `${executionEvidence.toolCalls.filter((t) => !t.ok).length} failures. ` +
-                  `Fix issues, update todo list, then call task_complete again.`,
-              });
-              continue;
-            }
-          }
-          // Validate summary includes mandatory engineering memory sections.
-          const fbSectionCheck = validateSummarySections(summary);
-          if (!fbSectionCheck.ok) {
-            if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-              await failRun(
-                taskId,
-                `Summary validation failed after ${MAX_VERIFICATION_ATTEMPTS} attempts. ` +
-                `Missing sections: ${fbSectionCheck.missing.join(', ')}. ` +
-                `Task terminated — incomplete engineering memory.`,
-              );
-              return;
-            }
-            messages.push({
-              role: 'user',
-              content: `SUMMARY INCOMPLETE — your task_complete summary is missing mandatory sections: ${fbSectionCheck.missing.join(', ')}. ` +
-                `Your summary MUST include: assumptions made, decisions taken, issues found, workarounds used. ` +
-                `Rewrite the summary with all sections included, then call task_complete again.`,
-            });
-            continue;
-          }
+          const verdict = await evaluateCompletion(summary);
+          if (verdict === 'failed') return;
+          if (verdict === 'retry') continue;
           await finalizeComplete(taskId, userId, mode, summary, planBuffer, action.args.memory_candidates);
           return;
         }
@@ -759,36 +874,9 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         const obs = await safeExecute(taskId, action.tool, action.args, ctx);
         messages.push({ role: 'user', content: `Observation:\n${obs}` });
 
-        // Record execution evidence for truth-based verification.
-        const toolOk = !obs.startsWith('Error:');
-        executionEvidence.toolCalls.push({ name: action.tool, ok: toolOk, ts: Date.now() });
-        if (action.tool === 'file_write' || action.tool === 'file_edit') {
-          executionEvidence.filesModified.add(String(action.args.path || ''));
-        }
-        if (action.tool === 'code_execute') {
-          const exitMatch = obs.match(/^exit=(\d+)/m);
-          const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : -1;
-          executionEvidence.codeExecutions.push({ exitCode, ts: Date.now() });
-        }
-        if (!toolOk) {
-          executionEvidence.errors.push(`${action.tool}: ${obs.slice(0, 200)}`);
-        }
-
-        // Emit live file activity events for the UI.
-        if (toolOk && (action.tool === 'file_write' || action.tool === 'file_edit' || action.tool === 'file_list')) {
-          const filePath = String(action.args.path || '');
-          const actionType = action.tool === 'file_write' ? 'created' : action.tool === 'file_edit' ? 'edited' : 'listed';
-          await emitTaskEvent(taskId, 'file_activity', { action: actionType, path: filePath, ts: Date.now() }).catch(() => {});
-        }
-
-        // Track read vs write for read-only loop detection (fallback path).
-        if (mode === 'build') {
-          if (action.tool === 'file_read' || action.tool === 'file_list') {
-            consecutiveReads++;
-          } else if (action.tool === 'file_write' || action.tool === 'file_edit' || action.tool === 'code_execute') {
-            consecutiveReads = 0;
-          }
-        }
+        // Evidence, file_activity and read counting — shared with the native path.
+        await recordToolEvidence(action.tool, action.args, obs);
+        await checkReadOnlyLoop();
 
         const sig = computeToolSignature([{ name: action.tool, arguments: JSON.stringify(action.args) }]);
         if (await checkStagnation(sig)) return;
@@ -813,56 +901,12 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           const args = parseArgs(call.arguments);
           if (call.name === 'task_complete') {
             const summary = String(args.summary || textBuf || 'Done.');
-            // Completion gate: verify with system truth (build mode, todos exist).
-            if (mode === 'build' && todoItems.length > 0) {
-              const verified = await verifyWithEvidence();
-              if (!verified) {
-                messages.push({ role: 'tool', tool_call_id: call.id, content: 'completed' });
-                if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-                  // FAIL the task — never force-complete with unverified work.
-                  await failRun(
-                    taskId,
-                    `Verification failed after ${MAX_VERIFICATION_ATTEMPTS} attempts. ` +
-                    `Incomplete items remain or system evidence contradicts completion claims. ` +
-                    `Task terminated — no fake completion allowed.`,
-                  );
-                  return;
-                }
-                // Tell the agent what's incomplete so it can fix it.
-                const incomplete = todoItems.filter((i) => i.status !== 'done');
-                messages.push({
-                  role: 'system',
-                  content: `VERIFICATION FAILED — cannot complete yet. ` +
-                    `${incomplete.length} item(s) still incomplete: ${incomplete.map((i) => `[${i.id}] ${i.description} (${i.status})`).join('; ')}. ` +
-                    `Tool evidence: ${executionEvidence.toolCalls.length} calls, ` +
-                    `${executionEvidence.toolCalls.filter((t) => !t.ok).length} failures. ` +
-                    `Fix issues, update todo list, then call task_complete again.`,
-                });
-                continue; // back to while loop — agent must fix issues
-              }
-            }
-            // Validate summary includes mandatory engineering memory sections.
-            const sectionCheck = validateSummarySections(summary);
-            if (!sectionCheck.ok) {
-              messages.push({ role: 'tool', tool_call_id: call.id, content: 'completed' });
-              if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
-                await failRun(
-                  taskId,
-                  `Summary validation failed after ${MAX_VERIFICATION_ATTEMPTS} attempts. ` +
-                  `Missing sections: ${sectionCheck.missing.join(', ')}. ` +
-                  `Task terminated — incomplete engineering memory.`,
-                );
-                return;
-              }
-              messages.push({
-                role: 'system',
-                content: `SUMMARY INCOMPLETE — your task_complete summary is missing mandatory sections: ${sectionCheck.missing.join(', ')}. ` +
-                  `Your summary MUST include: assumptions made, decisions taken, issues found, workarounds used. ` +
-                  `Rewrite the summary with all sections included, then call task_complete again.`,
-              });
-              continue;
-            }
+            // The tool result is acknowledged either way: the protocol requires a
+            // reply for every tool_call id, even when the gate sends us back.
             messages.push({ role: 'tool', tool_call_id: call.id, content: 'completed' });
+            const verdict = await evaluateCompletion(summary);
+            if (verdict === 'failed') return;
+            if (verdict === 'retry') continue; // back to the model with the reason
             await finalizeComplete(taskId, userId, mode, summary, planBuffer, args.memory_candidates);
             return;
           }
@@ -887,44 +931,11 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           const obs = await safeExecute(taskId, call.name, args, ctx);
           messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
 
-          // Record execution evidence for truth-based verification.
-          const toolOk = !obs.startsWith('Error:');
-          executionEvidence.toolCalls.push({ name: call.name, ok: toolOk, ts: Date.now() });
-          if (call.name === 'file_write' || call.name === 'file_edit') {
-            executionEvidence.filesModified.add(String(args.path || ''));
-          }
-          if (call.name === 'code_execute') {
-            const exitMatch = obs.match(/^exit=(\d+)/m);
-            const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : -1;
-            executionEvidence.codeExecutions.push({ exitCode, ts: Date.now() });
-          }
-          if (!toolOk) {
-            executionEvidence.errors.push(`${call.name}: ${obs.slice(0, 200)}`);
-          }
-
-          // Emit live file activity events for the UI.
-          if (toolOk && (call.name === 'file_write' || call.name === 'file_edit' || call.name === 'file_list')) {
-            const filePath = String(args.path || '');
-            const action = call.name === 'file_write' ? 'created' : call.name === 'file_edit' ? 'edited' : 'listed';
-            await emitTaskEvent(taskId, 'file_activity', { action, path: filePath, ts: Date.now() }).catch(() => {});
-          }
-
-          // Track read vs write actions for read-only loop detection in build mode.
-          if (mode === 'build') {
-            consecutiveReads = nextConsecutiveReads(consecutiveReads, call.name);
-          }
+          // Evidence, file_activity and read counting — shared with the fallback path.
+          await recordToolEvidence(call.name, args, obs);
         }
 
-        // Read-only loop detection: agent keeps reading without acting in build mode.
-        if (mode === 'build' && readOnlyLoopDetected(consecutiveReads)) {
-          await emitTaskEvent(taskId, 'verification', {
-            status: 'fail',
-            attempt: 0,
-            message: `Agent performed ${consecutiveReads} consecutive read operations without writing or executing. Nudging to act.`,
-          });
-          messages.push({ role: 'system', content: readOnlyLoopNudge(consecutiveReads) });
-          consecutiveReads = 0; // Reset to avoid repeated nudges
-        }
+        await checkReadOnlyLoop();
 
         const sig = computeToolSignature(calls);
         if (await checkStagnation(sig)) return;
@@ -1004,7 +1015,18 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer);
         return;
       }
-      // Empty response (flaky provider) — loop again, bounded by HARD_SAFETY_CAP.
+      // Empty response (flaky provider). This is non-progress, so it is bounded
+      // semantically rather than by an iteration cap: a provider that returns
+      // nothing repeatedly is broken, not thorough.
+      consecutiveEmptyResponses++;
+      if (consecutiveEmptyResponses >= MAX_EMPTY_RESPONSES) {
+        await failRun(
+          taskId,
+          `The model returned ${consecutiveEmptyResponses} empty responses in a row. ` +
+            `This usually means the provider or model is misconfigured.`,
+        );
+        return;
+      }
     }
   } catch (err: any) {
     const info = classifyModelError(err);

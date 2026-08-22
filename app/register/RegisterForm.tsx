@@ -45,34 +45,34 @@ export default function RegisterPage() {
     <div className="flex min-h-screen flex-col items-center justify-center p-4">
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold tracking-tight text-indigo-400">Xeo Forge</h1>
-          <p className="mt-1 text-sm text-content-secondary">Autonomous AI Agent Platform</p>
+          <p className="mt-1 text-ui text-content-secondary">Autonomous AI Agent Platform</p>
         </div>
       <Card className="w-full max-w-sm">
         <form onSubmit={onSubmit} className="space-y-3">
           <div>
-            <label className="mb-1 block text-xs text-content-secondary">Name</label>
+            <label className="mb-1 block text-meta text-content-secondary">Name</label>
             <input
               type="text"
               required
               autoComplete="name"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-ui outline-none focus:border-indigo-500"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-content-secondary">Email</label>
+            <label className="mb-1 block text-meta text-content-secondary">Email</label>
             <input
               type="email"
               required
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-ui outline-none focus:border-indigo-500"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs text-content-secondary">Password</label>
+            <label className="mb-1 block text-meta text-content-secondary">Password</label>
             <input
               type="password"
               required
@@ -80,16 +80,16 @@ export default function RegisterPage() {
               autoComplete="new-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-sm outline-none focus:border-indigo-500"
+              className="w-full rounded-md border border-white/15 bg-black/30 px-3 py-2 text-ui outline-none focus:border-indigo-500"
             />
             <p className="mt-1 text-meta text-content-muted">At least 8 characters.</p>
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && <p className="text-ui text-red-400">{error}</p>}
           <Button type="submit" disabled={loading} className="w-full">
             {loading ? 'Creating account...' : 'Create account'}
           </Button>
         </form>
-        <p className="mt-4 text-center text-sm text-content-secondary">
+        <p className="mt-4 text-center text-ui text-content-secondary">
           Already have an account?{' '}
           <Link href="/login" className="text-indigo-400 hover:text-indigo-300">
             Sign in

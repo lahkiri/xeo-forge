@@ -110,7 +110,7 @@ export default function AppShell({
       <header className="sticky top-0 z-30 flex h-header shrink-0 items-center gap-3 border-b border-line-subtle bg-ink-900/92 px-3 backdrop-blur-xl sm:px-4">
         <Link href="/chat" className="flex shrink-0 items-center gap-2.5" aria-label="Xeo Forge">
           <span className="brand-mark h-7 w-7 rounded-control" aria-hidden="true"><span /></span>
-          <span className="hidden text-sm font-semibold tracking-tight text-white sm:block">Xeo Forge</span>
+          <span className="hidden text-ui font-semibold tracking-tight text-content-primary sm:block">Xeo Forge</span>
         </Link>
 
         <nav aria-label="Surfaces" className="flex min-w-0 items-center gap-0.5">
@@ -124,7 +124,7 @@ export default function AppShell({
                 title={item.hint}
                 className={cx(
                   'inline-flex h-8 items-center rounded-control px-2.5 text-ui font-medium transition',
-                  active ? 'bg-ink-600 text-white' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
+                  active ? 'bg-ink-600 text-content-primary' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
                 )}
               >
                 {item.label}
@@ -233,7 +233,7 @@ export default function AppShell({
             {(title || subtitle) && (
               <div className="mb-6">
                 <p className="text-micro font-semibold uppercase tracking-[0.22em] text-signal-run/75">{eyebrow}</p>
-                {title && <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-white sm:text-2xl">{title}</h1>}
+                {title && <h1 className="mt-1.5 text-display font-semibold tracking-tight text-content-primary sm:text-display">{title}</h1>}
                 {subtitle && <p className="mt-1.5 max-w-2xl text-body leading-6 text-content-muted">{subtitle}</p>}
               </div>
             )}

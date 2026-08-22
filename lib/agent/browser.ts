@@ -1,7 +1,16 @@
 export type BrowserAction = 'state' | 'read_page' | 'screenshot' | 'navigate' | 'click' | 'type';
 
 const READ_ACTIONS = new Set<BrowserAction>(['state', 'read_page', 'screenshot']);
-const SENSITIVE_ACTIONS = new Set<BrowserAction>(['click', 'type']);
+
+/**
+ * Actions that require sensitive-action permission AND per-call confirmation.
+ *
+ * `navigate` is included: it drives the user's real, logged-in browser to an
+ * arbitrary URL. That is a state change on the world — it can trip GET-based
+ * side effects, consume one-time links, or leave the browser somewhere the user
+ * did not choose. The domain allowlist alone is not consent to move the tab.
+ */
+const SENSITIVE_ACTIONS = new Set<BrowserAction>(['navigate', 'click', 'type']);
 
 type BrowserPolicy = {
   interactionEnabled?: boolean;

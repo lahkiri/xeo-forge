@@ -24,7 +24,7 @@ data/
 .env.local
 .env*.local
 
-# Task workspaces (agent sandboxes)
+# Per-task agent workspaces
 /tmp/xeo-tasks/
 
 # Test artifacts

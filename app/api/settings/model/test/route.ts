@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { z } from 'zod';
-import { requireUser } from '@/lib/auth/guard';
+import { requireUser, requireAdmin } from '@/lib/auth/guard';
 import { isDesktopLocalMode } from '@/lib/auth/session';
 import { normalizeBaseUrl, resolveModel } from '@/lib/model/config';
 import { classifyModelError, publicModelErrorMessage } from '@/lib/model/errors';
+import { rateLimit, RATE_LIMITS } from '../../../_lib/ratelimit';
+import type { AuthUser } from '@/lib/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,8 +17,14 @@ const TestSchema = z.object({
   apiKey: z.string().min(1).optional(),
 });
 
-function assertLocalSettings(): void {
-  if (!isDesktopLocalMode()) throw new Error('Local settings are unavailable in Web SaaS mode.');
+/**
+ * Hosted mode shares ONE global model, so testing it is an admin action; the
+ * desktop shell has a single implicit owner. This route used to 404 outside
+ * local mode, which left web users unable to validate a provider at all.
+ */
+async function authorizeModelTest(): Promise<AuthUser> {
+  if (isDesktopLocalMode()) return requireUser();
+  return requireAdmin();
 }
 
 function statusFor(kind: ReturnType<typeof classifyModelError>['kind']): number {
@@ -33,8 +41,21 @@ export async function POST(req: NextRequest) {
   let testedBaseUrl = '';
   let testedModelId = 'model';
   try {
-    assertLocalSettings();
-    await requireUser();
+    const tester = await authorizeModelTest();
+    // Each call is an outbound completion against a third-party provider, billed
+    // to whoever owns the key. Throttled per tester so a stuck "Test" button or
+    // a scripted client cannot turn this route into a spend amplifier.
+    const limited = rateLimit(
+      `modelTest:${tester.id}`,
+      RATE_LIMITS.modelTest.limit,
+      RATE_LIMITS.modelTest.windowMs,
+    );
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: 'Too many provider tests. Please wait before testing again.' },
+        { status: 429, headers: { 'Retry-After': String(limited.retryAfterSec) } },
+      );
+    }
     const parsed = TestSchema.safeParse(await req.json());
     if (!parsed.success) {
       return NextResponse.json({ error: 'A valid base URL and model ID are required.' }, { status: 400 });

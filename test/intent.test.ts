@@ -50,3 +50,70 @@ describe('Work intent router', () => {
     expect(Number.isNaN(Date.parse(brief.created_at))).toBe(false);
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  Language parity.                                                   */
+/*                                                                     */
+/*  detectLanguage() in loop.ts advertises en/ar/zh/ru/fr. The router   */
+/*  must classify action and planning language in all five, or Work     */
+/*  silently declines to act on a direct request in three of them.      */
+/*                                                                     */
+/*  The zh cases are the regression lock for a specific dead pattern:   */
+/*  `完成` used to sit inside a `\b`-anchored English alternation, where */
+/*  it could only ever match beside ASCII. Verified before the fix —    */
+/*  /\b完成\b/.test('完成项目的构建') was false.                          */
+/* ------------------------------------------------------------------ */
+
+describe('the router covers every language detectLanguage advertises', () => {
+  const directCases: Array<[string, string]> = [
+    ['en', 'Fix the project build and update the code'],
+    ['ar', 'نفّذ إصلاح الكود في المشروع'],
+    ['zh', '实现这个功能修改代码'],
+    ['zh (完成, the formerly dead pattern)', '完成项目的构建'],
+    ['ru', 'исправь код в проекте'],
+    ['fr', 'corrige le code du projet'],
+  ];
+
+  it.each(directCases)('treats a direct %s request as an execution decision', (_lang, input) => {
+    const result = classifyWorkIntent(input);
+    expect(result.kind).toBe('direct_execution');
+    expect(result.reason).toBe('explicit_execution_language');
+    // Never silent execution: the user always gets the choice.
+    expect(result.options).toEqual(['direct', 'plan']);
+  });
+
+  const planCases: Array<[string, string]> = [
+    ['en', 'Draft a plan for the settings page first'],
+    ['ar', 'خطط أولًا لبناء صفحة إعدادات للمشروع'],
+    ['zh', '先规划一下这个项目'],
+    ['ru', 'сначала спланируй проект'],
+    ['fr', "planifie d'abord le projet"],
+  ];
+
+  it.each(planCases)('routes an explicit %s planning request to planning', (_lang, input) => {
+    const result = classifyWorkIntent(input);
+    expect(result.kind).toBe('explicit_plan');
+    expect(modeForIntent(result.kind)).toBe('planning');
+  });
+
+  const conversationCases: Array<[string, string]> = [
+    ['en', 'What does this project do?'],
+    ['ar', 'ما رأيك في شكل هذه الواجهة؟'],
+    ['zh', '这个项目是做什么的吗'],
+    ['ru', 'что делает этот проект'],
+    ['fr', 'que fait ce projet'],
+  ];
+
+  it.each(conversationCases)('keeps an ordinary %s question conversational', (_lang, input) => {
+    const result = classifyWorkIntent(input);
+    expect(result.kind).toBe('conversation');
+    expect(result.reason).toBe('ordinary_message');
+  });
+
+  it('does not rely on word boundaries for scripts that have none', () => {
+    // A CJK-only string with no ASCII anywhere is the case a \b-anchored
+    // alternation cannot see. If this regresses, the pattern was re-anchored.
+    const result = classifyWorkIntent('修改这个文件');
+    expect(result.kind).toBe('direct_execution');
+  });
+});
