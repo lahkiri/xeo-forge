@@ -805,15 +805,6 @@ export function getPreviewStatus(taskId: string) {
   };
 }
 
-export function getAllPreviews() {
-  return Array.from(running.values()).map((p) => ({
-    taskId: p.taskId, type: p.type, port: p.port,
-    startedAt: p.startedAt, expiresAt: p.expiresAt,
-    strategy: p.strategy,
-    readiness: p.readiness,
-  }));
-}
-
 /**
  * Returns the loopback port for a running, verified-ready preview, or null.
  * Used ONLY by the same-origin proxy route so the user's browser can reach

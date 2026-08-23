@@ -40,7 +40,9 @@ import {
   buildModePreamble,
 } from './prompts';
 import { createToolContext, executeTool, schemasForRun } from './tools';
+import { killSessionsForTask } from './terminal';
 import { isArchive } from './uploads';
+import { GIT_READ_OPS, isGitOp } from './git';
 import { CREDITS_PER_TOOL_CALL } from '../credits/pricing';
 import { computeContextUsage, shouldCompact, type ContextUsage } from './context';
 import { attachAssistantReasoning } from './message-normalize';
@@ -926,6 +928,50 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         // the stagnation fingerprint so same-call/different-result iterations
         // (a converging test-fix loop) do not register as stagnation.
         const iterationObservations: string[] = [];
+
+        /* ── Parallel read-only batch ──────────────────────────────────
+         * Frontier models batch several inspections per turn (read these 5
+         * files, then git status). Sequential execution of read-only calls is
+         * pure wall-clock loss. Partition this turn's calls: when ALL
+         * non-special calls are parallel-safe reads and there are ≥2 of them,
+         * debit credits in order, emit every tool_call event in order, run
+         * the reads concurrently (bounded), then emit results in CALL order —
+         * the audit stream stays deterministic and the messages array keeps
+         // * its per-id pairing, whatever order the reads complete in.
+         * Mixed batches (reads + writes) stay sequential: correctness of the
+         * write ordering against the reads the model just requested is not
+         * ours to guess.
+         * ─────────────────────────────────────────────────────────────── */
+        const allParallelSafe =
+          calls.length >= 2 &&
+          calls.every((c) => isParallelSafeRead(c.name, parseArgs(c.arguments)));
+
+        if (allParallelSafe) {
+          for (const call of calls) {
+            await emitTaskEvent(taskId, 'tool_call', { name: call.name, args: parseArgs(call.arguments) });
+            const ok = await debitForTool();
+            if (!ok) {
+              await failRun(taskId, 'Out of credits during execution.');
+              return;
+            }
+          }
+          const batch = calls.slice(0, MAX_PARALLEL_READS);
+          const observations = await Promise.all(
+            batch.map((call) => executeReadSilently(taskId, call.name, parseArgs(call.arguments), ctx)),
+          );
+          // Extra calls past the cap run sequentially after the batch.
+          for (const call of calls.slice(MAX_PARALLEL_READS)) {
+            observations.push(await executeReadSilently(taskId, call.name, parseArgs(call.arguments), ctx));
+          }
+          for (let i = 0; i < calls.length; i++) {
+            const call = calls[i];
+            const obs = observations[i];
+            messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
+            iterationObservations.push(obs);
+            await emitTaskEvent(taskId, 'tool_result', { name: call.name, ok: !obs.startsWith('Error:'), result: obs });
+            await recordToolEvidence(call.name, parseArgs(call.arguments), obs);
+          }
+        } else {
         for (const call of calls) {
           const args = parseArgs(call.arguments);
           if (call.name === 'task_complete') {
@@ -964,6 +1010,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
           // Evidence, file_activity and read counting — shared with the fallback path.
           await recordToolEvidence(call.name, args, obs);
+        }
         }
 
         await checkReadOnlyLoop();
@@ -1075,6 +1122,58 @@ function withFallbackPrompt(messages: ChatCompletionMessageParam[]): ChatComplet
     copy[0] = { role: 'system', content: `${copy[0].content}\n\n${FALLBACK_TOOL_INSTRUCTIONS}` };
   }
   return copy;
+}
+
+/**
+ * The maximum number of read-only tool calls executed CONCURRENTLY when the
+ * model asks for several in one turn. Native tool-calling frontiers routinely
+ * batch 4-8 file reads; running them sequentially is pure wall-clock loss.
+ * Six covers the common batches while bounding concurrent file descriptors
+ * and DB event writes.
+ */
+const MAX_PARALLEL_READS = 6;
+
+/**
+ * A tool call that is safe to run concurrently with its siblings: it only
+ * READS (workspace files, repository state) and cannot mutate the workspace,
+ * the task, or anything outside it. Anything stateful, mutating, external,
+ * or write-capable-by-unknown-effect (MCP) stays sequential.
+ *
+ * Deliberately conservative: file_read/file_list and the four git READ ops.
+ * http_request mutates external services on non-GET verbs; browser touches
+ * the user's live session; todo_update/task_complete mutate run state.
+ */
+function isParallelSafeRead(name: string, args: Record<string, any> | undefined): boolean {
+  if (name === 'file_read' || name === 'file_list') return true;
+  if (name === 'git_op' && args && isGitOp(args.op)) return GIT_READ_OPS.has(args.op);
+  return false;
+}
+
+/**
+ * Run one read-only tool WITHOUT emitting its tool_result event — the
+ * parallel batch emits results in deterministic call order after all
+ * complete, so the audit stream stays ordered (call, call, … result, result)
+ * instead of interleaving by completion time. Errors are shaped exactly like
+ * safeExecute's so the model sees an identical observation either way.
+ */
+async function executeReadSilently(
+  taskId: string,
+  name: string,
+  args: Record<string, any>,
+  ctx: ReturnType<typeof createToolContext>,
+): Promise<string> {
+  try {
+    return await executeTool(name, args, ctx);
+  } catch (err: any) {
+    const raw = err?.message ? String(err.message) : 'tool error';
+    const message = raw
+      .replace(/\/[\w/.-]+/g, '<path>')
+      .replace(/(?:^|\s)(\.\.?\/[^\s]+)/g, ' <relpath>')
+      .replace(/(?:EPERM|EACCES|ENOENT|EISDIR|ENOTDIR)/g, '<error>')
+      .slice(0, 500);
+    console.error(`[agent] tool ${name} failed task=${taskId}:`, err);
+    return `Error: ${message}`;
+  }
 }
 
 async function safeExecute(
@@ -1206,6 +1305,14 @@ async function finalizeComplete(
   const memoryCount = await persistMemoryCandidates(userId, taskId, mode, memoryCandidates);
   await emitTaskEvent(taskId, 'task_status', { status: 'completed', memory_proposals: memoryCount });
   await emitTaskEvent(taskId, 'done', { status: 'completed', summary, memory_proposals: memoryCount });
+  // Same contract as failRun: a completed build must not leave a live shell.
+  // Planning runs are excluded — they are non-terminal ('planned') and the
+  // user is expected to keep working while reviewing the plan.
+  try {
+    killSessionsForTask(taskId);
+  } catch (err) {
+    console.warn(`[agent] terminal cleanup after completion failed for task=${taskId}:`, err);
+  }
   return true;
 }
 
@@ -1213,5 +1320,14 @@ async function failRun(taskId: string, error: string): Promise<void> {
   await updateTaskStatus(taskId, 'failed', { error });
   await emitTaskEvent(taskId, 'error', { message: error });
   await emitTaskEvent(taskId, 'done', { status: 'failed' });
+  // The task is in a terminal state: any terminal session it still owns is
+  // now unattended. killSessionsForTask() enforces the documented contract
+  // that was never wired — a finished run must not leave a live shell behind
+  // (the user may reopen one deliberately; that is their decision, not ours).
+  try {
+    killSessionsForTask(taskId);
+  } catch (err) {
+    console.warn(`[agent] terminal cleanup after failure failed for task=${taskId}:`, err);
+  }
 }
 

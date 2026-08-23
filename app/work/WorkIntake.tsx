@@ -162,6 +162,25 @@ export default function WorkIntake({
             Work inspects your project read-only and produces a plan. Nothing is written until you approve it.
           </p>
 
+          {/* Capability strip — the product's contract, stated where every run
+              begins. Each chip is a real capability wired end-to-end; the strip
+              is what separates a governed forge from a blank chat box. */}
+          <div className="mt-5 flex flex-wrap gap-1.5" aria-label="Agent capabilities">
+            {[
+              'Files', 'Git', 'Terminal', 'Diff review', 'MCP tools', 'Preview', 'Browser',
+            ].map((cap) => (
+              <span
+                key={cap}
+                className="rounded-full border border-line-subtle bg-ink-900/70 px-2.5 py-1 text-micro text-content-muted"
+              >
+                {cap}
+              </span>
+            ))}
+            <span className="rounded-full border border-signal-pass/25 bg-signal-pass/[0.06] px-2.5 py-1 text-micro text-signal-pass">
+              Every write behind your approval
+            </span>
+          </div>
+
           <div className="mt-7 rounded-panel border border-line bg-ink-900/60 transition focus-within:border-signal-plan/40 focus-within:ring-4 focus-within:ring-violet-300/[0.07]">
             <textarea
               ref={composerRef}

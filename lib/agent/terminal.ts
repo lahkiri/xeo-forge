@@ -442,16 +442,6 @@ export function reapIdleSessions(now = Date.now()): number {
   return killed;
 }
 
-/** Test/shutdown helper: drop everything. */
-export function killAllSessions(): number {
-  let killed = 0;
-  for (const [id, entry] of [...sessions.entries()]) {
-    forceKill(entry);
-    sessions.delete(id);
-    killed += 1;
-  }
-  return killed;
-}
 
 /** Serializable view for API responses. */
 export function describeSession(session: TerminalSession): {
