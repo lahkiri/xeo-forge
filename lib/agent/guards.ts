@@ -90,16 +90,23 @@ export type GuardProfileName = keyof typeof GUARD_PROFILES;
  * behavior for a strong model — annoying, never unsafe.
  */
 const STRONG_MODEL_PATTERNS: RegExp[] = [
-  /opus/i,                  // Claude Opus, any generation
-  /claude-(sonnet|opus|haiku)-?[4-9][.-]/i, // Claude 4+ flagships (any family)
-  /claude-[4-9][.-]/i,      // Bare "claude-4-…" ids
-  /gpt-?[5-9]/i,            // GPT-5 and later
-  /\bo[1-9]\b|\bo[1-9]-/i,  // OpenAI o-series reasoning models (o1, o3, o4…)
-  /gemini-?\d*\.?[2-9].*pro/i, // Gemini 2+ Pro
-  /deepseek-?(r[v]?\d|v[3-9])/i, // DeepSeek R/V3+ reasoning line
+  // NOTE: matched against ADMIN-CONFIGURED model ids, which age fast — the
+  // frontier reorders roughly monthly (verified 2026-08: GPT-5.6 Sol and
+  // Claude Fable 5 lead SWE-bench; GLM-5.3/Kimi K3/DeepSeek V4 lead the open
+  // weights). Patterns therefore key on GENERATION RANGES, not exact ids, so
+  // next quarter's model still matches without a code change.
+  /opus/i,                      // Claude Opus, any generation
+  /fable/i,                     // Claude Fable line
+  /claude-(sonnet|opus|haiku|fable)-?[4-9]/i, // Claude 4+ flagships
+  /claude-[4-9][.-]/i,          // Bare "claude-4-…" ids
+  /gpt-?[5-9]/i,                // GPT-5 and later (incl. 5.6 Sol)
+  /\bo[1-9]\b|\bo[1-9]-/i,      // OpenAI o-series reasoning models
+  /gemini-?[2-9](\.[0-9]+)?.*pro/i, // Gemini 2+ Pro (incl. 3.1 Pro)
+  /deepseek-?(r[v]?\d|v[3-9])/i,   // DeepSeek R/V3+ reasoning line (V4 included)
   /grok-?[3-9]/i,
-  /glm-?[45]/i,            // Z.ai GLM-4/5 line (frontier-class coding)
-  /kimi-?k?[2-9]/i,        // Moonshot Kimi K2+
+  /glm-?[4-9]/i,                // Z.ai GLM-4 and later (5.3 is frontier-class coding)
+  /kimi-?k?[2-9]/i,             // Moonshot Kimi K2 and later (K3 top of Arena)
+  /qwen-?3\.?[5-9]/i,           // Qwen 3.5+ flagship tiers (3.8-Max era)
 ];
 
 export function guardProfileForModel(modelId: string | null | undefined): GuardProfileName {
