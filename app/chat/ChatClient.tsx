@@ -250,7 +250,7 @@ export default function ChatClient({
   }, [messages, isStreaming, currentRunText]);
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.header))] min-h-0">
+    <div className="flex h-screen min-h-0">
       {/* ── Thread list ── */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-line-subtle md:flex">
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-subtle px-3">

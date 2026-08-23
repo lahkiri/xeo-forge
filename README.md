@@ -53,23 +53,15 @@ Per-release changes now live in [docs/RELEASES.md](docs/RELEASES.md).
 
 ## Product preview
 
-These previews are captured from the running application and represent the governed Workbench, Prompt Studio, and auditable task surface. The current desktop and Browser Profile work extends the same control model into a local installable environment.
+Captured from the running application (v1.15, dark theme — the default instrument look).
 
-| Command center | Prompt Studio |
+| Work intake — every run starts with the contract | Governed workbench — run, review, govern |
 |---|---|
-| ![Xeo Forge command center](docs/screenshots/dashboard-v3.png) | ![Xeo Forge Prompt Studio](docs/screenshots/context-studio-v3.png) |
+| ![Work intake](docs/screenshots/intake-dark-v115.png) | ![Governed workbench](docs/screenshots/workbench-dark-v115.png) |
 
-| Governed run |
-|---|
-| ![Xeo Forge governed run](docs/screenshots/governed-run-v3.png) |
-
-### Product tour
-
-The launch film below is a cinematic product advertisement rather than a UI recording. It expresses the product promise—turning agentic acceleration into visible control—without relying on a live model run or exposing operational error states.
-
-[![Watch the Xeo Forge product tour](docs/screenshots/dashboard-v3.png)](docs/xeo-forge-launch.mp4)
-
-[Download the Xeo Forge launch film](docs/xeo-forge-launch.mp4).
+| Chat surface | Control Center |
+|---|---|
+| ![Chat surface](docs/screenshots/chat-dark-v115.png) | ![Control Center](docs/screenshots/settings-dark-v115.png) |
 
 ## Core workflow
 
