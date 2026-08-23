@@ -63,6 +63,19 @@ import Terminal from '@/components/Terminal';
 
 type CenterTab = 'run' | 'activity' | 'project' | 'preview' | 'context' | 'memory' | 'terminal' | 'diff';
 
+/**
+ * Product language for the deterministic intent kinds. The DB stores the
+ * machine token (conversation / explicit_plan / ...); the UI shows the words
+ * a person would use. Same pattern as STATUS_LABEL in ui.tsx — one mapping,
+ * every surface.
+ */
+const INTENT_LABEL: Record<string, string> = {
+  conversation: 'ordinary conversation',
+  explicit_plan: 'planning requested',
+  direct_execution: 'direct execution',
+  clarification_needed: 'needs your choice',
+};
+
 export default function WorkClient({
   runs,
   task,
@@ -495,10 +508,13 @@ export default function WorkClient({
       <Panel className="flex-1 border-r">
         <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-line-subtle px-3">
           <Tabs items={tabs} active={tab} onChange={(id) => setTab(id as CenterTab)} />
-          <div className="hidden items-center gap-3 lg:flex">
+          <div className="hidden min-w-0 items-center gap-3 lg:flex">
             {/* Clickable stage trail: each stage opens the surface that explains
-                it, so progress is navigation rather than decoration. */}
-            <XeoFlow stages={flowStages} onOpen={openFlowStage} />
+                it, so progress is navigation rather than decoration. Overflow-safe:
+                the trail can shrink (scroll-x) instead of clipping under the tabs. */}
+            <div className="min-w-0 overflow-x-auto">
+              <XeoFlow stages={flowStages} onOpen={openFlowStage} />
+            </div>
           </div>
         </div>
 
@@ -743,7 +759,7 @@ export default function WorkClient({
             <div className="flex flex-wrap items-center gap-1.5">
               <StatusBadge status={status} />
               <Badge tone={task.mode === 'build' ? 'violet' : 'amber'}>{task.mode}</Badge>
-              {task.intent_kind && <Badge tone="gray">{task.intent_kind}</Badge>}
+              {task.intent_kind && <Badge tone="gray">{INTENT_LABEL[task.intent_kind] ?? task.intent_kind}</Badge>}
             </div>
           </div>
 

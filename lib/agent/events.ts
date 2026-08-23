@@ -59,6 +59,16 @@ export function isAgentEventType(value: string): value is AgentEventType {
  *
  * `work` subscribes to everything — it is the supervision surface.
  */
+/** Product language for intent kinds (single mapping, same pattern as
+ *  WorkClient's INTENT_LABEL - kept here too so describeEvent never leaks
+ *  machine tokens into the timeline). */
+const INTENT_PRODUCT_LABEL: Record<string, string> = {
+  conversation: 'ordinary conversation',
+  explicit_plan: 'planning requested',
+  direct_execution: 'direct execution',
+  clarification_needed: 'needs your choice',
+};
+
 export interface EventDescriptor {
   /** What this event means, in product terms. */
   purpose: string;
@@ -427,7 +437,8 @@ export function describeEvent(type: string, data: Record<string, unknown>): Acti
       return { title: 'Plan proposed', detail: 'Awaiting your approval', tone: 'warn' };
     case 'intent': {
       const kind = str(data.kind) ?? str(data.intent_kind);
-      return { title: 'Intent classified', detail: kind, tone: 'neutral' };
+      const human = kind !== undefined ? INTENT_PRODUCT_LABEL[kind] : undefined;
+      return { title: 'Intent classified', detail: human ?? kind, tone: 'neutral' };
     }
     case 'mode': {
       const mode = str(data.mode);
