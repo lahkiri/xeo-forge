@@ -1,6 +1,6 @@
 {
   "name": "xeo-forge",
-  "version": "1.15.1",
+  "version": "1.15.2",
   "description": "The local-first control plane for agentic work: governed execution, persistent context, browser control, and auditable workflows.",
   "author": "Xeo Forge",
   "private": true,

@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.15.2
+
+v1.15.2 — **Product Language** — intent badges and the "Intent classified" timeline row now speak human words (`needs your choice`, not `clarification_needed`) on every surface, and the Xeo Flow trail no longer clips under the tabs. From the owner's screenshot audit.
+
 ## What changed in v1.15.1
 
 v1.15.1 — **The Forge Identity** — de-templates the visual language: warm charcoal + ember orange replace the default acid-cyan dev-tool look, a heat-thread signature marks live/decision surfaces, failed runs become incident cards, and empty states become directional invitations. Driven by a 13-capture independent vision-model audit in both themes; post-fix scores 8-9/10.
