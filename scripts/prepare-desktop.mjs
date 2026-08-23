@@ -18,9 +18,19 @@ if (!existsSync(join(standalone, 'server.js'))) {
 
 /**
  * Next standalone is produced with the host Node ABI, while Electron runs its
- * embedded Node ABI. Rebuild the native SQLite module for Electron and replace
- * the copy traced into standalone; otherwise the packaged app starts but every
+ * embedded Node ABI. Rebuild the NATIVE modules for Electron and replace the
+ * copies traced into standalone; otherwise the packaged app starts but every
  * database request fails with ERR_DLOPEN_FAILED.
+ *
+ * node-pty is in this list for the same reason plus one more: its Windows
+ * native binaries (conpty.node / pty.node, under build/Release and
+ * prebuilds/win32-x64) are loaded at RUNTIME by path probing, which Next's
+ * file tracer cannot follow — the tracer copies the JS but not the binaries.
+ * v1.13.0 shipped exactly that hole: the app booted, the terminal answered
+ * "Failed to load native module: conpty.node" on the user's machine, and the
+ * boot-level smoke test never noticed. Rebuilding here AND copying the whole
+ * package below closes both the ABI and the tracing gaps for every native
+ * module this app loads.
  */
 const electronVersion = process.env.ELECTRON_VERSION || (await import('electron/package.json', { with: { type: 'json' } })).default.version;
 const rebuildCommand = join(
@@ -37,18 +47,35 @@ const rebuild = spawnSync(rebuildCommand, [
   electronVersion,
   '--force',
   '--only',
-  'better-sqlite3',
+  'better-sqlite3,node-pty',
 ], { cwd: root, env: process.env, stdio: 'inherit', shell: process.platform === 'win32' });
 if (rebuild.error || rebuild.status !== 0) {
   const detail = rebuild.error?.message || `exit code ${rebuild.status}`;
-  throw new Error(`Could not rebuild better-sqlite3 for Electron ${electronVersion}: ${detail}`);
+  throw new Error(`Could not rebuild native modules for Electron ${electronVersion}: ${detail}`);
 }
 
-const sqliteSource = join(root, 'node_modules', 'better-sqlite3');
-const sqliteTarget = join(standalone, 'node_modules', 'better-sqlite3');
-if (!existsSync(sqliteSource)) throw new Error(`Native dependency is missing: ${sqliteSource}`);
-await rm(sqliteTarget, { recursive: true, force: true });
-await cp(sqliteSource, sqliteTarget, { recursive: true, force: true });
+/** Native modules whose standalone-traced copy must be replaced wholesale. */
+const nativeModules = ['better-sqlite3', 'node-pty'];
+for (const name of nativeModules) {
+  const source = join(root, 'node_modules', name);
+  const target = join(standalone, 'node_modules', name);
+  if (!existsSync(source)) throw new Error(`Native dependency is missing: ${source}`);
+  await rm(target, { recursive: true, force: true });
+  await cp(source, target, { recursive: true, force: true });
+}
+
+// The packaged terminal must find its native binaries. This assertion is the
+// gate for the v1.13.0 defect class: if the expected binary is absent, fail
+// the PREPARE step, not the user's first terminal on their own machine.
+const ptyDir = join(standalone, 'node_modules', 'node-pty');
+const ptyBinaryPresent =
+  existsSync(join(ptyDir, 'build', 'Release', process.platform === 'win32' ? 'conpty.node' : 'pty.node')) ||
+  existsSync(join(ptyDir, 'prebuilds', `${process.platform}-${process.arch}`, 'pty.node'));
+if (!ptyBinaryPresent) {
+  throw new Error(
+    `node-pty native binary missing under ${ptyDir} after copy — the packaged terminal would fail to start.`,
+  );
+}
 
 await mkdir(join(standalone, '.next'), { recursive: true });
 await cp(staticSource, staticTarget, { recursive: true, force: true });
