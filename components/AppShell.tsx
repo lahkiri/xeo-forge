@@ -9,10 +9,14 @@ import { Badge, Button, KeyHint, ToastProvider, cx, useModKey } from './ui';
 import { ThemeToggle } from './Theme';
 import { CommandPalette, useBaseCommands, useHotkeys, type Command } from './CommandPalette';
 
+/**
+ * Navigation model. One glyph per surface — drawn from the same restrained
+ * geometric vocabulary as the brand mark, never emoji.
+ */
 const NAV = [
-  { href: '/chat', label: 'Chat', hint: 'Conversation only' },
-  { href: '/work', label: 'Work', hint: 'Governed execution' },
-  { href: '/settings', label: 'Control Center', hint: 'Model, roles, policy' },
+  { href: '/chat', label: 'Chat', glyph: '◇', hint: 'Conversation only' },
+  { href: '/work', label: 'Work', glyph: '◆', hint: 'Governed execution' },
+  { href: '/settings', label: 'Control Center', glyph: '⚙', hint: 'Model, roles, policy' },
 ];
 
 export default function AppShell({
@@ -103,144 +107,178 @@ export default function AppShell({
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const showUpdate = update && ['available', 'downloading', 'downloaded', 'success', 'error'].includes(update.status);
 
+  const navItems = user?.isAdmin && !isLocalSurface
+    ? [...NAV, { href: '/admin', label: 'Admin', glyph: '⛨', hint: 'Users, credits, global model' }]
+    : NAV;
+
   const shell = (
-    <div className="app-shell flex min-h-screen flex-col text-content-primary">
+    <div className="app-shell flex min-h-screen text-content-primary">
       <a href="#main" className="skip-link">Skip to main content</a>
-      {/* ── Top bar: one row, always the same height ── */}
-      <header className="sticky top-0 z-30 flex h-header shrink-0 items-center gap-3 border-b border-line-subtle bg-ink-900/92 px-3 backdrop-blur-xl sm:px-4">
-        <Link href="/chat" className="flex shrink-0 items-center gap-2.5" aria-label="Xeo Forge">
-          <span className="brand-mark h-7 w-7 rounded-control" aria-hidden="true"><span /></span>
-          <span className="hidden text-ui font-semibold tracking-tight text-content-primary sm:block">Xeo Forge</span>
-        </Link>
 
-        <nav aria-label="Surfaces" className="flex min-w-0 items-center gap-0.5">
-          {NAV.map((item) => {
-            const active = isActive(item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? 'page' : undefined}
-                title={item.hint}
-                className={cx(
-                  'inline-flex h-8 items-center rounded-control px-2.5 text-ui font-medium transition',
-                  active ? 'bg-ink-600 text-content-primary' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
-                )}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-          {!isLocalSurface && user?.isAdmin && (
-            <Link
-              href="/admin"
-              className={cx(
-                'inline-flex h-8 items-center rounded-control px-2.5 text-ui font-medium transition',
-                isActive('/admin') ? 'bg-signal-plan/14 text-signal-plan' : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
-              )}
-            >
-              Admin
-            </Link>
-          )}
-        </nav>
+      {/* ── Sidebar ─────────────────────────────────────────────────────
+          The workbench silhouette: a fixed instrument rail on the left and
+          the surface filling everything else. Vertical nav gives the Work
+          surface its full width and reads as a tool, not a website. */}
+      <aside className="app-sidebar sticky top-0 z-30 flex h-screen w-[13.5rem] shrink-0 flex-col border-r border-line-subtle">
+        {/* Brand */}
+        <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line-subtle px-4">
+          <Link href="/chat" className="flex min-w-0 items-center gap-2.5" aria-label="Xeo Forge">
+            <span className="brand-mark h-7 w-7 rounded-control" aria-hidden="true"><span /></span>
+            <span className="flex min-w-0 flex-col leading-none">
+              <span className="text-ui font-semibold tracking-tight text-content-primary">Xeo Forge</span>
+              <span className="mt-1 text-micro uppercase tracking-[0.14em] text-content-faint">Control Plane</span>
+            </span>
+          </Link>
+        </div>
 
-        <div className="ml-auto flex shrink-0 items-center gap-2">
+        {/* Command trigger — the second-most-used control, directly under brand */}
+        <div className="px-3 pt-3">
           <button
             type="button"
             onClick={() => setPaletteOpen(true)}
-            className="hidden h-8 items-center gap-2 rounded-control border border-line-subtle bg-ink-700/60 px-2.5 text-meta text-content-muted transition hover:border-line-strong hover:text-content-secondary sm:inline-flex"
+            className="sidebar-command group flex w-full items-center gap-2 rounded-control border border-line-subtle bg-ink-700/50 px-2.5 py-2 text-meta text-content-muted transition hover:border-line-strong hover:text-content-secondary"
           >
-            <span aria-hidden="true">⌕</span>
-            <span>Commands</span>
+            <span aria-hidden="true" className="text-ui">⌕</span>
+            <span className="flex-1 text-left">Commands</span>
             <KeyHint keys={[mod, 'K']} />
           </button>
-
-          <span
-            title={runtime === 'native' ? 'Go runtime broker connected' : 'Running in web mode'}
-            className="hidden items-center gap-1.5 text-micro uppercase tracking-[0.1em] text-content-muted lg:inline-flex"
-          >
-            <span
-              className={cx(
-                'h-1.5 w-1.5 rounded-full',
-                runtime === 'native' ? 'bg-signal-pass shadow-[0_0_8px_rgba(110,231,183,0.8)]'
-                  : runtime === 'checking' ? 'bg-signal-gate/70' : 'bg-gray-600',
-              )}
-            />
-            {runtime === 'native' ? 'Native' : runtime === 'checking' ? '…' : 'Web'}
-          </span>
-
-          {isLocalSurface ? (
-            <Badge tone="emerald" className="hidden sm:inline-flex">Local</Badge>
-          ) : (
-            typeof balance === 'number' && (
-              <span className="hidden items-center gap-1.5 rounded-control border border-line-subtle px-2.5 py-1.5 text-meta sm:inline-flex">
-                <span className="text-content-muted">Credits</span>
-                <span className="font-semibold tabular-nums text-content-primary">{balance}</span>
-              </span>
-            )
-          )}
-
-          <ThemeToggle className="hidden sm:inline-flex" />
-          {!isLocalSurface && user && (
-            <Button variant="ghost" size="sm" onClick={signOut}>Sign out</Button>
-          )}
         </div>
-      </header>
 
-      {showUpdate && update && (
-        <div className="shrink-0 border-b border-signal-run/10 bg-signal-run/05 px-4 py-2">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-ui">
-            <span className="flex min-w-0 items-center gap-2 text-content-secondary">
+        {/* Surfaces */}
+        <nav aria-label="Surfaces" className="flex-1 overflow-y-auto px-3 py-3">
+          <p className="px-2 pb-2 text-micro font-semibold uppercase tracking-[0.16em] text-content-faint">Surfaces</p>
+          <ul className="space-y-0.5">
+            {navItems.map((item) => {
+              const active = isActive(item.href);
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    aria-current={active ? 'page' : undefined}
+                    title={item.hint}
+                    className={cx(
+                      'sidebar-nav-item',
+                      active && 'is-active',
+                    )}
+                  >
+                    <span aria-hidden="true" className="sidebar-nav-glyph">{item.glyph}</span>
+                    <span className="truncate">{item.label}</span>
+                    {active && <span aria-hidden="true" className="sidebar-nav-dash" />}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        {/* Instrument footer: runtime, account, theme */}
+        <div className="shrink-0 border-t border-line-subtle px-3 py-3">
+          <div className="flex items-center justify-between px-2 pb-2.5">
+            <span
+              title={runtime === 'native' ? 'Go runtime broker connected' : 'Running in web mode'}
+              className="flex items-center gap-2 text-micro uppercase tracking-[0.12em] text-content-muted"
+            >
               <span
                 className={cx(
-                  'h-1.5 w-1.5 shrink-0 rounded-full',
-                  update.status === 'error' ? 'bg-red-300' : update.status === 'success' ? 'bg-signal-pass' : 'animate-live-pulse bg-signal-run',
+                  'h-1.5 w-1.5 rounded-full',
+                  runtime === 'native' ? 'bg-signal-pass shadow-[0_0_8px_rgba(110,231,183,0.8)]'
+                    : runtime === 'checking' ? 'bg-signal-gate/70' : 'bg-gray-600',
                 )}
               />
-              <span className="truncate">
-                {update.message || (update.version ? `Xeo Forge ${update.version} is ready.` : 'Desktop update')}
-              </span>
-              {update.status === 'downloading' && (
-                <span className="tabular-nums text-content-muted">{update.percent}%</span>
-              )}
+              {runtime === 'native' ? 'Native' : runtime === 'checking' ? '…' : 'Web'}
             </span>
-            <span className="flex items-center gap-2">
-              {update.status === 'available' && (
-                <Button size="sm" onClick={() => window.xeoDesktop?.downloadUpdate().then(setUpdate)}>
-                  Download
-                </Button>
-              )}
-              {update.status === 'downloaded' && (
-                <Button size="sm" variant="success" onClick={() => window.xeoDesktop?.installUpdate().then(setUpdate)}>
-                  Restart to update
-                </Button>
-              )}
-              {update.status === 'error' && (
-                <Button size="sm" variant="secondary" onClick={() => window.xeoDesktop?.checkForUpdate().then(setUpdate)}>
-                  Retry
-                </Button>
-              )}
-            </span>
+            <ThemeToggle />
           </div>
-        </div>
-      )}
 
-      {flush ? (
-        <div id="main" className="min-h-0 flex-1">{children}</div>
-      ) : (
-        <main id="main" className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-6xl">
-            {(title || subtitle) && (
-              <div className="mb-6">
-                <p className="text-micro font-semibold uppercase tracking-[0.22em] text-signal-run/75">{eyebrow}</p>
-                {title && <h1 className="mt-1.5 text-display font-semibold tracking-tight text-content-primary sm:text-display">{title}</h1>}
-                {subtitle && <p className="mt-1.5 max-w-2xl text-body leading-6 text-content-muted">{subtitle}</p>}
+          {isLocalSurface ? (
+            <div className="flex items-center justify-between px-2 pb-1">
+              <Badge tone="emerald">Local</Badge>
+              <span className="text-micro text-content-faint">offline-first</span>
+            </div>
+          ) : (
+            user && (
+              <div className="sidebar-account">
+                <span className="sidebar-account-avatar" aria-hidden="true">
+                  {(user.displayName || user.email).slice(0, 1).toUpperCase()}
+                </span>
+                <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                  <span className="truncate text-meta font-medium text-content-secondary">{user.displayName || user.email}</span>
+                  {typeof balance === 'number' && (
+                    <span className="text-micro tabular-nums text-content-faint">{balance.toLocaleString()} credits</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={signOut}
+                  title="Sign out"
+                  aria-label="Sign out"
+                  className="rounded-control px-1.5 py-1 text-meta text-content-faint transition hover:bg-ink-600 hover:text-content-secondary"
+                >
+                  ⏻
+                </button>
               </div>
-            )}
-            {children}
+            )
+          )}
+        </div>
+      </aside>
+
+      {/* ── Main column ── */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {showUpdate && update && (
+          <div className="shrink-0 border-b border-signal-run/10 bg-signal-run/05 px-4 py-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-ui">
+              <span className="flex min-w-0 items-center gap-2 text-content-secondary">
+                <span
+                  className={cx(
+                    'h-1.5 w-1.5 shrink-0 rounded-full',
+                    update.status === 'error' ? 'bg-red-300' : update.status === 'success' ? 'bg-signal-pass' : 'animate-live-pulse bg-signal-run',
+                  )}
+                />
+                <span className="truncate">
+                  {update.message || (update.version ? `Xeo Forge ${update.version} is ready.` : 'Desktop update')}
+                </span>
+                {update.status === 'downloading' && (
+                  <span className="tabular-nums text-content-muted">{update.percent}%</span>
+                )}
+              </span>
+              <span className="flex items-center gap-2">
+                {update.status === 'available' && (
+                  <Button size="sm" onClick={() => window.xeoDesktop?.downloadUpdate().then(setUpdate)}>
+                    Download
+                  </Button>
+                )}
+                {update.status === 'downloaded' && (
+                  <Button size="sm" variant="success" onClick={() => window.xeoDesktop?.installUpdate().then(setUpdate)}>
+                    Restart to update
+                  </Button>
+                )}
+                {update.status === 'error' && (
+                  <Button size="sm" variant="secondary" onClick={() => window.xeoDesktop?.checkForUpdate().then(setUpdate)}>
+                    Retry
+                  </Button>
+                )}
+              </span>
+            </div>
           </div>
-        </main>
-      )}
+        )}
+
+        {flush ? (
+          <div id="main" className="min-h-0 flex-1">{children}</div>
+        ) : (
+          <main id="main" className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-6 lg:px-10">
+            <div className="mx-auto max-w-6xl">
+              {(title || subtitle) && (
+                <div className="mb-8">
+                  <p className="text-micro font-semibold uppercase tracking-[0.22em] text-signal-run/75">{eyebrow}</p>
+                  {title && <h1 className="mt-1.5 text-display font-semibold tracking-tight text-content-primary sm:text-display">{title}</h1>}
+                  {subtitle && <p className="mt-2 max-w-2xl text-body leading-6 text-content-muted">{subtitle}</p>}
+                </div>
+              )}
+              {children}
+            </div>
+          </main>
+        )}
+      </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
     </div>

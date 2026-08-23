@@ -126,7 +126,7 @@ export default function WorkIntake({
   };
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.header))] min-h-0">
+    <div className="flex h-screen min-h-0">
       {/* ── Run history ── */}
       <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle 2xl:flex">
         <PanelHeader title="Work">
@@ -153,55 +153,68 @@ export default function WorkIntake({
 
       {/* ── Intake ── */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6">
-          <Eyebrow tone="violet">Governed run</Eyebrow>
-          <h1 className="mt-3 text-display font-semibold tracking-tight text-content-primary">
-            Describe the outcome. Approve the plan.
-          </h1>
-          <p className="mt-2 text-body leading-6 text-content-secondary">
-            Work inspects your project read-only and produces a plan. Nothing is written until you approve it.
-          </p>
+        <div className="mx-auto w-full max-w-2xl px-4 py-14 sm:px-6">
+          {/* Hero: one confident statement, no decoration competing with it. */}
+          <div className="text-center">
+            <span className="inline-flex items-center gap-2 rounded-full border border-line-subtle bg-ink-900/60 px-3 py-1 text-micro uppercase tracking-[0.18em] text-content-muted">
+              <span className="h-1 w-1 rounded-full bg-signal-plan" aria-hidden="true" />
+              Governed run
+            </span>
+            <h1 className="mt-5 text-[2rem] font-semibold leading-[1.15] tracking-tight text-content-primary sm:text-[2.5rem]">
+              Describe the outcome.
+              <span className="block bg-gradient-to-r from-signal-plan via-signal-run to-signal-run bg-clip-text text-transparent">
+                Approve the plan.
+              </span>
+            </h1>
+            <p className="mx-auto mt-4 max-w-lg text-body leading-6 text-content-secondary">
+              Work inspects your project read-only and produces a plan you review line by line.
+              Nothing is written until you approve it — and every write lands in a diff you can see.
+            </p>
+          </div>
 
-          {/* Capability strip — the product's contract, stated where every run
-              begins. Each chip is a real capability wired end-to-end; the strip
-              is what separates a governed forge from a blank chat box. */}
-          <div className="mt-5 flex flex-wrap gap-1.5" aria-label="Agent capabilities">
+          {/* Composer: THE product surface. Elevated card, gradient rail on
+              focus, generous textarea. */}
+          <div className="composer-card mt-9 rounded-modal border border-line bg-ink-900/70 p-1.5 shadow-panel">
+            <div className="rounded-[0.7rem] transition focus-within:border-signal-plan/30" >
+              <textarea
+                ref={composerRef}
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                onKeyDown={onKey}
+                rows={4}
+                autoFocus
+                placeholder="Add rate limiting to the login route and cover it with tests…"
+                aria-label="What should the agent do?"
+                className="block w-full resize-none rounded-[0.7rem] bg-ink-800/60 px-4 py-3.5 text-body leading-6 text-content-primary outline-none placeholder:text-content-muted"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-3 px-2.5 pb-2.5">
+                <UploadButton taskId={null} onStaged={(file) => setStaged((p) => [...p, file])} label="Attach files" />
+                <span className="flex items-center gap-2">
+                  <KeyHint keys={[mod, 'Enter']} />
+                  <Button onClick={start} loading={submitting} disabled={!goal.trim()}>
+                    Start planning →
+                  </Button>
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Capability contract — stated under the composer, where the eye
+              lands right after typing. One line, scannable. */}
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-1.5" aria-label="Agent capabilities">
             {[
               'Files', 'Git', 'Terminal', 'Diff review', 'MCP tools', 'Preview', 'Browser',
             ].map((cap) => (
               <span
                 key={cap}
-                className="rounded-full border border-line-subtle bg-ink-900/70 px-2.5 py-1 text-micro text-content-muted"
+                className="rounded-full border border-line-subtle bg-ink-900/50 px-2.5 py-1 text-micro text-content-muted"
               >
                 {cap}
               </span>
             ))}
-            <span className="rounded-full border border-signal-pass/25 bg-signal-pass/[0.06] px-2.5 py-1 text-micro text-signal-pass">
+            <span className="rounded-full border border-signal-pass/25 bg-signal-pass/[0.06] px-2.5 py-1 text-micro font-medium text-signal-pass">
               Every write behind your approval
             </span>
-          </div>
-
-          <div className="mt-7 rounded-panel border border-line bg-ink-900/60 transition focus-within:border-signal-plan/40 focus-within:ring-4 focus-within:ring-violet-300/[0.07]">
-            <textarea
-              ref={composerRef}
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              onKeyDown={onKey}
-              rows={5}
-              autoFocus
-              placeholder="Add rate limiting to the login route and cover it with tests…"
-              aria-label="What should the agent do?"
-              className="block w-full resize-none bg-transparent px-4 py-3.5 text-body leading-6 text-content-primary outline-none placeholder:text-content-muted"
-            />
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line-subtle px-3 py-2.5">
-              <UploadButton taskId={null} onStaged={(file) => setStaged((p) => [...p, file])} label="Attach files" />
-              <span className="flex items-center gap-2">
-                <KeyHint keys={[mod, 'Enter']} />
-                <Button onClick={start} loading={submitting} disabled={!goal.trim()}>
-                  Start planning →
-                </Button>
-              </span>
-            </div>
           </div>
 
           {staged.length > 0 && (
@@ -228,8 +241,8 @@ export default function WorkIntake({
           {error && <div className="mt-4"><Alert tone="error" title="Before you continue">{error}</Alert></div>}
 
           {/* ── What this run is allowed to do ── */}
-          <Card className="mt-5" tone={needsProject ? 'amber' : 'default'}>
-            <p className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
+          <Card className="mt-9" tone={needsProject ? 'amber' : 'default'}>
+            <p className="text-micro font-semibold uppercase tracking-[0.18em] text-content-faint">
               Authority for this run
             </p>
             <ul className="mt-3 space-y-2 text-ui leading-5">
@@ -252,7 +265,7 @@ export default function WorkIntake({
             <div className="mt-4 border-t border-line-subtle pt-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">Boundary</p>
+                  <p className="text-micro font-semibold uppercase tracking-[0.18em] text-content-faint">Boundary</p>
                   <p className={cx('mt-1 break-all font-mono text-meta', projectPath ? 'text-content-secondary' : 'text-signal-gate/90')}>
                     {projectPath || (localMode ? 'No folder chosen yet' : 'Managed by the hosted workspace')}
                   </p>
@@ -299,20 +312,20 @@ export default function WorkIntake({
           )}
 
           {runs.length === 0 && (
-            <div className="mt-6">
-              <p className="mb-2 text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
+            <div className="mt-10">
+              <p className="mb-3 text-center text-micro font-semibold uppercase tracking-[0.16em] text-content-faint">
                 Try one
               </p>
-              <div className="grid gap-2">
+              <div className="grid gap-2 sm:grid-cols-3">
                 {STARTERS.map((starter) => (
                   <button
                     key={starter.label}
                     type="button"
                     onClick={() => { setGoal(starter.prompt); composerRef.current?.focus(); }}
-                    className="rounded-control border border-line-subtle bg-ink-700/60 px-3.5 py-2.5 text-left transition hover:border-signal-plan/25 hover:bg-signal-plan/05"
+                    className="starter-card group rounded-control border border-line-subtle bg-ink-900/50 p-3.5 text-left transition hover:border-signal-plan/30 hover:bg-signal-plan/[0.04]"
                   >
-                    <span className="block text-ui font-medium text-content-secondary">{starter.label}</span>
-                    <span className="mt-0.5 block text-meta leading-5 text-content-muted">{starter.prompt}</span>
+                    <span className="block text-ui font-medium text-content-secondary group-hover:text-content-primary">{starter.label}</span>
+                    <span className="mt-1 block text-meta leading-5 text-content-muted">{starter.prompt}</span>
                   </button>
                 ))}
               </div>

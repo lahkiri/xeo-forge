@@ -462,7 +462,7 @@ export default function WorkClient({
   ];
 
   return (
-    <div className="flex h-[calc(100vh-theme(spacing.header))] min-h-0">
+    <div className="flex h-screen min-h-0">
       {/* ── Run list ── */}
       <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle 2xl:flex">
         <PanelHeader title="Work">
