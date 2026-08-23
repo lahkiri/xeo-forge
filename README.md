@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.15.0-blue.svg" alt="Xeo Forge v1.15.0">
+  <img src="https://img.shields.io/badge/release-v1.15.1-blue.svg" alt="Xeo Forge v1.15.1">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
@@ -53,7 +53,7 @@ Per-release changes now live in [docs/RELEASES.md](docs/RELEASES.md).
 
 ## Product preview
 
-Captured from the running application (v1.15, dark theme — the default instrument look).
+Captured from the running application (v1.15.1 — the forge identity: ember on charcoal).
 
 | Work intake — every run starts with the contract | Governed workbench — run, review, govern |
 |---|---|
