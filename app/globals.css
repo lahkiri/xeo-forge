@@ -397,6 +397,52 @@ body {
   text-decoration-color: rgb(var(--signal-run));
 }
 
+/* Tables and blockquotes: model output rendered as data, so borders and
+   backgrounds come from theme tokens — no fixed colors, both themes work. */
+.markdown-content table {
+  margin: 0.75em 0;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid rgb(var(--line) / var(--line-a));
+  padding: 0.35em 0.65em;
+  text-align: left;
+  vertical-align: top;
+}
+
+.markdown-content th {
+  background: rgb(var(--line) / 0.1);
+  color: rgb(var(--content-primary));
+  font-weight: 600;
+}
+
+.markdown-content td {
+  color: rgb(var(--content-secondary));
+}
+
+.markdown-content blockquote {
+  margin: 0.75em 0;
+  padding: 0.35em 0.9em;
+  border-left: 2px solid rgb(var(--signal-plan) / 0.5);
+  color: rgb(var(--content-muted));
+}
+
+.markdown-content blockquote > :first-child { margin-top: 0; }
+.markdown-content blockquote > :last-child { margin-bottom: 0; }
+
+.markdown-content hr {
+  margin: 1.25em 0;
+  border: 0;
+  border-top: 1px solid rgb(var(--line) / var(--line-a));
+}
+
 /* ── Syntax highlighting (workspace viewer) ─────────────────────── */
 
 .hl-kw { color: rgb(var(--signal-plan)); }

@@ -13,7 +13,7 @@ import { FileTool } from './files';
 import { CodeTool } from './code';
 import { analyzeProject, startPreviewWithStrategy, stopPreview, getPreviewStatus } from './preview';
 import { browserRequest } from './browser';
-import { runGitOp, GIT_OPS, type GitOpArgs } from './git';
+import { runGitOp, GIT_OPS, type GitOpArgs, type GitEventSink } from './git';
 import { listMcpToolsForUser, callMcpTool, mcpToolsAllowedInMode } from '../mcp/registry';
 import { isMcpToolName } from '../mcp/client';
 import { rateLimit, RATE_LIMITS } from '../ratelimit';
@@ -66,6 +66,14 @@ export interface ToolContext {
   projectPath: string | null;
   files: FileTool;
   code: CodeTool;
+  /**
+   * Structured-event sink for capability modules that produce domain events
+   * (today: git_status/git_commit from runGitOp). Wired by the agent loop to
+   * emitTaskEvent; absent in unit tests, where runGitOp stays DB-free. It is an
+   * OBSERVATION channel only — nothing dispatched through executeTool may read
+   * it, and it can never alter policy.
+   */
+  emit?: (type: string, content: Record<string, unknown>) => Promise<void>;
 }
 
 export function createToolContext(
@@ -791,7 +799,17 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
       // `ctx.mode` is passed through, not re-derived: runGitOp is the read/write
       // authority for git and refuses mutating ops outside build mode. Passing a
       // hardcoded mode here would be the privileged bypass this design avoids.
-      return clamp(await runGitOp(ctx.taskId, ctx.projectPath, ctx.mode, args as unknown as GitOpArgs));
+      // `ctx.emit` (when wired by the loop) carries the structured git_status /
+      // git_commit events to the audit trail.
+      return clamp(
+        await runGitOp(
+          ctx.taskId,
+          ctx.projectPath,
+          ctx.mode,
+          args as unknown as GitOpArgs,
+          ctx.emit as GitEventSink | undefined,
+        ),
+      );
     }
     default:
       throw new Error(`Unknown tool: ${name}`);

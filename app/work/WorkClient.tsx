@@ -97,7 +97,19 @@ export default function WorkClient({
   // so a proposal is never silently dropped.
   const [pendingMemory, setPendingMemory] = useState(0);
   const [diffText, setDiffText] = useState<string | null>(null);
+  const [diffBlocked, setDiffBlocked] = useState<string | null>(null);
+  const [diffLoading, setDiffLoading] = useState(false);
   const [fileChanges, setFileChanges] = useState<{ action: string; path: string }[]>([]);
+  const [gitStatus, setGitStatus] = useState<{
+    branch: string | null;
+    detached: boolean;
+    dirtyCount: number;
+    staged: number;
+    unstaged: number;
+    untracked: number;
+    lastCommit: { hash: string; subject: string } | null;
+  } | null>(null);
+  const [gitStatusLoaded, setGitStatusLoaded] = useState(false);
   const [decisionSeconds, setDecisionSeconds] = useState(() =>
     task.decision_expires_at
       ? Math.max(0, Math.ceil((Date.parse(task.decision_expires_at) - Date.now()) / 1000))
@@ -107,6 +119,12 @@ export default function WorkClient({
   const seenSeq = useRef<Set<number>>(new Set(initialEvents.map((e) => e.seq)));
   const logRef = useRef<HTMLDivElement>(null);
   const pinnedRef = useRef(true);
+  /**
+   * True between a git_op(diff) tool_call and its tool_result, so the Diff tab
+   * can capture the unified diff the agent asked for. Tool calls in one run are
+   * sequential, so a boolean (not a queue) is exact.
+   */
+  const pendingGitDiffRef = useRef(false);
 
   const isTerminal = isTerminalStatus(status);
   const isRunning = isRunningStatus(status);
@@ -194,6 +212,74 @@ export default function WorkClient({
     return () => clearInterval(id);
   }, [status, task.decision_expires_at]);
 
+  /* ── Git rail + Diff tab data ── */
+  const loadGitStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/git`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const body = await res.json();
+      setGitStatus(body.status ?? null);
+      setGitStatusLoaded(true);
+    } catch (err) {
+      console.warn('[work] could not read git status:', err);
+    }
+  }, [task.id]);
+
+  useEffect(() => { void loadGitStatus(); }, [loadGitStatus]);
+
+  // Seed the Diff tab from PERSISTED history: the most recent successful
+  // git diff the agent ran. Without this, a reload would forget a diff the
+  // live stream would still be showing.
+  useEffect(() => {
+    let pending = false;
+    let last: string | null = null;
+    for (const event of parseEvents(initialEvents)) {
+      if (event.type === 'tool_call' && event.data.name === 'git_op') {
+        const args = event.data.args as Record<string, unknown> | undefined;
+        pending = args?.op === 'diff';
+      } else if (event.type === 'tool_result' && event.data.name === 'git_op') {
+        if (pending) {
+          pending = false;
+          if (event.data.ok === true && typeof event.data.result === 'string') {
+            last = event.data.result;
+          }
+        }
+      }
+    }
+    if (last !== null) setDiffText(last);
+  }, [initialEvents]);
+
+  /**
+   * Fetch the workspace diff on demand. `path` scopes the diff to one file so
+   * a click on a Files-changed row shows that file's changes. A blocked
+   * outcome (not a repo, git missing) is displayed as an explanation, never
+   * as a fake empty diff.
+   */
+  const loadWorkspaceDiff = useCallback(async (path?: string) => {
+    setDiffLoading(true);
+    try {
+      const qs = path ? `?path=${encodeURIComponent(path)}` : '';
+      const res = await fetch(`/api/tasks/${task.id}/git/diff${qs}`, { cache: 'no-store' });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setDiffBlocked(body.error || `Could not load diff (${res.status}).`);
+        return;
+      }
+      const body = await res.json();
+      if (typeof body.diff === 'string') {
+        setDiffText(body.diff);
+        setDiffBlocked(null);
+      } else {
+        setDiffText(null);
+        setDiffBlocked(typeof body.blocked === 'string' ? body.blocked : 'No diff available.');
+      }
+    } catch (err) {
+      setDiffBlocked(err instanceof Error ? err.message : 'Could not load diff.');
+    } finally {
+      setDiffLoading(false);
+    }
+  }, [task.id]);
+
   /* ── Live stream ── */
   const addEvent = useCallback((event: ParsedEvent) => {
     if (seenSeq.current.has(event.seq)) return;
@@ -236,8 +322,25 @@ export default function WorkClient({
       setUploads((prev) => prev.map((u) => (u.id === data.id ? { ...u, ...(data as Partial<Upload>) } : u)));
     } else if (type === 'file_activity' && typeof data.path === 'string') {
       setFileChanges((prev) => [...prev, { action: String(data.action ?? 'changed'), path: String(data.path) }]);
+    } else if (type === 'tool_call' && data.name === 'git_op') {
+      // Mark a pending diff so the matching tool_result can feed the Diff tab.
+      const args = data.args as Record<string, unknown> | undefined;
+      pendingGitDiffRef.current = args?.op === 'diff';
+    } else if (type === 'tool_result' && data.name === 'git_op') {
+      if (pendingGitDiffRef.current) {
+        pendingGitDiffRef.current = false;
+        if (data.ok === true && typeof data.result === 'string') {
+          // The agent ran a diff; show exactly what git returned — including
+          // "(no differences)", which is an honest answer, not an error.
+          setDiffText(data.result);
+          setDiffBlocked(null);
+        }
+      }
+    } else if (type === 'git_status' || type === 'git_commit') {
+      // The run just observed repository state; refresh the rail.
+      void loadGitStatus();
     }
-  }, [task.id]);
+  }, [task.id, loadGitStatus]);
 
   useEffect(() => {
     if (isTerminal) return;
@@ -551,17 +654,39 @@ export default function WorkClient({
         )}
         {tab === 'diff' && (
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="secondary" loading={diffLoading} onClick={() => void loadWorkspaceDiff()}>
+                Load workspace diff
+              </Button>
+              {diffText && (
+                <Button size="sm" variant="ghost" onClick={() => { setDiffText(null); setDiffBlocked(null); }}>
+                  Clear
+                </Button>
+              )}
+              {gitStatus && (
+                <span className="text-micro text-content-muted">
+                  {gitStatus.detached ? 'detached HEAD' : gitStatus.branch ?? 'unborn'} ·{' '}
+                  {gitStatus.dirtyCount === 0 ? 'clean' : `${gitStatus.dirtyCount} change${gitStatus.dirtyCount === 1 ? '' : 's'}`}
+                </span>
+              )}
+            </div>
+            {diffBlocked && !diffText && (
+              <Alert tone="warn" title="No diff available">{diffBlocked}</Alert>
+            )}
             {diffText ? (
               <DiffView unifiedText={diffText} />
             ) : fileChanges.length > 0 ? (
               <div className="space-y-1">
                 <p className="mb-3 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
-                  Files changed ({fileChanges.length})
+                  Files changed ({fileChanges.length}) — click a file to diff it against the repository
                 </p>
                 {fileChanges.map((fc, i) => (
-                  <div
+                  <button
                     key={i}
-                    className="flex items-center gap-2 rounded-control border border-line-subtle bg-ink-700/40 px-3 py-2"
+                    type="button"
+                    onClick={() => void loadWorkspaceDiff(fc.path)}
+                    disabled={diffLoading}
+                    className="flex w-full items-center gap-2 rounded-control border border-line-subtle bg-ink-700/40 px-3 py-2 text-left transition hover:border-line-strong disabled:opacity-60"
                   >
                     <span
                       className={
@@ -575,16 +700,16 @@ export default function WorkClient({
                       {fc.action === 'created' ? 'A' : fc.action === 'deleted' ? 'D' : 'M'}
                     </span>
                     <span className="truncate font-mono text-ui text-content-secondary">{fc.path}</span>
-                  </div>
+                  </button>
                 ))}
               </div>
-            ) : (
+            ) : !diffBlocked ? (
               <EmptyState
                 icon={<span aria-hidden="true">Diff</span>}
                 title="No changes yet"
-                description="File changes made by the agent will appear here."
+                description="File changes made by the agent will appear here. When the workspace is a git repository you can also load the full working-tree diff."
               />
-            )}
+            ) : null}
           </div>
         )}
       </Panel>
@@ -631,6 +756,49 @@ export default function WorkClient({
               </p>
               <p className="break-all rounded-control border border-line-subtle bg-black/20 px-2.5 py-2 font-mono text-micro leading-4 text-content-secondary">
                 {task.project_path}
+              </p>
+            </div>
+          )}
+
+          {/* Git rail. Renders NOTHING while the workspace is not a repository
+              root — an invented "clean" state for a directory with no history
+              would be a UI truth violation (AGENTS.md §16). */}
+          {gitStatus && (
+            <div>
+              <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
+                Repository
+              </p>
+              <div className="rounded-control border border-line-subtle bg-black/20 px-2.5 py-2">
+                <p className="flex items-center gap-1.5 text-ui text-content-secondary">
+                  <span className={gitStatus.dirtyCount === 0 ? 'text-signal-pass' : 'text-signal-gate'}>
+                    {gitStatus.detached ? 'detached HEAD' : gitStatus.branch ?? 'unborn'}
+                  </span>
+                  {gitStatus.dirtyCount > 0 && (
+                    <span className="text-micro text-content-muted">
+                      · {gitStatus.dirtyCount} change{gitStatus.dirtyCount === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </p>
+                {gitStatus.lastCommit && (
+                  <p className="mt-1 truncate font-mono text-micro leading-4 text-content-muted" title={gitStatus.lastCommit.subject}>
+                    {gitStatus.lastCommit.hash.slice(0, 7)} {gitStatus.lastCommit.subject}
+                  </p>
+                )}
+                <p className="mt-1.5 text-micro leading-4 text-content-faint">
+                  {gitStatus.staged} staged · {gitStatus.unstaged} unstaged · {gitStatus.untracked} untracked
+                </p>
+              </div>
+            </div>
+          )}
+          {/* The rail asked and git answered "not a repo here" — say so rather
+              than leaving the user wondering whether the rail is broken. */}
+          {gitStatusLoaded && !gitStatus && task.project_path && (
+            <div>
+              <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
+                Repository
+              </p>
+              <p className="rounded-control border border-line-subtle bg-black/20 px-2.5 py-2 text-micro leading-4 text-content-faint">
+                Not a git repository root. Parent repositories are deliberately ignored.
               </p>
             </div>
           )}

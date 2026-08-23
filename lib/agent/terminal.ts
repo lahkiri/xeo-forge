@@ -24,7 +24,6 @@
  */
 
 import type { IPty } from 'node-pty';
-import os from 'node:os';
 import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { workspaceFor } from './files';
@@ -205,6 +204,13 @@ export interface CreateSessionArgs {
 export async function createSession(args: CreateSessionArgs): Promise<TerminalSession> {
   const { taskId, ownerId, projectPath } = args;
 
+  // Opportunistic reap. Without this the idle TTL is a number nobody checks:
+  // a full-page browser reload runs NO React cleanup (the old session leaks),
+  // and after 3 reloads the per-task cap would lock the user out of terminals
+  // forever. Reaping HERE bounds the leak to one idle window and needs no
+  // timer holding the process open.
+  reapIdleSessions();
+
   if (sessionsForTask(taskId).length >= TERMINAL_LIMITS.maxSessionsPerTask) {
     throw new TerminalError(
       `This task already has ${TERMINAL_LIMITS.maxSessionsPerTask} live terminal sessions. Close one first.`,
@@ -244,6 +250,13 @@ export async function createSession(args: CreateSessionArgs): Promise<TerminalSe
   // already in the whitelist so this is a default, not a new key.
   const env = buildSafeEnv(cwd);
   if (!env.TERM) env.TERM = 'xterm-256color';
+  // HOME points at the workspace (buildSafeEnv policy), and bash therefore
+  // writes .bash_history THERE — silently dirtying the task's git status and
+  // file listing on every session. History belongs to the person typing, not
+  // to the artifact under review, so it is turned off for the child shell.
+  // POSIX-only: PowerShell's PSReadLine history lives under the user profile,
+  // never in the working directory.
+  if (process.platform !== 'win32') env.HISTFILE = '/dev/null';
 
   let child: IPty;
   try {

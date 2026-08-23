@@ -47,6 +47,16 @@ export default function Terminal({ taskId, autoKill = true, className = '' }: Te
   const fitRef = useRef<import('@xterm/addon-fit').FitAddon | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  /**
+   * Serialized write queue. Keystroke POSTs fired in parallel are NOT ordered
+   * by the browser: independent fetch() calls may ride different keep-alive
+   * connections and be applied to the PTY out of order, scrambling fast typing
+   * (observed in browser E2E: "echo BROWSER..." reached bash as "echoWO SER...").
+   * Chaining each POST behind the previous one keeps byte order exactly as
+   * typed; the payload is a handful of bytes, so the queue never grows past a
+   * few pending promises even during a paste.
+   */
+  const writeChainRef = useRef<Promise<void>>(Promise.resolve());
   /** True only while this mount owns a live PTY. Gates ALL outbound IO. */
   const aliveRef = useRef(false);
   /** Monotonic generation counter — the newest boot wins, older ones self-destruct their PTY. */
@@ -86,7 +96,7 @@ export default function Terminal({ taskId, autoKill = true, className = '' }: Te
     setError('');
     setExitCode(null);
 
-    let createdId: string | null = null;
+    let ownedId: string | null = null; // a session THIS boot created (and must clean up on failure)
     try {
       // Dynamic imports — xterm touches window and is not SSR-safe.
       const [{ Terminal }, { FitAddon }] = await Promise.all([
@@ -94,33 +104,67 @@ export default function Terminal({ taskId, autoKill = true, className = '' }: Te
         import('@xterm/addon-fit'),
       ]);
 
-      const res = await fetch(`/api/tasks/${taskId}/terminal`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(body.error || `Could not create terminal (${res.status}).`);
+      // RECONNECT BEFORE CREATE. A full-page reload runs no React cleanup, so
+      // this task may already own a live session from the previous mount.
+      // Attaching to it (the stream replays its scrollback) both survives the
+      // reload — a browser refresh no longer orphans the shell — and keeps ONE
+      // session per task instead of one per reload. Extra sessions beyond the
+      // newest are deleted: exactly one survives.
+      let sessionId: string | null = null;
+      try {
+        const listRes = await fetch(`/api/tasks/${taskId}/terminal`, { cache: 'no-store' });
+        if (listRes.ok) {
+          const body = (await listRes.json()) as { sessions?: TerminalSessionInfo[] };
+          const live = (body.sessions ?? []).slice().sort((a, b) => b.createdAt - a.createdAt);
+          if (live.length > 0) {
+            sessionId = live[0].id;
+            for (const stale of live.slice(1)) {
+              fetch(`/api/tasks/${taskId}/terminal/${stale.id}`, { method: 'DELETE' }).catch(() => {});
+            }
+          }
+        }
+      } catch {
+        /* listing is best-effort; a failure falls through to create */
       }
-      createdId = ((await res.json()) as TerminalSessionInfo).id;
+
+      if (!sessionId) {
+        const res = await fetch(`/api/tasks/${taskId}/terminal`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(body.error || `Could not create terminal (${res.status}).`);
+        }
+        sessionId = ((await res.json()) as TerminalSessionInfo).id;
+        ownedId = sessionId;
+      }
 
       // Superseded (StrictMode remount, rapid retry) or unmounted mid-flight:
-      // this PTY is an orphan. Delete it NOW — never leave it bound to a dead
-      // closure where it could receive writes aimed at nobody.
+      // a session THIS boot created is an orphan. Delete it NOW — never leave
+      // it bound to a dead closure where it could receive writes aimed at
+      // nobody. A reconnected (pre-existing) session is left for its next
+      // mount; it does not belong to this closure.
       if (token !== bootTokenRef.current || disposedRef.current) {
-        fetch(`/api/tasks/${taskId}/terminal/${createdId}`, { method: 'DELETE' }).catch((err) =>
-          console.warn('[terminal] orphan delete failed:', err),
-        );
+        if (ownedId) {
+          fetch(`/api/tasks/${taskId}/terminal/${ownedId}`, { method: 'DELETE' }).catch((err) =>
+            console.warn('[terminal] orphan delete failed:', err),
+          );
+        }
         return;
       }
 
-      sessionIdRef.current = createdId;
+      sessionIdRef.current = sessionId;
 
       const term = new Terminal({
         cursorBlink: true,
         fontSize: 13,
         fontFamily: "ui-monospace, 'SF Mono', 'Cascadia Code', monospace",
+        // Bounded scrollback. xterm holds every retained line in the DOM, so
+        // an unbounded buffer is an unbounded DOM; 5000 lines is minutes of
+        // `yes` output and everything a human scrolls back through.
+        scrollback: 5000,
         theme: {
           background: '#0b111c',
           foreground: '#a0adc0',
@@ -142,15 +186,24 @@ export default function Terminal({ taskId, autoKill = true, className = '' }: Te
 
       // IO reads identity + liveness AT CALL TIME. Once aliveRef flips — on
       // exit, error, or replacement — this terminal can no longer produce a
-      // request against a dead session id.
+      // request against a dead session id. Writes are chained so concurrent
+      // keystrokes cannot reach the PTY out of order (see writeChainRef).
       term.onData((data: string) => {
         const sid = sessionIdRef.current;
         if (!aliveRef.current || !sid) return;
-        fetch(`/api/tasks/${taskId}/terminal/${sid}`, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ data }),
-        }).catch((err) => console.warn('[terminal] write failed:', err));
+        writeChainRef.current = writeChainRef.current
+          .catch(() => {
+            /* a failed write must not block the queue */
+          })
+          .then(() =>
+            fetch(`/api/tasks/${taskId}/terminal/${sid}`, {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify({ data }),
+            })
+              .then(() => undefined)
+              .catch((err) => console.warn('[terminal] write failed:', err)),
+          );
       });
 
       term.onResize(({ cols, rows }: { cols: number; rows: number }) => {
@@ -163,7 +216,7 @@ export default function Terminal({ taskId, autoKill = true, className = '' }: Te
         }).catch((err) => console.warn('[terminal] resize failed:', err));
       });
 
-      const source = new EventSource(`/api/tasks/${taskId}/terminal/${createdId}/stream`);
+      const source = new EventSource(`/api/tasks/${taskId}/terminal/${sessionId}/stream`);
       sourceRef.current = source;
 
       source.onopen = () => {
@@ -208,10 +261,12 @@ export default function Terminal({ taskId, autoKill = true, className = '' }: Te
         stopIO(true);
       };
     } catch (err) {
-      // Failure paths still own their PTY until proven otherwise.
+      // Failure paths still own a session THEY created until proven otherwise;
+      // a reconnected pre-existing session survives a failed attach (the next
+      // mount, or this task's rail, can still reach it).
       const superseded = token !== bootTokenRef.current || disposedRef.current;
-      if (createdId) {
-        fetch(`/api/tasks/${taskId}/terminal/${createdId}`, { method: 'DELETE' }).catch(() => {});
+      if (ownedId) {
+        fetch(`/api/tasks/${taskId}/terminal/${ownedId}`, { method: 'DELETE' }).catch(() => {});
       }
       if (!superseded) {
         setError(err instanceof Error ? err.message : String(err));

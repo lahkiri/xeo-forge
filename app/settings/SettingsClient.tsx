@@ -6,6 +6,7 @@ import { Button, Card, Eyebrow } from '@/components/ui';
 import type { AgentInstruction, AgentMemory, AuthUser, ModelSettingsSafe } from '@/lib/types';
 import ProfileStudio from './ProfileStudio';
 import SkillStudio from './SkillStudio';
+import McpStudio from './McpStudio';
 
 const MEMORY_KINDS = ['preference', 'fact', 'decision', 'constraint', 'lesson'] as const;
 
@@ -473,6 +474,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
 
         <ProfileStudio />
         <SkillStudio />
+        <McpStudio />
 
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="space-y-6">
