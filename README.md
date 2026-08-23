@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.11.0-blue.svg" alt="Xeo Forge v1.11.0">
+  <img src="https://img.shields.io/badge/release-v1.12.0-blue.svg" alt="Xeo Forge v1.12.0">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
@@ -24,6 +24,21 @@ Xeo Forge is a **local-first control plane for agentic work**. It gives software
 The product is built around one principle:
 
 > **Give your agent a forge, not a blank check.**
+
+## What changed in v1.12.0
+
+v1.12.0 — **The Agent Development Environment** — completes the capability backends with their missing user surfaces and closes three terminal defects that only adversarial review and a real browser could find.
+
+| Capability | What it does |
+|---|---|
+| **MCP Studio** | Add, disable, and delete stdio MCP servers from Settings. The registry existed since v1.11.0 with zero call sites — users could not add a server at all. CRUD routes + UI, with registry tests against a real stdio echo server. |
+| **Git rail + events** | `git_status` / `git_commit` events are now actually emitted (they were declared but dead), a Repository rail shows branch/dirty/last-commit in the governance column, and `GET /api/tasks/:id/git/diff` feeds the Diff tab. |
+| **Working Diff tab** | The Diff tab was wired to state no code path ever set. It now seeds from persisted history, captures live `git_op diff` results, and makes Files-changed rows clickable for a scoped diff. |
+| **Terminal fixes** | Fast typing is no longer corrupted (parallel POSTs reached the PTY out of order); a page reload reconnects to the live session instead of leaking a PTY; `.bash_history` no longer dirties the workspace git status. |
+| **Virtualized Activity** | Real windowing replaces the 200-row cap: every event in a run's history is reachable, the DOM stays bounded, variable row heights are measured per row. |
+| **Markdown hardening** | Tables, blockquotes, ordered/nested lists, `~~~` fences, and safe links — pinned by a 19-case XSS battery. |
+
+The test suite grew from 594 to **657 tests across 32 files**, is hermetic against ambient `DATABASE_URL`, and the whole surface was verified with HTTP E2E (26/26 on dev and production) plus real-browser checks of the terminal lifecycle and virtualization.
 
 ## What changed in v1.11.0
 
@@ -158,7 +173,7 @@ The same principle applies to memory. Xeo Forge does not silently treat every co
 
 ## Current scope and honest boundaries
 
-v1.11.0 is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
+v1.12.0 is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
 
 The next product layers are intentionally separate from the current core and are tracked in the [1.x roadmap](docs/roadmap-1x.md):
 
