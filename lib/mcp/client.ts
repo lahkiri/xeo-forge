@@ -332,7 +332,7 @@ export function slugifySegment(raw: unknown): string {
   const original = typeof raw === 'string' ? raw : String(raw ?? '');
   const stripped = sanitizeUntrustedText(original, 4096).text;
 
-  let slug = stripped
+  const slug = stripped
     .toLowerCase()
     .replace(/[^a-z0-9_-]+/g, '-')
     .replace(/-{2,}/g, '-')

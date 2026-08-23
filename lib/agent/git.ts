@@ -108,6 +108,33 @@ export interface GitOpArgs {
   limit?: number;
 }
 
+/**
+ * Structured-event sink injected by the agent loop. runGitOp emits `git_status`
+ * after a status inspection and `git_commit` after a successful commit, using
+ * the payload shapes readGitStatus()/readGitCommit() in lib/agent/events.ts
+ * declare — those readers are the contract; the keys below must match them.
+ *
+ * WHY INJECTED RATHER THAN IMPORTED: emitTaskEvent persists to the task_events
+ * table. runGitOp is unit-tested directly against throwaway repos with task ids
+ * that have no DB row (test/git.test.ts); an unconditional emit would make git
+ * tests depend on the database and fail on the missing row. An optional sink
+ * keeps the module pure for tests while the loop wires the real emitter — the
+ * same dependency-injection shape ToolContext uses for everything else.
+ *
+ * Emission failures are LOGGED, never thrown: a git operation that succeeded
+ * must not be reported to the model as failed because the event bus hiccupped.
+ */
+export type GitEventSink = (type: 'git_status' | 'git_commit', content: Record<string, unknown>) => Promise<void>;
+
+async function emitGitEvent(sink: GitEventSink | undefined, type: 'git_status' | 'git_commit', content: Record<string, unknown>): Promise<void> {
+  if (!sink) return;
+  try {
+    await sink(type, content);
+  } catch (err) {
+    console.warn(`[git] failed to emit ${type} event for task workspace:`, err);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  argv construction                                                  */
 /*                                                                     */
@@ -656,6 +683,7 @@ export async function runGitOp(
   projectPath: string | null,
   mode: TaskMode,
   args: GitOpArgs,
+  emit?: GitEventSink,
 ): Promise<string> {
   if (!isGitOp(args?.op)) {
     throw new GitBlockedError(
@@ -686,6 +714,19 @@ export async function runGitOp(
     case 'status': {
       const summary = await gitStatusSummary(taskId, projectPath);
       if (!summary) throw new GitError('git status produced no parseable output.');
+      // Structured state for the Git rail and the activity timeline. Emitted
+      // only when a sink is wired (the agent loop); the shape is the one
+      // readGitStatus() in lib/agent/events.ts declares.
+      await emitGitEvent(emit, 'git_status', {
+        branch: summary.branch ?? undefined,
+        detached: summary.detached,
+        dirty_count: summary.dirtyCount,
+        staged: summary.staged,
+        unstaged: summary.unstaged,
+        untracked: summary.untracked,
+        last_commit_hash: summary.lastCommit?.hash ?? undefined,
+        last_commit_subject: summary.lastCommit?.subject ?? undefined,
+      });
       const head = summary.detached ? 'HEAD detached' : `branch ${summary.branch ?? '(unborn)'}`;
       const last = summary.lastCommit ? `${summary.lastCommit.hash} ${summary.lastCommit.subject}` : '(no commits yet)';
       const porcelain = await gitOrThrow(
@@ -787,6 +828,33 @@ export async function runGitOp(
           return 'Nothing to commit — the working tree is clean or nothing is staged. Stage files with the add op first.';
         }
         throw new GitError(`git commit failed (exit ${result.exitCode}): ${detail.slice(0, 600) || 'no output'}`);
+      }
+      // Structured commit event for the timeline and the Git rail. The hash
+      // comes from `log -1` AFTER the commit, not from parsing git's localized
+      // success output — porcelain over prose, same rule as status.
+      if (emit) {
+        // Same 5-field pretty format the log op uses — it is the one format in
+        // ALLOWED_LITERALS, and assertArgv enforces that vocabulary. Fields:
+        // full hash, short hash, author, date, subject.
+        const after = await spawnGit(
+          [
+            ...CONFIG_PREFIX,
+            lit('log'), lit('-n'), val('1', 'count'), lit('--no-color'),
+            lit('--pretty=format:%H%x1f%h%x1f%an%x1f%ad%x1f%s'), lit('--date=iso-strict'),
+          ],
+          workspace,
+        );
+        if (after.exitCode === 0 && after.stdout.trim()) {
+          const fields = after.stdout.split('\n')[0].split('\x1f');
+          if (fields.length >= 5) {
+            const filesChanged = result.stdout.match(/(\d+) files? changed/);
+            await emitGitEvent(emit, 'git_commit', {
+              hash: fields[0],
+              subject: fields[4],
+              files_changed: filesChanged ? Number(filesChanged[1]) : undefined,
+            });
+          }
+        }
       }
       return clampOutput(result.stdout.trim() || 'Commit created.');
     }

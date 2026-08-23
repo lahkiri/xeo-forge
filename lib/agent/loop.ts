@@ -243,6 +243,12 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
   const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
   const ctx = createToolContext(taskId, userId, mode, projectPath);
+  // Structured domain events (git_status / git_commit) ride the same persisted
+  // seq-ordered path as every other task event. The sink is an observation
+  // channel: capability modules may report, never decide.
+  ctx.emit = async (type, content) => {
+    await emitTaskEvent(taskId, type, content);
+  };
   // MCP tools are enumerated once, here, so the model sees a stable tool set for
   // the whole run. A server that fails to connect does NOT fail the run: the
   // error is surfaced as a tool_result-shaped event so a silently missing tool
@@ -440,7 +446,6 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   let stagnationCount = 0;
   let escalationSent = false;
   const recentSignatures: string[] = [];
-  let iterationCount = 0;
 
   // Read-only loop detection: consecutive reads without writes in build mode.
   // Thresholds and tool classification live in ./guards (single source of truth).
@@ -737,10 +742,9 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
   try {
     while (true) {
-      iterationCount++;
-      // No numeric cap here by design (AGENTS.md §12) — see the comment on
-      // STAGNATION_THRESHOLD. Termination is semantic: stagnation detection,
-      // verification limits, and credit exhaustion.
+      // No numeric cap or iteration counter here by design (AGENTS.md §12) —
+      // termination is semantic: stagnation detection, verification limits,
+      // and credit exhaustion.
 
       const usage = await emitContextUsage();
       if (shouldCompact(usage.percentage, model.autoCompactThreshold)) {

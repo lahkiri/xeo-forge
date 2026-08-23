@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser, assertOwnerOrAdmin } from '@/lib/auth/guard';
 import { getTaskById } from '@/lib/db/queries';
+import { emitTaskEvent } from '@/lib/sse/emitter';
 import {
   createSession,
   describeSession,
@@ -22,6 +23,13 @@ const CreateSchema = z.object({
 /**
  * POST /api/tasks/:id/terminal — create a new terminal session for a task.
  * GET  /api/tasks/:id/terminal — list live terminal sessions for a task.
+ *
+ * Every create/kill is recorded as a `terminal` task event: a real host shell
+ * was opened on this task, and that is governance-relevant history the activity
+ * timeline must show. Natural process exit is NOT evented here — it is observed
+ * through the stream and the session list; only user-driven lifecycle changes
+ * (open, refuse, kill) write events, so one shell cannot emit N duplicate
+ * "closed" events for N viewers.
  */
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -57,8 +65,25 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       rows: parsed.data.rows,
     });
 
+    // Audit: a real host shell was opened for this task. Emission failure is
+    // logged inside emitTaskEvent and must not fail the create — the session
+    // exists either way and the user needs its id.
+    await emitTaskEvent(params.id, 'terminal', {
+      session_id: session.id,
+      status: 'opened',
+    }).catch((err) => console.warn(`[terminal/create] failed to record open event:`, err));
+
     return NextResponse.json(describeSession(session), { status: 201 });
   } catch (err) {
+    // A refusal (limits, missing native module) is part of the task's history
+    // too: "we declined to open a shell" is a governance fact.
+    if (err instanceof TerminalError) {
+      await emitTaskEvent(params.id, 'terminal', {
+        status: 'rejected',
+        reason: err.message,
+      }).catch(() => {});
+      return NextResponse.json({ error: err.message }, { status: err.status });
+    }
     return errorResponse('terminal/create', err);
   }
 }

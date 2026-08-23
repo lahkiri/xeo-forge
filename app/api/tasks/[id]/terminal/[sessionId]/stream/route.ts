@@ -4,7 +4,6 @@ import { getTaskById } from '@/lib/db/queries';
 import {
   attachSession,
   scrollbackOf,
-  describeSession,
   TerminalError,
 } from '@/lib/agent/terminal';
 

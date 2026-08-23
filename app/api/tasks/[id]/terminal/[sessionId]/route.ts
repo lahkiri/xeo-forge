@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser, assertOwnerOrAdmin } from '@/lib/auth/guard';
 import { getTaskById } from '@/lib/db/queries';
+import { emitTaskEvent } from '@/lib/sse/emitter';
 import {
   writeToSession,
   resizeSession,
   killSession,
-  describeSession,
   TerminalError,
 } from '@/lib/agent/terminal';
 import { errorResponse } from '../../../../_lib/respond';
@@ -97,6 +97,16 @@ export async function DELETE(
     assertOwnerOrAdmin(user, task.user_id);
 
     const killed = killSession(params.sessionId, user.id);
+    if (killed) {
+      // Explicit user-driven close. Natural exits are NOT evented (see the
+      // create route comment) — one shell, one closed event, no fan-out per
+      // stream viewer.
+      await emitTaskEvent(params.id, 'terminal', {
+        session_id: params.sessionId,
+        status: 'closed',
+        reason: 'killed by user',
+      }).catch((err) => console.warn('[terminal/kill] failed to record close event:', err));
+    }
     return NextResponse.json({ ok: true, killed });
   } catch (err) {
     if (err instanceof TerminalError) {
