@@ -218,7 +218,7 @@ const BADGE_TONES: Record<BadgeTone, string> = {
   violet: 'bg-signal-plan/15 text-signal-plan',
   amber: 'bg-signal-gate/15 text-signal-gate',
   emerald: 'bg-signal-pass/15 text-signal-pass',
-  red: 'bg-signal-fail/15 text-signal-fail',
+  red: 'bg-signal-fail/15 text-[rgb(var(--signal-fail))] font-medium',
 };
 
 export function Badge({

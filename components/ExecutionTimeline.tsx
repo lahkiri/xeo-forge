@@ -114,10 +114,16 @@ export function ExecutionTimeline({ events }: { events: ParsedEvent[] }) {
 
   if (allRows.length === 0) {
     return (
-      <p className="px-3 py-6 text-ui leading-5 text-content-muted">
-        No activity recorded yet. Tool calls, context compilation, file changes, and verification
-        results appear here as they happen.
-      </p>
+      <div className="flex h-full flex-col items-center justify-center px-6 py-12 text-center">
+        <span className="flex h-12 w-12 items-center justify-center rounded-panel border border-line-subtle bg-ink-900/60" aria-hidden="true">
+          <span className="ember-rule" />
+        </span>
+        <h3 className="mt-5 text-title font-semibold text-content-primary">The trail starts with the first action</h3>
+        <p className="mt-2 max-w-sm text-body leading-6 text-content-muted">
+          Tool calls, context compilation, file changes, and verification results appear here
+          as they happen — every step persisted and replayable.
+        </p>
+      </div>
     );
   }
 

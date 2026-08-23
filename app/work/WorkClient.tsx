@@ -520,11 +520,16 @@ export default function WorkClient({
               <div ref={logRef} onScroll={onLogScroll} className="min-h-0 flex-1 overflow-y-auto">
                 <div className="mx-auto w-full max-w-3xl px-4 py-6">
                   {timeline.length === 0 && !isRunning ? (
-                    <EmptyState
-                      icon={<span aria-hidden="true">⚙</span>}
-                      title="No activity yet"
-                      description="This run has not produced any events."
-                    />
+                    <div className="run-empty mx-auto mt-16 flex max-w-md flex-col items-center text-center">
+                      <span className="flex h-12 w-12 items-center justify-center rounded-panel border border-line-subtle bg-ink-900/60" aria-hidden="true">
+                        <span className="ember-rule" />
+                      </span>
+                      <h3 className="mt-5 text-title font-semibold text-content-primary">Nothing has run yet</h3>
+                      <p className="mt-2 text-body leading-6 text-content-muted">
+                        Describe the change below and start a planning run. The agent inspects read-only first —
+                        you approve before anything is written.
+                      </p>
+                    </div>
                   ) : (
                     <div className="space-y-5">
                       {timeline.map((turn) => (
@@ -578,8 +583,23 @@ export default function WorkClient({
                   )}
 
                   {status === 'failed' && errorMessage && (
-                    <div className="mt-5">
-                      <Alert tone="error" title="Run failed">{errorMessage}</Alert>
+                    <div className="run-failure mt-6 rounded-panel border border-signal-fail/25 bg-signal-fail/[0.05] p-5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control bg-signal-fail/15 text-ui text-signal-fail" aria-hidden="true">✕</span>
+                        <p className="text-ui font-semibold text-content-primary">Run failed</p>
+                      </div>
+                      <p className="mt-2.5 max-w-2xl text-body leading-6 text-content-secondary">{errorMessage}</p>
+                      <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-signal-fail/15 pt-3.5">
+                        <p className="text-meta text-content-muted">Every step before the failure is preserved in the Activity tab — nothing was lost.</p>
+                        <span className="flex-1" />
+                        <button
+                          type="button"
+                          onClick={() => setTab('activity')}
+                          className="rounded-control border border-line-subtle px-3 py-1.5 text-meta font-medium text-content-secondary transition hover:border-line-strong hover:text-content-primary"
+                        >
+                          Inspect the trail
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -14,30 +14,35 @@
 [data-theme='dark'] {
   color-scheme: dark;
 
-  /* Surfaces. Deep, slightly blue, never pure black. Calibrated with more
-     separation between steps than the first pass, which read as flat. */
-  --ink-900: 6 9 15;
-  --ink-800: 11 17 28;
-  --ink-700: 17 25 39;
-  --ink-600: 23 33 50;
-  --ink-500: 32 44 64;
+  /* Surfaces. Forge charcoal: warm-neutral, never blue-black — the shop
+     floor, not a terminal clone. Steps stay close (machined steel) with
+     enough separation for panels to read. */
+  --ink-900: 10 11 13;
+  --ink-800: 16 17 20;
+  --ink-700: 24 26 30;
+  --ink-600: 33 35 41;
+  --ink-500: 45 47 54;
 
-  --line-subtle: 148 175 205;
-  --line: 158 185 215;
-  --line-strong: 176 202 228;
+  /* Lines in the forge are warm steel, not blue glass. */
+  --line-subtle: 160 158 150;
+  --line: 172 170 162;
+  --line-strong: 190 188 180;
 
-  --content-primary: 236 241 248;
-  --content-secondary: 160 173 192;
-  --content-muted: 116 130 150;
-  --content-faint: 82 94 112;
+  /* Content: hot-metal ivory carries the decisive text; the rest is steel. */
+  --content-primary: 240 234 222;
+  --content-secondary: 168 170 175;
+  --content-muted: 122 125 132;
+  --content-faint: 88 90 96;
 
-  /* Signals desaturated from the first pass. Fully saturated cyan on a dark
-     field vibrates and reads as a toy; these hold at small sizes. */
-  --signal-run: 94 214 235;
-  --signal-gate: 232 179 74;
-  --signal-pass: 82 199 132;
-  --signal-fail: 232 116 116;
-  --signal-plan: 154 141 232;
+  /* Signals. THE IDENTITY MOVE: ember orange (the forge, at work) replaces
+     the default-tech cyan. Ember is the accent of HEAT — the thing this
+     product governs. Copper is the secondary warmth; pass/fail stay
+     botanical green and forge-red for instant, learned recognition. */
+  --signal-run: 232 163 61;
+  --signal-gate: 217 108 63;
+  --signal-pass: 108 190 124;
+  --signal-fail: 224 96 84;
+  --signal-plan: 178 148 96;
 
   /* Diff colours are their OWN tokens rather than aliases of signal-pass/fail.
      A diff is not a pass/fail judgement — an added line is not "good" — and the
@@ -46,10 +51,10 @@
      desaturated hue would disappear. Green/red rather than the theme accent
      because every diff tool a developer already knows uses green/red, and
      inventing a house convention here would cost recognition for nothing. */
-  --diff-add: 74 190 128;
-  --diff-del: 226 106 106;
+  --diff-add: 96 186 122;
+  --diff-del: 226 104 92;
 
-  --on-signal: 6 9 15;
+  --on-signal: 12 11 9;
   --shadow-color: 0 0 0;
 
   --line-subtle-a: 0.09;
@@ -72,9 +77,9 @@
   --ink-600: 255 255 255;
   --ink-500: 226 232 241;
 
-  --line-subtle: 30 47 74;
-  --line: 30 47 74;
-  --line-strong: 30 47 74;
+  --line-subtle: 46 44 40;
+  --line: 46 44 40;
+  --line-strong: 46 44 40;
 
   /* Darker than the first pass. 71 85 105 on a near-white panel is 4.3:1,
      under AA for body text; these clear it. */
@@ -83,13 +88,13 @@
   --content-muted: 88 102 124;
   --content-faint: 130 144 164;
 
-  /* Darkened for contrast against white; the dark-theme values fail WCAG AA
-     as text on a light field. */
-  --signal-run: 12 130 155;
-  --signal-gate: 166 106 12;
-  --signal-pass: 22 133 74;
-  --signal-fail: 190 52 52;
-  --signal-plan: 99 76 200;
+  /* Day-shift forge: ember holds as deep amber; copper reads as burnt
+     sienna. Both clear AA on the light steel panels. */
+  --signal-run: 176 108 22;
+  --signal-gate: 156 74 44;
+  --signal-pass: 26 128 66;
+  --signal-fail: 186 48 40;
+  --signal-plan: 128 100 52;
 
   /* Darker and less saturated than the dark-theme pair: on a near-white panel
      the dark values read as neon, and the +/- gutter glyphs are text so they
@@ -157,19 +162,22 @@ body {
    One very restrained ambient gradient. The runtime provides the movement in
    this product; the background must not compete with it. */
 
+/* Ambient: the forge's heat lives low and to one side — an ember glow, not
+   a tech-grid aurora. Barely present; it should feel like standing near
+   something warm, not like a landing page. */
 .app-shell {
   position: relative;
   isolation: isolate;
   background:
-    radial-gradient(ellipse 72rem 34rem at 82% -14%, rgb(var(--signal-run) / 0.05), transparent 68%),
-    radial-gradient(ellipse 52rem 30rem at 4% 2%, rgb(var(--signal-plan) / 0.035), transparent 68%),
+    radial-gradient(ellipse 60rem 30rem at 88% -12%, rgb(var(--signal-run) / 0.07), transparent 62%),
+    radial-gradient(ellipse 44rem 26rem at -6% 106%, rgb(var(--signal-gate) / 0.05), transparent 60%),
     rgb(var(--ink-800));
 }
 
 [data-theme='light'] .app-shell {
   background:
-    radial-gradient(ellipse 72rem 34rem at 82% -14%, rgb(var(--signal-run) / 0.06), transparent 66%),
-    radial-gradient(ellipse 52rem 30rem at 4% 2%, rgb(var(--signal-plan) / 0.045), transparent 66%),
+    radial-gradient(ellipse 60rem 30rem at 88% -12%, rgb(var(--signal-run) / 0.08), transparent 60%),
+    radial-gradient(ellipse 44rem 26rem at -6% 106%, rgb(var(--signal-gate) / 0.05), transparent 58%),
     rgb(var(--ink-800));
 }
 
@@ -598,4 +606,71 @@ body {
   box-shadow:
     0 1px 2px rgb(var(--shadow-color) / 0.06),
     0 12px 32px -12px rgb(var(--shadow-color) / 0.18);
+}
+
+/* ── THE SIGNATURE: the heat-thread ─────────────────────────────────
+   A thin horizontal gradient (ember → transparent) placed on surfaces
+   where work is LIVE or where a decision is being asked. It is the
+   product's one aesthetic risk: heat means activity, cool means idle.
+   Used on: the live terminal tab, the approval gate, active runs, the
+   composer while focused. Nowhere else — restraint is what makes it
+   read. */
+.heat-thread {
+  position: relative;
+}
+.heat-thread::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg,
+    rgb(var(--signal-run) / 0.9),
+    rgb(var(--signal-gate) / 0.55) 45%,
+    transparent 85%);
+  pointer-events: none;
+}
+
+/* Static ember rule — for section breaks where heat has cooled: a shorter,
+   quieter mark that pairs with uppercase labels. */
+.ember-rule {
+  height: 2px;
+  width: 2.5rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgb(var(--signal-run) / 0.7), transparent);
+}
+
+/* The brand mark heats up: diamond stays, gains the ember core. */
+.brand-mark span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border: 1.5px solid rgb(var(--signal-run));
+  border-radius: 0.125rem;
+  transform: rotate(45deg);
+  background: radial-gradient(circle at 50% 50%, rgb(var(--signal-run) / 0.5), transparent 70%);
+  box-shadow: 0 0 6px rgb(var(--signal-run) / 0.25);
+}
+
+/* Headline flame: steel-to-ember gradient. In dark it glows like hot metal;
+   in light it degrades to a deep amber that keeps AA presence without
+   shouting (fixes the 'too heavy ember in light mode' audit note). */
+.intake-flame {
+  background: linear-gradient(100deg,
+    rgb(var(--content-secondary)),
+    rgb(var(--signal-run)) 65%,
+    rgb(var(--signal-gate)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+[data-theme='light'] .intake-flame {
+  background: linear-gradient(100deg,
+    rgb(var(--content-secondary)),
+    rgb(var(--signal-run)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

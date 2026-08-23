@@ -162,7 +162,7 @@ export default function WorkIntake({
             </span>
             <h1 className="mt-5 text-[2rem] font-semibold leading-[1.15] tracking-tight text-content-primary sm:text-[2.5rem]">
               Describe the outcome.
-              <span className="block bg-gradient-to-r from-signal-plan via-signal-run to-signal-run bg-clip-text text-transparent">
+              <span className="intake-flame block">
                 Approve the plan.
               </span>
             </h1>
