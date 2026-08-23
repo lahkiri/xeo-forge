@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.13.0-blue.svg" alt="Xeo Forge v1.13.0">
+  <img src="https://img.shields.io/badge/release-v1.13.1-blue.svg" alt="Xeo Forge v1.13.1">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
@@ -24,6 +24,10 @@ Xeo Forge is a **local-first control plane for agentic work**. It gives software
 The product is built around one principle:
 
 > **Give your agent a forge, not a blank check.**
+
+## What changed in v1.13.1
+
+v1.13.1 is a hotfix for a real defect reported from an installed Windows copy of v1.13.0: the terminal failed with `conpty.node` missing. Next's file tracer cannot follow node-pty's runtime native loads, and the release smoke test never spawned a PTY — so a green pipeline shipped a dead terminal. Both closed at the class level: prepare-desktop rebuilds and ships both native modules (and asserts the binary exists), and the release smoke now types into a real PTY and requires the echo back — on Windows and Linux — before any release can publish.
 
 ## What changed in v1.13.0
 
