@@ -314,9 +314,247 @@ describe('the read-only loop guard is reachable from both loop paths', () => {
 
   it('drives detection through the guards module rather than a local literal', () => {
     expect(loopSource).toContain("from './guards'");
-    expect(loopSource).toContain('readOnlyLoopDetected(consecutiveReads)');
+    // The threshold may come from the resolved guard PROFILE (model tier);
+    // what matters is that detection itself is the guards-module function,
+    // not a re-declared local condition.
+    expect(loopSource).toContain('readOnlyLoopDetected(consecutiveReads, guardProfile.maxConsecutiveReads)');
     expect(loopSource).toContain('readOnlyLoopNudge(consecutiveReads)');
     // MAX_CONSECUTIVE_READS must not be re-declared as a local literal.
     expect(loopSource).not.toMatch(/const MAX_CONSECUTIVE_READS\s*=/);
+  });
+});
+
+/* ───────────────────────── guard profiles ───────────────────────── */
+
+import {
+  GUARD_PROFILES,
+  guardProfileForModel,
+} from '../lib/agent/guards';
+
+describe('guard profiles by model tier', () => {
+  it('frontier model families resolve to the strong profile', () => {
+    for (const id of [
+      'claude-opus-4-5',
+      'claude-opus-4-1-20250805',
+      'claude-sonnet-4-5',          // claude-4+ flagships
+      'gpt-5.1',
+      'gpt-5-chat-latest',
+      'o3-mini',
+      'o4-mini-high',
+      'gemini-2.5-pro',
+      'deepseek-r1',
+      'deepseek-v3',
+      'grok-4',
+    ]) {
+      expect(guardProfileForModel(id)).toBe('strong');
+    }
+  });
+
+  it('weaker and unknown models keep the historical standard profile', () => {
+    for (const id of [
+      'gpt-4o-mini',
+      'gpt-4.1',
+      'claude-3-5-haiku',
+      'claude-3-5-sonnet',
+      'gemini-2.0-flash',
+      'llama-3.3-70b',
+      'mistral-large',
+      'qwen2.5-coder',
+      '',
+      undefined,
+      null,
+    ]) {
+      expect(guardProfileForModel(id as string | null | undefined)).toBe('standard');
+    }
+  });
+
+  it('the strong profile is strictly more permissive than standard', () => {
+    expect(GUARD_PROFILES.strong.stagnationThreshold).toBeGreaterThan(GUARD_PROFILES.standard.stagnationThreshold);
+    expect(GUARD_PROFILES.strong.maxConsecutiveReads).toBeGreaterThan(GUARD_PROFILES.standard.maxConsecutiveReads);
+    // Standard keeps the historical numbers — no silent behavior change for
+    // every existing deployment.
+    expect(GUARD_PROFILES.standard.stagnationThreshold).toBe(3);
+    expect(GUARD_PROFILES.standard.maxConsecutiveReads).toBe(6);
+  });
+
+  it('readOnlyLoopDetected honors the profile threshold', () => {
+    // 9 reads: past standard's 6, under strong's 15.
+    expect(readOnlyLoopDetected(9)).toBe(true);                       // default = standard
+    expect(readOnlyLoopDetected(9, GUARD_PROFILES.standard.maxConsecutiveReads)).toBe(true);
+    expect(readOnlyLoopDetected(9, GUARD_PROFILES.strong.maxConsecutiveReads)).toBe(false);
+    expect(readOnlyLoopDetected(15, GUARD_PROFILES.strong.maxConsecutiveReads)).toBe(true);
+  });
+});
+
+/* ─────────────── stagnation fingerprint: observations count ─────────────── */
+
+describe('the stagnation fingerprint includes tool observations', () => {
+  // THE DEFECT THIS PINS: a frontier model fixing a failing test runs the
+  // SAME command repeatedly; arguments alone are identical every round, so
+  // the old fingerprint counted a converging loop as stagnation and killed
+  // productive runs. The observation prefix distinguishes them.
+  const loopSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/loop.ts'), 'utf8');
+
+  it('computeToolSignature takes an observations parameter', () => {
+    expect(loopSource).toContain('function computeToolSignature(');
+    expect(loopSource).toMatch(/observations/);
+  });
+
+  it('every signature call site passes observations', () => {
+    const callSites = loopSource.match(/computeToolSignature\(/g) ?? [];
+    expect(callSites.length).toBeGreaterThanOrEqual(4); // definition + 3 call sites
+    // No call site uses the legacy single-argument form: every invocation
+    // spreads over two lines or passes an array literal second argument.
+    const legacy = loopServiceLegacyCalls(loopSource);
+    expect(legacy).toEqual([]);
+  });
+
+  function loopServiceLegacyCalls(source: string): string[] {
+    // A call site with no observations would still be valid TypeScript
+    // (default []); find single-line invocations without a second argument.
+    const lines = source.split('\n').map((l) => l.trim());
+    return lines.filter((l) => /^const sig = computeToolSignature\(calls\);$/.test(l));
+  }
+
+  it('same arguments + different observations must differ (source contract)', () => {
+    // Direct behavioral proof through the module: import the live function.
+    // It is not exported (internal to the loop), so the contract is asserted
+    // on the source: the fingerprint line includes the observation prefix.
+    expect(loopSource).toContain('=>${observations[i].slice(0, 120)}');
+  });
+
+  it('the loop resolves thresholds from the model profile, not the constant', () => {
+    expect(loopSource).toContain('guardProfileForModel(model.modelId)');
+    expect(loopSource).toContain('guardProfile.stagnationThreshold');
+    expect(loopSource).toContain('guardProfile.maxConsecutiveReads');
+  });
+});
+
+/* ───────────── summary section gate: language affinity ───────────── */
+
+import {
+  SUMMARY_SECTION_MARKERS,
+  validateSummarySections,
+} from '../lib/agent/guards';
+
+describe('validateSummarySections obeys LANGUAGE AFFINITY', () => {
+  // THE DEFECT THIS PINS: the prompt orders the model to answer in the
+  // user's language, but the gate used to accept only the English section
+  // words. An Arabic-speaking user's perfectly structured Arabic summary
+  // was rejected, retried, and could fail the run. A summary must never
+  // fail the gate for obeying the language instruction.
+
+  it('accepts a fully Arabic summary (the reported defect)', () => {
+    const summary = `تم بناء الموقع بالكامل.
+
+الافتراضات:
+- رابط الديسكورد غير متوفر فاستخدمت رابطاً مؤقتاً
+
+القرارات:
+- اخترت متغيرات CSS بدل الأنماط المضمّنة
+
+المشاكل المكتشفة:
+- شريط التنقل يتداخل مع القسم الرئيسي تحت 768px
+
+الحلول البديلة:
+- استخدمت شعاراً بتدرج بسيط`;
+    const result = validateSummarySections(summary);
+    expect(result.ok).toBe(true);
+    expect(result.missing).toEqual([]);
+  });
+
+  it('accepts a French summary', () => {
+    const summary = `Site livré.
+
+Hypothèses :
+- Lien Discord indisponible, lien temporaire utilisé
+
+Décisions :
+- Variables CSS plutôt que styles inline
+
+Problèmes :
+- La navbar chevauche le hero sous 768px
+
+Solutions de contournement :
+- Logo en dégradé`;
+    expect(validateSummarySections(summary).ok).toBe(true);
+  });
+
+  it('accepts a Spanish summary', () => {
+    const summary = `Sitio completado.
+
+Supuestos:
+- Sin enlace de Discord, se usó un placeholder
+
+Decisiones:
+- Variables CSS
+
+Problemas:
+- Navbar solapa el hero
+
+Solución alternativa:
+- Logo degradado`;
+    expect(validateSummarySections(summary).ok).toBe(true);
+  });
+
+  it('accepts a Russian summary', () => {
+    const summary = `Сайт готов.
+
+Допущения:
+- Discord-ссылка недоступна
+
+Решения:
+- CSS-переменные
+
+Проблемы:
+- Навбар перекрывает hero
+
+Обходной путь:
+- Градиентный логотип`;
+    expect(validateSummarySections(summary).ok).toBe(true);
+  });
+
+  it('still accepts the English-labeled contract (prompt-compliant output)', () => {
+    const summary = `Built the site.
+
+Assumptions:
+- Discord link unavailable, used placeholder
+
+Decisions:
+- CSS variables over inline styles
+
+Issues:
+- Navbar overlaps hero below 768px
+
+Workarounds:
+- Gradient logo`;
+    expect(validateSummarySections(summary).ok).toBe(true);
+  });
+
+  it('rejects a summary missing everything, naming all four sections', () => {
+    const result = validateSummarySections('أكملت المهمة بنجاح دون أي تفاصيل.');
+    expect(result.ok).toBe(false);
+    expect(result.missing).toEqual([
+      'Assumptions',
+      'Decisions',
+      'Issues/Limitations',
+      'Workarounds/Placeholders',
+    ]);
+  });
+
+  it('names only the sections that are actually missing (partial credit)', () => {
+    const summary = `الافتراضات: لا يوجد\nالقرارات: لا يوجد`;
+    const result = validateSummarySections(summary);
+    expect(result.ok).toBe(false);
+    // Arabic covered the first two; the last two must be the only gaps.
+    expect(result.missing).toEqual(['Issues/Limitations', 'Workarounds/Placeholders']);
+  });
+
+  it('every marker list is non-empty (no vacuous section)', () => {
+    for (const [section, markers] of Object.entries(SUMMARY_SECTION_MARKERS)) {
+      expect(markers.length, section).toBeGreaterThan(0);
+      // English stays first in every list: the deterministic contract.
+      expect(markers[0]).toMatch(/[a-z]/);
+    }
   });
 });

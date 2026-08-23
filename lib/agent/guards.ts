@@ -44,6 +44,67 @@ export const DESCRIPTION_PATTERNS: readonly RegExp[] = [
 /** How much of the tail is inspected for description-not-doing patterns. */
 export const DESCRIPTION_TAIL_CHARS = 500;
 
+/**
+ * Guard profiles: the same behavioral guards, tuned by model tier.
+ *
+ * WHY TIER AT ALL: the thresholds below were calibrated against weak models
+ * that genuinely loop (same call, same failure, no adaptation). A frontier
+ * model runs legitimate loops that LOOK identical to a dumb loop unless you
+ * read the results: run test → fix → run the SAME test → fix again. Every
+ * iteration has the same tool name and arguments but a DIFFERENT observation,
+ * and each one is real progress. Tuning one set of thresholds for both tiers
+ * either kills productive strong models or lets weak ones spin for minutes.
+ *
+ * Detection is a heuristic on the model id (no schema change, admin-visible
+ * string): frontier families map to `strong`, everything else stays on the
+ * historical `standard` numbers. A model that is misclassified degrades to
+ * the old behavior — never to something unchecked.
+ */
+export const GUARD_PROFILES = {
+  /** Historical thresholds — calibrated for models that genuinely loop. */
+  standard: {
+    /** Consecutive identical tool-call fingerprints before escalation. */
+    stagnationThreshold: 3,
+    /** Consecutive read-only calls in build mode before the nudge. */
+    maxConsecutiveReads: 6,
+  },
+  /**
+   * Frontier models: more room before escalation, because their repeated
+   * shapes are usually legitimate (deep code study; iterated test-fix loops
+   * whose observations differ every round — the fingerprint covers that, but
+   * the extra headroom keeps the nudge out of a focused agent's way).
+   */
+  strong: {
+    stagnationThreshold: 6,
+    maxConsecutiveReads: 15,
+  },
+} as const;
+
+export type GuardProfileName = keyof typeof GUARD_PROFILES;
+
+/**
+ * Model-id heuristics for GUARD_PROFILES.strong. Matched case-insensitively
+ * against the configured model id (e.g. `claude-opus-4-5`, `gpt-5.1`,
+ * `o3-mini`, `gemini-2.5-pro`, `deepseek-r1`, `grok-4`). The list is
+ * deliberately coarse: a false `standard` merely restores the old, stricter
+ * behavior for a strong model — annoying, never unsafe.
+ */
+const STRONG_MODEL_PATTERNS: RegExp[] = [
+  /opus/i,                  // Claude Opus, any generation
+  /claude-(sonnet|opus|haiku)-?[4-9][.-]/i, // Claude 4+ flagships (any family)
+  /claude-[4-9][.-]/i,      // Bare "claude-4-…" ids
+  /gpt-?[5-9]/i,            // GPT-5 and later
+  /\bo[1-9]\b|\bo[1-9]-/i,  // OpenAI o-series reasoning models (o1, o3, o4…)
+  /gemini-?\d*\.?[2-9].*pro/i, // Gemini 2+ Pro
+  /deepseek-?(r[v]?\d|v[3-9])/i, // DeepSeek R/V3+ reasoning line
+  /grok-?[3-9]/i,
+];
+
+export function guardProfileForModel(modelId: string | null | undefined): GuardProfileName {
+  if (!modelId) return 'standard';
+  return STRONG_MODEL_PATTERNS.some((re) => re.test(modelId)) ? 'strong' : 'standard';
+}
+
 /** Consecutive read-only tool calls in build mode before nudging. */
 export const MAX_CONSECUTIVE_READS = 6;
 
@@ -80,8 +141,13 @@ export function nextConsecutiveReads(current: number, toolName: string): number 
   return current;
 }
 
-export function readOnlyLoopDetected(consecutiveReads: number): boolean {
-  return consecutiveReads >= MAX_CONSECUTIVE_READS;
+/**
+ * Read-only loop check. `maxReads` defaults to the standard profile's number;
+ * the agent loop passes its resolved profile's threshold so a strong model
+ * studying a large codebase is not interrupted mid-investigation.
+ */
+export function readOnlyLoopDetected(consecutiveReads: number, maxReads: number = MAX_CONSECUTIVE_READS): boolean {
+  return consecutiveReads >= maxReads;
 }
 
 /**
@@ -176,4 +242,46 @@ export function incompleteTodosNudge(
     pending.map((i) => `[${i.id}] ${i.description} (${i.status})`).join('; ') +
     `. Complete the remaining work, then call task_complete.`
   );
+}
+
+/* ------------------------------------------------------------------ */
+/*  task_complete summary section gate                                 */
+/*                                                                     */
+/*  Lives here (not inside the loop closure) for the same reason every  */
+/*  other guard does: one implementation, imported by the loop AND by  */
+/*  the unit tests (AGENTS.md §5.5). A closure-local copy would let     */
+/*  tests re-declare the logic and stay green while the real gate       */
+/*  drifted.                                                           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Section markers accepted by the summary gate. The prompt contract
+ * (prompts.ts) tells the model to LABEL the four engineering-memory lists
+ * with their English titles so the check stays deterministic; the content
+ * under each title is written in the user's language. These translation
+ * keys are a safety net for models that translate the titles too — the
+ * LANGUAGE AFFINITY instruction explicitly asks for user-language output,
+ * and a summary must never fail the gate for obeying it.
+ */
+export const SUMMARY_SECTION_MARKERS: Record<string, string[]> = {
+  Assumptions: ['assumption', 'افتراض', 'hypothèse', 'supuesto', '假设', 'допущен'],
+  Decisions: ['decision', 'قرار', 'décision', 'decisión', '决定', 'решен'],
+  'Issues/Limitations': ['issue', 'limitation', 'مشكلة', 'مشاكل', 'قيد', 'تحفظ', 'problème', 'limite', 'problema', 'limitación', '问题', 'проблем'],
+  'Workarounds/Placeholders': ['workaround', 'placeholder', 'حل بديل', 'بديل', 'مؤقت', 'contournement', 'alternativa', '临时', 'обходн'],
+};
+
+/**
+ * Validate that a task_complete summary includes the four mandatory
+ * engineering-memory sections. Text-presence check over the summary AND its
+ * accepted translations — a model obeying LANGUAGE AFFINITY and writing the
+ * summary in the user's language still passes.
+ */
+export function validateSummarySections(summary: string): { ok: boolean; missing: string[] } {
+  const lower = summary.toLowerCase();
+  const missing: string[] = [];
+  for (const [section, markers] of Object.entries(SUMMARY_SECTION_MARKERS)) {
+    const present = markers.some((marker) => lower.includes(marker.toLowerCase()));
+    if (!present) missing.push(section);
+  }
+  return { ok: missing.length === 0, missing };
 }
