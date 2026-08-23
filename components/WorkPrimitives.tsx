@@ -193,11 +193,12 @@ export function DecisionGate({
 }) {
   const urgent = seconds <= 10;
   return (
-    <div className="border-b border-signal-plan/20 bg-signal-plan/07 px-4 py-4">
+    <div className="heat-thread relative border-b border-signal-run/20 bg-signal-run/[0.06] px-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className="text-meta font-semibold uppercase tracking-[0.16em] text-signal-plan/90">
+            <span className="ember-rule" aria-hidden="true" />
+            <p className="text-meta font-semibold uppercase tracking-[0.16em] text-signal-run">
               This request wants to change your project
             </p>
             <span

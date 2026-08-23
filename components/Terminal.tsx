@@ -312,9 +312,10 @@ export default function Terminal({ taskId, autoKill = true, className = '' }: Te
           Terminal
         </span>
         {phase === 'ready' && (
-          <Badge tone="emerald" dot pulse>
-            live
-          </Badge>
+          <span className="heat-thread inline-flex items-center gap-1.5 pb-0.5">
+            <span className="h-1.5 w-1.5 animate-live-pulse rounded-full bg-signal-run shadow-[0_0_8px_rgb(var(--signal-run)/0.8)]" aria-hidden="true" />
+            <span className="text-micro font-semibold uppercase tracking-[0.14em] text-signal-run">live</span>
+          </span>
         )}
         {phase === 'connecting' && (
           <Badge tone="cyan">

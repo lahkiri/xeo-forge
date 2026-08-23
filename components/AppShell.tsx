@@ -176,7 +176,7 @@ export default function AppShell({
           <div className="flex items-center justify-between px-2 pb-2.5">
             <span
               title={runtime === 'native' ? 'Go runtime broker connected' : 'Running in web mode'}
-              className="flex items-center gap-2 text-micro uppercase tracking-[0.12em] text-content-muted"
+              className="flex items-center gap-2 text-micro font-medium uppercase tracking-[0.12em] text-content-secondary"
             >
               <span
                 className={cx(
