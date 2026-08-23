@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.14.0
+
+v1.14.0 — **Trustworthy Speed** — parallel read-only tool execution, terminal cleanup wired to run termination (a documented contract that had zero call sites since inception), the OpenHands competitive analysis and market position, a capability strip on the Work intake, and a README restructured to lead with the product. 32 files / 678 tests.
+
 ## What changed in v1.13.1
 
 v1.13.1 is a hotfix for a real defect reported from an installed Windows copy of v1.13.0: the terminal failed with `conpty.node` missing. Next's file tracer cannot follow node-pty's runtime native loads, and the release smoke test never spawned a PTY — so a green pipeline shipped a dead terminal. Both closed at the class level: prepare-desktop rebuilds and ships both native modules (and asserts the binary exists), and the release smoke now types into a real PTY and requires the echo back — on Windows and Linux — before any release can publish.
