@@ -350,8 +350,16 @@ describe('guard profiles by model tier', () => {
       'deepseek-v3',
       'grok-4',
       'glm-4.6',
-      'glm-4-plus',
+      'glm-5.3',
+      'glm-5.2',
       'kimi-k2-0905-preview',
+      'kimi-k3',
+      'claude-fable-5',
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'qwen3.8-max',
+      'gemini-3.1-pro',
+      'gpt-5.6-sol',
     ]) {
       expect(guardProfileForModel(id)).toBe('strong');
     }
@@ -367,7 +375,9 @@ describe('guard profiles by model tier', () => {
       'llama-3.3-70b',
       'mistral-large',
       'qwen2.5-coder',
+      'qwen3-32b',      // small Qwen 3 tiers stay standard
       'glm-3-turbo',   // older GLM stays standard
+      'deepseek-v2',
       '',
       undefined,
       null,
