@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.15.0
+
+v1.15.0 — **The Workbench Redesign** — the first structural redesign: a sidebar workbench shell replacing the top nav, a centered hero intake with an elevated composer card, and README screenshots captured from the current product instead of the v1.4.0 era. Independent vision-model design review: intake 8.2/10, dark workbench 9/10 ("rivals the polish of Linear or Cursor").
+
 ## What changed in v1.14.0
 
 v1.14.0 — **Trustworthy Speed** — parallel read-only tool execution, terminal cleanup wired to run termination (a documented contract that had zero call sites since inception), the OpenHands competitive analysis and market position, a capability strip on the Work intake, and a README restructured to lead with the product. 32 files / 678 tests.
