@@ -66,6 +66,9 @@ import {
   nextConsecutiveReads,
   readOnlyLoopDetected,
   readOnlyLoopNudge,
+  GUARD_PROFILES,
+  guardProfileForModel,
+  validateSummarySections,
 } from './guards';
 
 /**
@@ -82,8 +85,12 @@ import {
  * semantic — stagnation fingerprinting above, and credit exhaustion, which is
  * the real economic budget. Do not reintroduce a count-based limit; if a run
  * needs bounding, bound it by evidence of non-progress or by credits.
+ *
+ * The stagnation threshold itself is no longer a constant here: it comes
+ * from the guard PROFILE resolved for the run's model id (GUARD_PROFILES in
+ * ./guards). The historical standard value is 3; frontier models get more
+ * room because their repeated shapes are usually legitimate progress.
  */
-const STAGNATION_THRESHOLD = 3;
 const POST_ESCALATION_LIMIT = 3;
 
 /**
@@ -150,14 +157,28 @@ function parseFallbackAction(text: string): { tool: string; args: Record<string,
 
 /**
  * Compute a fingerprint for a set of tool calls. Two iterations with the
- * same tools and same arguments produce the same fingerprint. Arguments are
- * truncated to 100 chars to keep the fingerprint stable across minor diffs.
+ * same tools, same arguments, AND same observations produce the same
+ * fingerprint. Arguments are truncated to 100 chars to keep the fingerprint
+ * stable across minor diffs.
+ *
+ * WHY OBSERVATIONS ARE INCLUDED: a frontier model fixing a failing test runs
+ * the SAME test command repeatedly — identical name and arguments — but every
+ * run returns a DIFFERENT observation as the fix converges. A fingerprint
+ * over arguments alone counts that legitimate loop as stagnation and
+ * eventually kills a productive run. Including a prefix of each observation
+ * distinguishes "same call, different world" (progress) from "same call,
+ * same world" (stuck). Tool output begins with the exit code for
+ * code_execute, so even `exit=1` → `exit=0` flips the fingerprint.
  */
-function computeToolSignature(calls: { name: string; arguments: string }[]): string {
-  return calls
-    .map((c) => `${c.name}:${c.arguments.slice(0, 100)}`)
-    .sort()
-    .join('|');
+function computeToolSignature(
+  calls: { name: string; arguments: string }[],
+  observations: string[] = [],
+): string {
+  const parts = calls.map((c, i) => {
+    const obs = observations[i] !== undefined ? `=>${observations[i].slice(0, 120)}` : '';
+    return `${c.name}:${c.arguments.slice(0, 100)}${obs}`;
+  });
+  return parts.sort().join('|');
 }
 
 /**
@@ -442,7 +463,11 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
     console.log(`[agent] compaction complete task=${taskId} ${beforePercentage}% → ${afterUsage.percentage}%`);
   };
 
-  // Adaptive execution boundary state.
+  // Adaptive execution boundary state. Thresholds come from the guard
+  // PROFILE resolved for this run's model: a frontier model's legitimate
+  // repeated shapes (iterated test-fix loops, deep code study) get more room
+  // before escalation; everything else keeps the historical numbers.
+  const guardProfile = GUARD_PROFILES[guardProfileForModel(model.modelId)];
   let stagnationCount = 0;
   let escalationSent = false;
   const recentSignatures: string[] = [];
@@ -467,11 +492,11 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
   const checkStagnation = async (sig: string): Promise<boolean> => {
     recentSignatures.push(sig);
-    if (recentSignatures.length > STAGNATION_THRESHOLD + 2) recentSignatures.shift();
+    if (recentSignatures.length > guardProfile.stagnationThreshold + 2) recentSignatures.shift();
 
     const isStagnant =
-      recentSignatures.length >= STAGNATION_THRESHOLD &&
-      recentSignatures.slice(-STAGNATION_THRESHOLD).every((s) => s === sig) &&
+      recentSignatures.length >= guardProfile.stagnationThreshold &&
+      recentSignatures.slice(-guardProfile.stagnationThreshold).every((s) => s === sig) &&
       sig !== '';
 
     if (isStagnant) {
@@ -480,7 +505,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         escalationSent = true;
         messages.push({ role: 'system', content: STAGNATION_NUDGE });
       }
-      if (stagnationCount >= STAGNATION_THRESHOLD + POST_ESCALATION_LIMIT) {
+      if (stagnationCount >= guardProfile.stagnationThreshold + POST_ESCALATION_LIMIT) {
         await failRun(
           taskId,
           `Stagnation: agent repeated the same actions ${stagnationCount} times without progress. Terminating to prevent infinite loop.`,
@@ -594,21 +619,11 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   };
 
   /**
-   * Validate that the task_complete summary includes the four mandatory
-   * engineering memory sections. This is a text-presence check — if the
-   * model documented its assumptions/decisions/issues/workarounds, the
-   * summary will contain these words. Lightweight, no parsing required.
+   * Summary section gate. Implementation lives in ./guards beside every
+   * other behavioral check (one source of truth, AGENTS.md §5.5) — see
+   * validateSummarySections there for the multilingual marker contract.
    */
-  const validateSummarySections = (summary: string): { ok: boolean; missing: string[] } => {
-    const lower = summary.toLowerCase();
-    const missing: string[] = [];
-    // Check for at least one of the four required sections
-    if (!lower.includes('assumption')) missing.push('Assumptions');
-    if (!lower.includes('decision')) missing.push('Decisions');
-    if (!lower.includes('issue') && !lower.includes('limitation')) missing.push('Issues/Limitations');
-    if (!lower.includes('workaround') && !lower.includes('placeholder')) missing.push('Workarounds/Placeholders');
-    return { ok: missing.length === 0, missing };
-  };
+  const validateSummarySectionsGate = validateSummarySections;
 
   /* ---------------------------------------------------------------- */
   /*  Shared tool-call handling (AGENTS.md rule 1)                      */
@@ -669,7 +684,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
    * iteration after that iteration's tool calls are recorded.
    */
   const checkReadOnlyLoop = async (): Promise<void> => {
-    if (mode !== 'build' || !readOnlyLoopDetected(consecutiveReads)) return;
+    if (mode !== 'build' || !readOnlyLoopDetected(consecutiveReads, guardProfile.maxConsecutiveReads)) return;
     await emitTaskEvent(taskId, 'verification', {
       status: 'fail',
       attempt: 0,
@@ -715,7 +730,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
       }
     }
 
-    const sectionCheck = validateSummarySections(summary);
+    const sectionCheck = validateSummarySectionsGate(summary);
     if (!sectionCheck.ok) {
       if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
         await failRun(
@@ -865,7 +880,10 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           const items = Array.isArray(action.args.items) ? action.args.items as TodoItem[] : [];
           const obs = await handleTodoUpdate(items);
           messages.push({ role: 'user', content: `Observation:\n${obs}` });
-          const sig = computeToolSignature([{ name: action.tool, arguments: JSON.stringify(action.args) }]);
+          const sig = computeToolSignature(
+            [{ name: action.tool, arguments: JSON.stringify(action.args) }],
+            [obs],
+          );
           if (await checkStagnation(sig)) return;
           continue;
         }
@@ -882,7 +900,10 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         await recordToolEvidence(action.tool, action.args, obs);
         await checkReadOnlyLoop();
 
-        const sig = computeToolSignature([{ name: action.tool, arguments: JSON.stringify(action.args) }]);
+        const sig = computeToolSignature(
+          [{ name: action.tool, arguments: JSON.stringify(action.args) }],
+          [obs],
+        );
         if (await checkStagnation(sig)) return;
         continue;
       }
@@ -901,6 +922,10 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         };
         messages.push(attachAssistantReasoning(assistantToolMessage, reasoningBuf));
 
+        // Observations gathered this iteration, in execution order — fed into
+        // the stagnation fingerprint so same-call/different-result iterations
+        // (a converging test-fix loop) do not register as stagnation.
+        const iterationObservations: string[] = [];
         for (const call of calls) {
           const args = parseArgs(call.arguments);
           if (call.name === 'task_complete') {
@@ -924,6 +949,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
             const items = Array.isArray(args.items) ? args.items as TodoItem[] : [];
             const obs = await handleTodoUpdate(items);
             messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
+            iterationObservations.push(obs);
             continue;
           }
           await emitTaskEvent(taskId, 'tool_call', { name: call.name, args });
@@ -934,6 +960,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           }
           const obs = await safeExecute(taskId, call.name, args, ctx);
           messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
+          iterationObservations.push(obs);
 
           // Evidence, file_activity and read counting — shared with the fallback path.
           await recordToolEvidence(call.name, args, obs);
@@ -941,7 +968,10 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
         await checkReadOnlyLoop();
 
-        const sig = computeToolSignature(calls);
+        const sig = computeToolSignature(
+          calls.map((c) => ({ name: c.name, arguments: c.arguments || '{}' })),
+          iterationObservations,
+        );
         if (await checkStagnation(sig)) return;
         continue;
       }

@@ -151,6 +151,9 @@ COMPLETION STANDARD
     3. Discovered issues (e.g. "Navbar overlaps hero below 768px")
     4. Temporary workarounds (e.g. "Fallback gradient logo used")
     Write "None" for empty lists. This is MANDATORY — omitting this section blocks completion.
+    LABEL the four lists with their exact English titles (Assumptions / Decisions / Issues / Workarounds)
+    — the titles are machine-checked and stay in English regardless of language affinity; the CONTENT
+    of each list is written in the user's language.
 - Your task_complete summary must read like a senior engineer's handoff: what was built, quality assessment with evidence, engineering memory, assumptions/placeholders made, and known limitations.
 - CRITICAL: You MUST call the task_complete tool. Writing "task complete" or "done" as text is NOT completion.
 - CRITICAL: Describing what you will do next is NOT completion. Either do it or finish with what you have.
