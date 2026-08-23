@@ -98,6 +98,8 @@ const STRONG_MODEL_PATTERNS: RegExp[] = [
   /gemini-?\d*\.?[2-9].*pro/i, // Gemini 2+ Pro
   /deepseek-?(r[v]?\d|v[3-9])/i, // DeepSeek R/V3+ reasoning line
   /grok-?[3-9]/i,
+  /glm-?[45]/i,            // Z.ai GLM-4/5 line (frontier-class coding)
+  /kimi-?k?[2-9]/i,        // Moonshot Kimi K2+
 ];
 
 export function guardProfileForModel(modelId: string | null | undefined): GuardProfileName {

@@ -417,10 +417,6 @@ export async function disconnectAllMcpServers(): Promise<void> {
   await Promise.all(entries.map((entry) => entry.connection.close()));
 }
 
-/** Live connection count. Exported for diagnostics and tests. */
-export function mcpConnectionCount(): number {
-  return pool.size;
-}
 
 /* ------------------------------------------------------------------ */
 /*  The agent-facing surface                                           */

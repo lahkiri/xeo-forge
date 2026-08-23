@@ -287,11 +287,15 @@ describe('the read-only loop guard is reachable from both loop paths', () => {
     expect(count('const evaluateCompletion =')).toBe(1);
   });
 
-  it('calls each shared helper from both the fallback and native paths', () => {
+  it('calls each shared helper from the fallback, native, and parallel paths', () => {
     const count = (needle: string) => loopSource.split(needle).length - 1;
-    // Two call sites each: one per protocol path.
-    expect(count('await recordToolEvidence(')).toBe(2);
+    // recordToolEvidence: fallback + native sequential + native parallel batch.
+    expect(count('await recordToolEvidence(')).toBe(3);
+    // checkReadOnlyLoop runs once per iteration for BOTH native paths
+    // (sequential and parallel share the post-loop call) plus the fallback.
     expect(count('await checkReadOnlyLoop()')).toBe(2);
+    // task_complete evaluation only happens on the sequential paths — the
+    // parallel batch is read-only by construction and cannot contain it.
     expect(count('await evaluateCompletion(')).toBe(2);
   });
 
@@ -345,6 +349,9 @@ describe('guard profiles by model tier', () => {
       'deepseek-r1',
       'deepseek-v3',
       'grok-4',
+      'glm-4.6',
+      'glm-4-plus',
+      'kimi-k2-0905-preview',
     ]) {
       expect(guardProfileForModel(id)).toBe('strong');
     }
@@ -360,6 +367,7 @@ describe('guard profiles by model tier', () => {
       'llama-3.3-70b',
       'mistral-large',
       'qwen2.5-coder',
+      'glm-3-turbo',   // older GLM stays standard
       '',
       undefined,
       null,
@@ -556,5 +564,50 @@ Workarounds:
       // English stays first in every list: the deterministic contract.
       expect(markers[0]).toMatch(/[a-z]/);
     }
+  });
+});
+
+/* ───────── parallel read-only batch: source contract ───────── */
+
+describe('parallel read-only batch', () => {
+  const loopSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/loop.ts'), 'utf8');
+
+  it('exists: a whole-batch condition gates the parallel path', () => {
+    expect(loopSource).toContain('calls.every((c) => isParallelSafeRead(');
+    expect(loopSource).toContain('const MAX_PARALLEL_READS = 6');
+  });
+
+  it('only read-only tools qualify (writes, http, browser, MCP excluded)', () => {
+    // isParallelSafeRead must whitelist by name, never blacklist.
+    expect(loopSource).toMatch(/function isParallelSafeRead[\s\S]{0,400}file_read/);
+    expect(loopSource).toMatch(/function isParallelSafeRead[\s\S]{0,500}GIT_READ_OPS/);
+    // The whitelist must NOT admit the mutating/external tools.
+    const fn = loopSource.match(/function isParallelSafeRead[\s\S]{0,700}?\n\}/)?.[0] ?? '';
+    for (const banned of ['file_write', 'file_edit', 'code_execute', 'http_request', 'browser', 'preview', 'mcp__']) {
+      expect(fn, `isParallelSafeRead must not admit ${banned}`).not.toContain(`'${banned}'`);
+    }
+  });
+
+  it('results are emitted in CALL order, not completion order', () => {
+    // The deterministic audit-stream contract: calls batch first, results
+    // batch after Promise.all, both in calls order.
+    expect(loopSource).toContain('const observations = await Promise.all(');
+    expect(loopSource).toMatch(/for \(let i = 0; i < calls\.length; i\+\+\) \{\s*\n\s*const call = calls\[i\]/);
+  });
+
+  it('mixed batches fall back to sequential (no task_complete is dropped)', () => {
+    // The parallel branch must be gated on EVERY call being a safe read, so a
+    // batch of reads + task_complete runs the sequential path and the
+    // completion call is never skipped. The old bug: filtering
+    // task_complete out of executableCalls while flagging the batch handled.
+    expect(loopSource).not.toContain('executableCalls');
+  });
+
+  it('terminal sessions are cleaned up when a run reaches a terminal state', () => {
+    // v1.14 wiring: killSessionsForTask was a documented contract with zero
+    // callers since inception. It must now be called from BOTH terminal
+    // paths of the loop.
+    const calls = loopSource.match(/killSessionsForTask\(taskId\)/g) ?? [];
+    expect(calls.length).toBeGreaterThanOrEqual(2);
   });
 });
