@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.12.0-blue.svg" alt="Xeo Forge v1.12.0">
+  <img src="https://img.shields.io/badge/release-v1.13.0-blue.svg" alt="Xeo Forge v1.13.0">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
@@ -24,6 +24,10 @@ Xeo Forge is a **local-first control plane for agentic work**. It gives software
 The product is built around one principle:
 
 > **Give your agent a forge, not a blank check.**
+
+## What changed in v1.13.0
+
+v1.13.0 — **A Loop Worthy of a Strong Model** — makes the agent loop stop punishing frontier models. Guard profiles tune stagnation and read-loop thresholds by model tier (Opus/Claude 4+/GPT-5+/o-series get room to work; every other model keeps the historical numbers unchanged). The stagnation fingerprint now reads tool *observations*, so a converging fix-test loop is progress, not stagnation. And the `task_complete` summary gate obeys the LANGUAGE AFFINITY instruction it enforces: engineering-memory sections are accepted in six languages, fixing a defect where a structured Arabic summary was rejected for obeying the product's own language rule. 32 files / 673 tests.
 
 ## What changed in v1.12.0
 
