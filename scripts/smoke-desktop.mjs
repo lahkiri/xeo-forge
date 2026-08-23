@@ -136,9 +136,74 @@ try {
     throw new Error(`Expected native runtime, got HTTP ${runtimeApi.status}: ${JSON.stringify(runtimeBody)}`);
   }
 
+  /* ── REAL terminal check ──────────────────────────────────────────
+   * v1.13.0 shipped with node-pty's native binaries missing from the
+   * packaged app: the app booted, every check above passed, and the FIRST
+   * terminal on a user machine failed with "Failed to load native module:
+   * conpty.node". Boot-level checks cannot catch that — this block spawns a
+   * REAL PTY through the standalone server under Electron, types into it,
+   * and requires the shell's echo back before the smoke test may pass.
+   * ─────────────────────────────────────────────────────────────────── */
+  const termCreate = await fetch(`http://127.0.0.1:${port}/api/tasks/${directBody.task.id}/terminal`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: '{}',
+  });
+  const termBody = await termCreate.json().catch(() => ({}));
+  if (termCreate.status !== 201 || typeof termBody.id !== 'string') {
+    throw new Error(
+      `Terminal session could not start (HTTP ${termCreate.status}): ${JSON.stringify(termBody).slice(0, 300)}` +
+        ' — native PTY module is missing or unloadable in the packaged runtime.',
+    );
+  }
+
+  // Stream the session and wait for the shell to echo a unique marker back.
+  const SMOKE_MARKER = `XEO_PTY_SMOKE_${process.pid}`;
+  const markerSeen = new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`PTY output stream never echoed "${SMOKE_MARKER}" — the terminal is not executing commands.`)),
+      20_000,
+    );
+    timer.unref?.();
+    fetch(`http://127.0.0.1:${port}/api/tasks/${directBody.task.id}/terminal/${termBody.id}/stream`).then((stream) => {
+      const reader = stream.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      (async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            if (buffer.includes(SMOKE_MARKER)) {
+              clearTimeout(timer);
+              reader.cancel().catch(() => {});
+              resolve(true);
+              return;
+            }
+          }
+          reject(new Error('PTY stream closed before the marker was echoed.'));
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      })();
+    }).catch(reject);
+  });
+  await fetch(`http://127.0.0.1:${port}/api/tasks/${directBody.task.id}/terminal/${termBody.id}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ data: `echo ${SMOKE_MARKER}\r` }),
+  });
+  await markerSeen;
+
+  // Clean exit: close the session so the smoke run leaves no live shell.
+  await fetch(`http://127.0.0.1:${port}/api/tasks/${directBody.task.id}/terminal/${termBody.id}`, {
+    method: 'DELETE',
+  });
+
   console.log(JSON.stringify({
     ok: true,
-    checks: ['local-root-redirect', 'implicit-local-owner', 'register-disabled', 'chat-mode-with-project-path', 'work-direct-awaits-decision', 'native-runtime-health'],
+    checks: ['local-root-redirect', 'implicit-local-owner', 'register-disabled', 'chat-mode-with-project-path', 'work-direct-awaits-decision', 'native-runtime-health', 'real-pty-terminal-spawn-exec-echo'],
     dbPath,
     electronVersion,
   }, null, 2));
