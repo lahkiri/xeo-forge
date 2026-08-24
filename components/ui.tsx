@@ -256,6 +256,7 @@ export const STATUS_TONE: Record<string, BadgeTone> = {
   awaiting_decision: 'violet',
   completed: 'emerald',
   failed: 'red',
+  cancelled: 'gray',
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -265,6 +266,7 @@ export const STATUS_LABEL: Record<string, string> = {
   awaiting_decision: 'needs your choice',
   completed: 'completed',
   failed: 'failed',
+  cancelled: 'cancelled',
 };
 
 export function StatusBadge({ status, className = '' }: { status: string; className?: string }) {
