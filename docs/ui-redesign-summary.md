@@ -39,3 +39,11 @@
 [1]: https://www.navbar.gallery/blog/best-side-bar-navigation-menu-design-examples "8+ Best Sidebar Menu Design Examples of 2026 — Navbar Gallery"
 
 [2]: https://github.com/NousResearch/hermes-agent/tree/main/apps/desktop "Hermes Desktop — apps/desktop"
+
+## الإصدار الثاني: Workspace موحدة
+
+تم توحيد صفحة البداية في `/chat` إلى Workspace واحدة تحتوي على وضعين واضحين: **Chat** للاستكشاف واتخاذ القرار، و**Work** للتخطيط والتنفيذ المحكوم بالموافقة. يتبدل المحتوى داخل الصفحة نفسها؛ يظهر في Work إعداد project boundary وrole وworkflow والمرفقات قبل بدء التشغيل، بينما يبقى Chat هادئًا ومخصصًا للمحادثة فقط.
+
+أصبح المسار `/work` يعيد التوجيه إلى `/chat` حتى لا توجد شاشة بدء ثانية، بينما بقي `/work/[id]` كتفصيل للجلسة المنفذة التي تحتوي على Run وActivity وProject وPreview وContext وMemory وTerminal وDiff.
+
+أضيف أيضًا شريط **Quick setup** في Settings يوضح Provider وBrowser وRole وTools، مع روابط مباشرة إلى الأقسام المناسبة، لتقليل وقت الإعداد الأولي.

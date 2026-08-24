@@ -14,9 +14,8 @@ import { CommandPalette, useBaseCommands, useHotkeys, type Command } from './Com
  * geometric vocabulary as the brand mark, never emoji.
  */
 const NAV = [
-  { href: '/chat', label: 'Chat', glyph: '01', hint: 'Conversation only' },
-  { href: '/work', label: 'Work', glyph: '02', hint: 'Governed execution' },
-  { href: '/settings', label: 'Settings', glyph: '03', hint: 'Providers, roles, policy' },
+  { href: '/chat', label: 'Workspace', glyph: '01', hint: 'Chat and Work in one place' },
+  { href: '/settings', label: 'Settings', glyph: '02', hint: 'Providers, roles, policy' },
 ];
 
 export default function AppShell({
@@ -100,7 +99,7 @@ export default function AppShell({
   useHotkeys([
     { combo: 'mod+k', run: () => setPaletteOpen((v) => !v), allowInInput: true },
     { combo: 'mod+shift+c', run: () => router.push('/chat') },
-    { combo: 'mod+shift+w', run: () => router.push('/work') },
+    { combo: 'mod+shift+w', run: () => router.push('/chat') },
     { combo: 'mod+,', run: () => router.push('/settings') },
   ]);
 
@@ -108,7 +107,7 @@ export default function AppShell({
   const showUpdate = update && ['available', 'downloading', 'downloaded', 'success', 'error'].includes(update.status);
 
   const navItems = user?.isAdmin && !isLocalSurface
-    ? [...NAV, { href: '/admin', label: 'Admin', glyph: '04', hint: 'Users, credits, global model' }]
+    ? [...NAV, { href: '/admin', label: 'Admin', glyph: '03', hint: 'Users, credits, global model' }]
     : NAV;
 
   const shell = (

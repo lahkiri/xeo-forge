@@ -810,3 +810,276 @@ body {
   background: rgb(var(--signal-run) / 0.09);
   color: rgb(var(--signal-run));
 }
+
+/* ── Unified workspace ───────────────────────────────────────────────
+   One home surface for conversation and governed work. The visual language
+   stays deliberately flat: one hairline, quiet surfaces, one amber focus.
+*/
+.unified-workspace {
+  background: rgb(var(--ink-800));
+}
+.unified-history {
+  background: rgb(var(--ink-900) / 0.42);
+}
+.unified-history-item {
+  border: 1px solid transparent;
+}
+.unified-history-item:hover {
+  border-color: rgb(var(--line-subtle) / 0.9);
+  background: rgb(var(--ink-700) / 0.65);
+}
+.unified-header {
+  background: rgb(var(--ink-800) / 0.96);
+}
+.workspace-mode-switch {
+  display: inline-flex;
+  align-items: stretch;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border: 1px solid rgb(var(--line-subtle) / 0.85);
+  border-radius: 0.55rem;
+  background: rgb(var(--ink-900) / 0.62);
+}
+.workspace-mode-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 8.7rem;
+  border: 1px solid transparent;
+  border-radius: 0.38rem;
+  padding: 0.42rem 0.55rem;
+  color: rgb(var(--content-muted));
+  text-align: left;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.workspace-mode-option:hover {
+  color: rgb(var(--content-primary));
+}
+.workspace-mode-option.is-active {
+  border-color: rgb(var(--signal-run) / 0.34);
+  background: rgb(var(--signal-run) / 0.1);
+  color: rgb(var(--content-primary));
+}
+.workspace-mode-option strong,
+.workspace-mode-option small {
+  display: block;
+}
+.workspace-mode-option strong {
+  font-size: 0.75rem;
+  font-weight: 650;
+  line-height: 1.1;
+}
+.workspace-mode-option small {
+  margin-top: 0.15rem;
+  color: rgb(var(--content-faint));
+  font-size: 0.62rem;
+  line-height: 1.1;
+}
+.workspace-mode-index,
+.unified-setup-number {
+  color: rgb(var(--signal-run));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+.unified-main {
+  min-height: 100%;
+}
+.unified-hero {
+  position: relative;
+  padding-left: 1.25rem;
+}
+.unified-hero-rule {
+  position: absolute;
+  top: 0.2rem;
+  bottom: 0.25rem;
+  left: 0;
+  width: 0.18rem;
+  border-radius: 999px;
+  background: rgb(var(--signal-run));
+}
+.unified-work-setup {
+  border-top: 1px solid rgb(var(--line-subtle) / 0.95);
+  border-bottom: 1px solid rgb(var(--line-subtle) / 0.95);
+  padding: 1rem 0 1.05rem;
+}
+.unified-setup-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.unified-setup-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.35rem;
+  padding: 0.28rem 0.48rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.unified-setup-status.is-ready {
+  background: rgb(var(--signal-pass) / 0.1);
+  color: rgb(var(--signal-pass));
+}
+.unified-setup-status.is-warn {
+  background: rgb(var(--signal-gate) / 0.1);
+  color: rgb(var(--signal-gate));
+}
+.unified-setup-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  border: 1px solid rgb(var(--line-subtle) / 0.8);
+  border-radius: 0.45rem;
+  background: rgb(var(--ink-900) / 0.34);
+  padding: 0.6rem 0.7rem;
+}
+.unified-setup-cell.is-warn {
+  border-color: rgb(var(--signal-gate) / 0.34);
+}
+.unified-setup-cell > :last-child {
+  min-width: 0;
+  flex: 1;
+}
+.unified-setup-cell > button:last-child {
+  flex: 0 0 auto;
+}
+.unified-setup-cell label {
+  margin: 0;
+  min-width: 0;
+  flex: 1;
+}
+.unified-setup-cell label > span {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.unified-setup-cell select {
+  min-width: 0;
+  background: rgb(var(--ink-900) / 0.55);
+}
+.unified-starter {
+  min-height: 7rem;
+  border: 1px solid rgb(var(--line-subtle) / 0.9);
+  border-radius: 0.5rem;
+  background: rgb(var(--ink-700) / 0.35);
+  padding: 0.85rem;
+  transition: border-color 140ms ease, background-color 140ms ease, transform 140ms ease;
+}
+.unified-starter:hover {
+  border-color: rgb(var(--signal-run) / 0.42);
+  background: rgb(var(--signal-run) / 0.065);
+  transform: translateY(-1px);
+}
+.unified-composer {
+  background: rgb(var(--ink-800) / 0.96);
+}
+.unified-composer-shell {
+  border: 1px solid rgb(var(--line) / 0.9);
+  border-radius: 0.58rem;
+  background: rgb(var(--ink-900) / 0.75);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+.unified-composer-shell:focus-within {
+  border-color: rgb(var(--signal-run) / 0.62);
+  box-shadow: 0 0 0 3px rgb(var(--signal-run) / 0.08);
+}
+@media (max-width: 640px) {
+  .workspace-mode-option {
+    min-width: 0;
+  }
+  .workspace-mode-option small {
+    display: none;
+  }
+  .unified-setup-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.settings-setup-strip {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.1fr) repeat(4, minmax(8rem, 1fr));
+  gap: 0.35rem;
+  margin-top: 1.1rem;
+  border-top: 1px solid rgb(var(--line-subtle) / 0.9);
+  border-bottom: 1px solid rgb(var(--line-subtle) / 0.9);
+  padding: 0.45rem 0;
+}
+.settings-setup-title,
+.settings-setup-step {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  padding: 0.5rem 0.45rem;
+}
+.settings-setup-title {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.18rem;
+  color: rgb(var(--content-primary));
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.settings-setup-title small,
+.settings-setup-step small {
+  display: block;
+  color: rgb(var(--content-muted));
+  font-size: 0.62rem;
+  font-weight: 400;
+  line-height: 1.3;
+}
+.settings-setup-step {
+  border: 1px solid transparent;
+  border-radius: 0.38rem;
+  color: rgb(var(--content-secondary));
+  text-align: left;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.settings-setup-step:hover {
+  border-color: rgb(var(--line) / 0.85);
+  background: rgb(var(--ink-700) / 0.6);
+  color: rgb(var(--content-primary));
+}
+.settings-setup-step.is-done {
+  border-color: rgb(var(--signal-pass) / 0.24);
+  background: rgb(var(--signal-pass) / 0.06);
+}
+.settings-setup-step strong {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.settings-setup-index {
+  color: rgb(var(--content-faint));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.62rem;
+  font-variant-numeric: tabular-nums;
+}
+.settings-setup-state {
+  margin-left: auto;
+  color: rgb(var(--signal-run));
+  font-size: 0.8rem;
+}
+.settings-setup-step.is-done .settings-setup-state {
+  color: rgb(var(--signal-pass));
+}
+@media (max-width: 860px) {
+  .settings-setup-strip {
+    display: flex;
+    overflow-x: auto;
+  }
+  .settings-setup-title,
+  .settings-setup-step {
+    flex: 0 0 auto;
+    min-width: 9rem;
+  }
+  .settings-setup-title {
+    min-width: 8rem;
+  }
+}

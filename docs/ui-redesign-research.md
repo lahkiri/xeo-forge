@@ -25,3 +25,15 @@ A local review account was created only for visual verification: `ui-review-2026
 ## Screenshot set
 
 The final verification captures include a light-mode top view, a light-mode mid-page view showing Profile Studio, and a dark-mode view showing Skills, MCP, and the memory cards. The screenshots are visual evidence of the redesign and are copied into `docs/ui-screens/` for delivery.
+
+## Unified Chat / Work direction
+
+The new request shifts the product toward a single home surface. Hermes Desktop's documented principles are useful here: Chat is the home surface; the transcript and composer remain primary; tools, previews, files, review, and terminal complement the conversation; settings and command center behave as overlays or focused destinations; and the design should be flat rather than nested card-in-card. Source: https://github.com/NousResearch/hermes-agent/blob/main/apps/desktop/DESIGN.md
+
+Xeo Forge should therefore keep one persistent conversation workspace, place a compact Chat / Work mode switch in the surface header, and reveal Work-only controls—project boundary, profile, skill, attachments, plan review—without creating a second top-level navigation destination. The governed Work detail view can remain specialized after a run starts, while the entry experience stays unified.
+
+## Unified workspace visual verification
+
+The unified `/chat` route now presents a single Workspace surface. The header exposes two explicit modes: Chat / Explore and decide, and Work / Plan and execute. Chat keeps a quiet transcript-oriented composition with a simple composer and starter prompts. Work reveals a compact setup strip for project boundary, role, workflow, attachments, and approval-first behavior without opening a separate intake page.
+
+The global rail now exposes Workspace and Settings rather than separate Chat and Work destinations. Existing `/work/[id]` remains the governed run detail surface after a Work session starts, preserving the richer plan/activity/project/preview/context/terminal/diff tooling.

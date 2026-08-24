@@ -195,6 +195,18 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
     }
   };
 
+  const setupSteps = [
+    { id: 'providers', label: 'Provider', detail: model?.api_key_set ? 'Connected' : 'Add a connection', done: Boolean(model?.api_key_set) },
+    { id: 'runtime-browser', label: 'Browser', detail: browserState?.connected ? 'Connected' : 'Optional', done: Boolean(browserState?.connected) },
+    { id: 'profiles', label: 'Role', detail: 'Optional reusable context', done: false },
+    { id: 'mcp', label: 'Tools', detail: 'Add MCP when needed', done: false },
+  ];
+
+  const scrollToSection = (id: string) => {
+    setActiveSection(id === 'runtime-browser' ? 'runtime' : id as (typeof SETTINGS_SECTIONS)[number]['id']);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   const installUpdate = async () => {
     if (!window.xeoDesktop) return;
     try {
@@ -331,7 +343,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
                 type="button"
                 onClick={() => {
                   setActiveSection(section.id);
-                  document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  scrollToSection(section.id);
                 }}
                 className={`settings-index-item ${activeSection === section.id ? 'is-active' : ''}`}
                 aria-current={activeSection === section.id ? 'location' : undefined}
@@ -356,6 +368,16 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           <h2 className="mt-3 text-display font-semibold tracking-tight text-content-primary sm:text-3xl">Make Xeo work the way you expect.</h2>
           <p className="mt-3 text-ui leading-6 text-content-secondary">Configure the model, browser permissions, reusable instructions, and memory from one clear workspace. Changes are visible, local where applicable, and never require source-code edits.</p>
           <div className="mt-5 flex flex-wrap gap-2 text-meta"><span className="settings-summary-chip is-accent">Provider</span><span className="settings-summary-chip">MCP</span><span className="settings-summary-chip">Skills</span><span className="settings-summary-chip">Memory</span></div>
+          <div className="settings-setup-strip" aria-label="Setup checklist">
+            <div className="settings-setup-title"><span>Quick setup</span><small>Start with the essentials</small></div>
+            {setupSteps.map((step, index) => (
+              <button key={step.id} type="button" className={`settings-setup-step ${step.done ? 'is-done' : ''}`} onClick={() => scrollToSection(step.id)}>
+                <span className="settings-setup-index">0{index + 1}</span>
+                <span className="min-w-0 text-left"><strong>{step.label}</strong><small>{step.detail}</small></span>
+                <span className="settings-setup-state" aria-hidden="true">{step.done ? '✓' : '→'}</span>
+              </button>
+            ))}
+          </div>
         </header>
 
         {notice && (
