@@ -49,7 +49,10 @@ import type {
 export const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 /** Identity we send in `initialize`. */
-export const MCP_CLIENT_INFO = { name: 'xeo-forge', version: '1.11.0' } as const;
+// Single source of truth: the package version. Drifted for five releases
+// (1.11.0 sent while shipping 1.16.0) because it was a hardcoded literal.
+import { version as APP_VERSION } from '../../package.json';
+export const MCP_CLIENT_INFO = { name: 'xeo-forge', version: APP_VERSION } as const;
 
 export const MCP_LIMITS = {
   /** Longest single stdout line we will buffer before declaring the peer hostile. */

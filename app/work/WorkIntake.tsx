@@ -8,7 +8,6 @@ import {
   Alert,
   Button,
   Card,
-  Eyebrow,
   IconButton,
   KeyHint,
   PanelHeader,
