@@ -47,3 +47,13 @@
 أصبح المسار `/work` يعيد التوجيه إلى `/chat` حتى لا توجد شاشة بدء ثانية، بينما بقي `/work/[id]` كتفصيل للجلسة المنفذة التي تحتوي على Run وActivity وProject وPreview وContext وMemory وTerminal وDiff.
 
 أضيف أيضًا شريط **Quick setup** في Settings يوضح Provider وBrowser وRole وTools، مع روابط مباشرة إلى الأقسام المناسبة، لتقليل وقت الإعداد الأولي.
+
+## تطبيق patterns Hermes — الجولة الجديدة
+
+تم تطبيق نمط capabilities على MCP Studio: قائمة configured servers في master column، detail pane للخادم المحدد، حالة enabled/disabled، process/arguments، environment keys، approval note، وإضافة server في نفس surface. كما تمت ترقية composer في Workspace بإضافة Add context في Chat، attachment chips قابلة للإزالة، وحالة Approval-first في Work. أصبح mode قابلًا للفتح مباشرة عبر `/chat?mode=chat` أو `/chat?mode=work` حتى يمكن مشاركة السياق والعودة إليه.
+
+تم التحقق بصريًا من Chat وWork بعد إعادة تشغيل خادم التطوير بوضع development. لقطات التحقق الحالية:
+- `/home/ubuntu/screenshots/127_0_0_1_2026-08-24_22-20-54_5835.webp` — Chat
+- `/home/ubuntu/screenshots/127_0_0_1_2026-08-24_22-20-40_4669.webp` — Work
+
+تمت مراجعة Settings بعد تحديث MCP. القسم يعرض الآن MCP كـ Capabilities / MCP مع master column للخوادم وdetail pane للحالة والإضافة، وتظهر Quick setup وSettings sidebar في نفس الصفحة. لقطة التحقق: `/home/ubuntu/screenshots/127_0_0_1_2026-08-24_22-21-38_3240.webp`.

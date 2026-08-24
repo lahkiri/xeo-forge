@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AgentProfile, AgentSkill } from '@/lib/types';
 import {
   Alert,
@@ -49,9 +49,12 @@ export default function UnifiedWorkspace({
   localMode: boolean;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const routeMode: WorkspaceMode = searchParams.get('mode') === 'work' ? 'work' : 'chat';
   const mod = useModKey();
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  const [mode, setMode] = useState<WorkspaceMode>('chat');
+  const [mode, setMode] = useState<WorkspaceMode>(routeMode);
   const [draft, setDraft] = useState('');
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [profileId, setProfileId] = useState('');
@@ -67,6 +70,15 @@ export default function UnifiedWorkspace({
   const description = mode === 'chat'
     ? 'Ask questions, explore decisions, and shape the next move. Chat is read-only and keeps the conversation focused.'
     : 'Describe the outcome. Xeo inspects the project first, prepares a plan, and waits for your approval before writing or running commands.';
+
+  useEffect(() => {
+    setMode(routeMode);
+  }, [routeMode]);
+
+  function changeMode(nextMode: WorkspaceMode) {
+    setMode(nextMode);
+    router.replace(`${pathname}?mode=${nextMode}`, { scroll: false });
+  }
 
   async function chooseProject() {
     setError('');
@@ -116,7 +128,7 @@ export default function UnifiedWorkspace({
         setError(data.error || `Could not start this ${mode} session.`);
         return;
       }
-      if (isWork) {
+      if (staged.length > 0) {
         for (const file of staged) {
           const upload = await uploadToTask(data.task.id, file);
           if (!upload.ok) console.warn(`[work] upload failed for ${file.name}: ${upload.error}`);
@@ -187,11 +199,11 @@ export default function UnifiedWorkspace({
             <h1 className="mt-1 truncate text-ui font-semibold tracking-tight text-content-primary">Think, plan, build.</h1>
           </div>
           <div className="workspace-mode-switch" role="tablist" aria-label="Workspace mode">
-            <button type="button" role="tab" aria-selected={mode === 'chat'} onClick={() => { setMode('chat'); setError(''); }} className={cx('workspace-mode-option', mode === 'chat' && 'is-active')}>
+            <button type="button" role="tab" aria-selected={mode === 'chat'} onClick={() => { changeMode('chat'); setError(''); }} className={cx('workspace-mode-option', mode === 'chat' && 'is-active')}>
               <span className="workspace-mode-index">01</span>
               <span><strong>Chat</strong><small>Explore and decide</small></span>
             </button>
-            <button type="button" role="tab" aria-selected={mode === 'work'} onClick={() => { setMode('work'); setError(''); }} className={cx('workspace-mode-option', mode === 'work' && 'is-active')}>
+            <button type="button" role="tab" aria-selected={mode === 'work'} onClick={() => { changeMode('work'); setError(''); }} className={cx('workspace-mode-option', mode === 'work' && 'is-active')}>
               <span className="workspace-mode-index">02</span>
               <span><strong>Work</strong><small>Plan and execute</small></span>
             </button>
@@ -258,10 +270,23 @@ export default function UnifiedWorkspace({
 
         <footer className="unified-composer shrink-0 border-t border-line-subtle px-4 py-3 sm:px-6">
           <div className="mx-auto w-full max-w-4xl">
+            {mode === 'chat' && staged.length > 0 && (
+              <div className="unified-attachment-strip" aria-label="Attached context">
+                <span className="unified-attachment-label">Context</span>
+                {staged.map((file, index) => (
+                  <button key={`${file.name}-${index}`} type="button" className="unified-attachment-chip" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>
+                    {file.name}<span aria-hidden="true">×</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="unified-composer-shell">
               <textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={1} autoFocus placeholder={mode === 'chat' ? 'Ask a question or describe what you are weighing…' : 'Describe the change or outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} className="block max-h-[180px] w-full resize-none bg-transparent px-4 py-3 text-body leading-6 text-content-primary outline-none placeholder:text-content-muted" />
               <div className="flex items-center justify-between gap-3 px-3 pb-2.5">
-                <span className="flex items-center gap-1.5 text-micro text-content-muted"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'start planning'}<span className="mx-0.5 text-content-faint">·</span><KeyHint keys={['Shift', 'Enter']} /> newline</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  {mode === 'chat' ? <UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /> : <span className="workspace-composer-note">Approval-first · {projectPath ? 'Project bound' : 'Managed workspace'}</span>}
+                  <span className="hidden items-center gap-1.5 text-micro text-content-muted sm:flex"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'start planning'}<span className="mx-0.5 text-content-faint">·</span><KeyHint keys={['Shift', 'Enter']} /> newline</span>
+                </div>
                 <Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button>
               </div>
             </div>
