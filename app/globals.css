@@ -674,3 +674,139 @@ body {
   background-clip: text;
   color: transparent;
 }
+
+/* ── Settings control plane ──────────────────────────────────────────
+   Dense configuration needs a quiet index and strong typographic rhythm,
+   not a wall of colourful cards. */
+.settings-section {
+  scroll-margin-top: 1.5rem;
+}
+.settings-index {
+  border: 1px solid rgb(var(--line-subtle) / 0.85);
+  border-radius: 0.7rem;
+  background: rgb(var(--ink-700) / 0.45);
+  padding: 0.7rem;
+}
+.settings-index-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.3rem 0.45rem 0.7rem;
+  border-bottom: 1px solid rgb(var(--line-subtle) / 0.8);
+}
+.settings-index-kicker {
+  color: rgb(var(--content-primary));
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.settings-index-count {
+  color: rgb(var(--content-faint));
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+.settings-index-item {
+  display: grid;
+  grid-template-columns: 1.7rem minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  gap: 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  padding: 0.55rem 0.5rem;
+  color: rgb(var(--content-secondary));
+  text-align: left;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.settings-index-item:hover {
+  border-color: rgb(var(--line) / 0.65);
+  background: rgb(var(--ink-600) / 0.55);
+  color: rgb(var(--content-primary));
+}
+.settings-index-item.is-active {
+  border-color: rgb(var(--signal-run) / 0.34);
+  background: rgb(var(--signal-run) / 0.09);
+  color: rgb(var(--content-primary));
+}
+.settings-index-marker {
+  color: rgb(var(--content-faint));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.65rem;
+  font-variant-numeric: tabular-nums;
+}
+.settings-index-item.is-active .settings-index-marker {
+  color: rgb(var(--signal-run));
+}
+.settings-index-note {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.75rem 0.35rem 0.2rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgb(var(--line-subtle) / 0.75);
+  color: rgb(var(--content-faint));
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+.settings-note-dot {
+  width: 0.38rem;
+  height: 0.38rem;
+  flex: 0 0 auto;
+  margin-top: 0.28rem;
+  border-radius: 999px;
+  background: rgb(var(--signal-run));
+}
+@media (max-width: 1279px) {
+  .settings-index {
+    position: static;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    overflow-x: auto;
+    padding: 0.55rem;
+  }
+  .settings-index-heading {
+    min-width: max-content;
+    border-bottom: 0;
+    padding: 0.25rem 0.45rem;
+  }
+  .settings-index-heading .settings-index-count,
+  .settings-index-note {
+    display: none;
+  }
+  .settings-index nav {
+    display: flex;
+    min-width: max-content;
+    gap: 0.25rem;
+    margin-top: 0;
+  }
+  .settings-index-item {
+    display: flex;
+    width: auto;
+    min-width: max-content;
+    padding: 0.45rem 0.6rem;
+  }
+  .settings-index-item > span:last-child span:last-child {
+    display: none;
+  }
+}
+
+.settings-summary-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgb(var(--line-subtle) / 0.9);
+  border-radius: 0.35rem;
+  background: rgb(var(--ink-700) / 0.55);
+  padding: 0.3rem 0.55rem;
+  color: rgb(var(--content-muted));
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.settings-summary-chip.is-accent {
+  border-color: rgb(var(--signal-run) / 0.35);
+  background: rgb(var(--signal-run) / 0.09);
+  color: rgb(var(--signal-run));
+}

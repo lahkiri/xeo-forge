@@ -125,7 +125,7 @@ export default function McpStudio() {
     <Card className="mb-6">
       <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-meta font-semibold uppercase tracking-[0.18em] text-cyan-300">MCP SERVERS</p>
+          <p className="text-meta font-semibold uppercase tracking-[0.18em] text-signal-run">MCP SERVERS</p>
           <h2 className="mt-1 font-semibold">External tools, your decision</h2>
           <p className="mt-1 max-w-2xl text-meta leading-5 text-content-muted">
             Connect Model Context Protocol servers over stdio. Their tools appear to Build runs as
@@ -134,7 +134,7 @@ export default function McpStudio() {
             processes on this machine with your permissions — add only sources you trust.
           </p>
         </div>
-        <span className="rounded-full bg-cyan-500/10 px-2.5 py-1 text-micro text-cyan-300">
+        <span className="rounded-full bg-signal-run/10 px-2.5 py-1 text-micro text-signal-run">
           {servers.filter((s) => s.enabled).length} enabled
         </span>
       </div>
@@ -145,14 +145,14 @@ export default function McpStudio() {
           onChange={(e) => setName(e.target.value)}
           placeholder="Server name, e.g. local-files"
           aria-label="MCP server name"
-          className="rounded-md border border-line bg-ink-700/60 px-3 py-2 text-ui outline-none placeholder:text-content-muted focus:border-cyan-400/50"
+          className="rounded-md border border-line bg-ink-700/60 px-3 py-2 text-ui outline-none placeholder:text-content-muted focus:border-signal-run/45"
         />
         <input
           value={command}
           onChange={(e) => setCommand(e.target.value)}
           placeholder="Command, e.g. npx or /usr/local/bin/mcp-server"
           aria-label="MCP server command"
-          className="rounded-md border border-line bg-ink-700/60 px-3 py-2 text-ui outline-none placeholder:text-content-muted focus:border-cyan-400/50"
+          className="rounded-md border border-line bg-ink-700/60 px-3 py-2 text-ui outline-none placeholder:text-content-muted focus:border-signal-run/45"
         />
         <textarea
           value={args}
@@ -160,7 +160,7 @@ export default function McpStudio() {
           rows={2}
           placeholder={'Arguments, one per line, e.g.\n-y\n@modelcontextprotocol/server-filesystem\n/tmp'}
           aria-label="MCP server arguments, one per line"
-          className="w-full resize-y rounded-md border border-line bg-ink-700/60 px-3 py-2 font-mono text-ui leading-6 outline-none placeholder:text-content-muted focus:border-cyan-400/50"
+          className="w-full resize-y rounded-md border border-line bg-ink-700/60 px-3 py-2 font-mono text-ui leading-6 outline-none placeholder:text-content-muted focus:border-signal-run/45"
         />
         <textarea
           value={env}
@@ -168,7 +168,7 @@ export default function McpStudio() {
           rows={2}
           placeholder={'Environment variables, one NAME=VALUE per line (optional)'}
           aria-label="MCP server environment variables"
-          className="w-full resize-y rounded-md border border-line bg-ink-700/60 px-3 py-2 font-mono text-ui leading-6 outline-none placeholder:text-content-muted focus:border-cyan-400/50"
+          className="w-full resize-y rounded-md border border-line bg-ink-700/60 px-3 py-2 font-mono text-ui leading-6 outline-none placeholder:text-content-muted focus:border-signal-run/45"
         />
         <div className="md:col-span-2">
           <Button type="submit" disabled={busy || !name.trim() || !command.trim()}>Add server</Button>

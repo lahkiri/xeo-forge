@@ -10,6 +10,15 @@ import McpStudio from './McpStudio';
 
 const MEMORY_KINDS = ['preference', 'fact', 'decision', 'constraint', 'lesson'] as const;
 
+const SETTINGS_SECTIONS = [
+  { id: 'providers', label: 'Providers', detail: 'Model connections', marker: '01' },
+  { id: 'runtime', label: 'Runtime', detail: 'Updates & browser', marker: '02' },
+  { id: 'profiles', label: 'Profiles', detail: 'Agent roles', marker: '03' },
+  { id: 'skills', label: 'Skills', detail: 'Reusable workflows', marker: '04' },
+  { id: 'mcp', label: 'MCP', detail: 'External tools', marker: '05' },
+  { id: 'memory', label: 'Memory', detail: 'Instructions & recall', marker: '06' },
+] as const;
+
 type ContextResponse = { instructions: AgentInstruction[]; memories: AgentMemory[] };
 
 type ModelResponse = { model: ModelSettingsSafe | null };
@@ -86,6 +95,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
   const [modelCompactThreshold, setModelCompactThreshold] = useState('80');
   const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
   const [updateSettings, setUpdateSettings] = useState<DesktopUpdateSettings | null>(null);
+  const [activeSection, setActiveSection] = useState<(typeof SETTINGS_SECTIONS)[number]['id']>('providers');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -308,12 +318,44 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
 
   return (
     <AppShell user={user} localMode={localMode} title={localMode ? 'Control Center' : 'Workspace Control Center'} subtitle={localMode ? 'Shape how Xeo works locally—without accounts, billing, or source-code edits.' : 'Shape how agents think, what they remember, and which workflows they can reuse—without editing source code.'}>
-      <div className="space-y-8">
+      <div className="settings-layout grid gap-8 xl:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside className="settings-index self-start xl:sticky xl:top-6" aria-label="Settings sections">
+          <div className="settings-index-heading">
+            <span className="settings-index-kicker">Workspace settings</span>
+            <span className="settings-index-count">{SETTINGS_SECTIONS.length} sections</span>
+          </div>
+          <nav className="mt-3 space-y-1">
+            {SETTINGS_SECTIONS.map((section) => (
+              <button
+                key={section.id}
+                type="button"
+                onClick={() => {
+                  setActiveSection(section.id);
+                  document.getElementById(section.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                className={`settings-index-item ${activeSection === section.id ? 'is-active' : ''}`}
+                aria-current={activeSection === section.id ? 'location' : undefined}
+              >
+                <span className="settings-index-marker">{section.marker}</span>
+                <span className="min-w-0 text-left">
+                  <span className="block text-ui font-medium">{section.label}</span>
+                  <span className="mt-0.5 block truncate text-micro text-content-muted">{section.detail}</span>
+                </span>
+              </button>
+            ))}
+          </nav>
+          <div className="settings-index-note">
+            <span className="settings-note-dot" aria-hidden="true" />
+            <span>Changes are scoped to this workspace and can be reviewed before use.</span>
+          </div>
+        </aside>
+
+        <div className="min-w-0 space-y-8">
         <header className="max-w-3xl">
           <Eyebrow>{localMode ? 'Control Center' : 'Agent controls'}</Eyebrow>
           <h2 className="mt-3 text-display font-semibold tracking-tight text-content-primary sm:text-3xl">Make Xeo work the way you expect.</h2>
           <p className="mt-3 text-ui leading-6 text-content-secondary">Configure the model, browser permissions, reusable instructions, and memory from one clear workspace. Changes are visible, local where applicable, and never require source-code edits.</p>
-          <div className="mt-5 flex flex-wrap gap-2 text-meta"><span className="rounded-full border border-signal-plan/15 bg-signal-plan/06 px-2.5 py-1 text-signal-plan/80">Model</span><span className="rounded-full border border-signal-run/15 bg-signal-run/06 px-2.5 py-1 text-signal-run/80">Browser</span><span className="rounded-full border border-signal-pass/15 bg-signal-pass/06 px-2.5 py-1 text-signal-pass/80">Memory</span><span className="rounded-full border border-line bg-ink-700/60 px-2.5 py-1 text-content-secondary">Updates</span></div>
+          <div className="mt-5 flex flex-wrap gap-2 text-meta"><span className="settings-summary-chip is-accent">Provider</span><span className="settings-summary-chip">MCP</span><span className="settings-summary-chip">Skills</span><span className="settings-summary-chip">Memory</span></div>
         </header>
 
         {notice && (
@@ -325,12 +367,12 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
         {/* Model configuration is reachable on BOTH surfaces. Gating it behind
             localMode hid the only path to configure a provider in web mode, which
             left the agent permanently unrunnable there (AGENTS.md rule 4). */}
-        <section className="rounded-modal border border-signal-plan/10 bg-signal-plan/035 p-5 sm:p-6">
+        <section id="providers" className="settings-section rounded-modal border border-line bg-ink-700/40 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <Eyebrow>Model</Eyebrow>
-                <h2 className="mt-2 font-semibold text-content-primary">Choose how Xeo thinks</h2>
-                <p className="mt-2 max-w-2xl text-meta leading-5 text-content-secondary">Connect an OpenAI-compatible provider. The key is stored server-side, never returned to the browser, and shown only as a masked status. One model configuration is shared by every run.</p>
+                <Eyebrow>Provider connection</Eyebrow>
+                <h2 className="mt-2 font-semibold text-content-primary">Choose the model behind this workspace</h2>
+                <p className="mt-2 max-w-2xl text-meta leading-5 text-content-secondary">Configure the active OpenAI-compatible provider once, then use the same connection across every run. Credentials are stored server-side, never returned to the browser, and shown only as masked status.</p>
               </div>
               <span className={`rounded-full px-2.5 py-1 text-micro ${model?.api_key_set ? 'bg-signal-pass/10 text-signal-pass' : 'bg-signal-gate/10 text-amber-300'}`}>{model?.api_key_issue === 'placeholder' ? 'replace placeholder key' : model?.api_key_set ? 'provider configured' : 'setup required'}</span>
             </div>
@@ -354,7 +396,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
         </section>
 
         {localMode && (
-          <section className="rounded-modal border border-signal-pass/10 bg-signal-pass/03 p-5 sm:p-6">
+          <section id="runtime" className="settings-section rounded-modal border border-line bg-ink-700/40 p-5 sm:p-6">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <Eyebrow>Application updates</Eyebrow>
@@ -387,7 +429,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           </section>
         )}
 
-        <section className="rounded-modal border border-signal-run/10 bg-signal-run/035 p-5 sm:p-6">
+        <section id="runtime-browser" className="settings-section rounded-modal border border-line bg-ink-700/40 p-5 sm:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <Eyebrow>Optional local capability</Eyebrow>
@@ -472,11 +514,11 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           )}
         </section>
 
-        <ProfileStudio />
-        <SkillStudio />
-        <McpStudio />
+        <section id="profiles" className="settings-section"><ProfileStudio /></section>
+        <section id="skills" className="settings-section"><SkillStudio /></section>
+        <section id="mcp" className="settings-section"><McpStudio /></section>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div id="memory" className="settings-section grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="space-y-6">
             <Card>
               <div className="mb-5 flex items-start justify-between gap-4">
@@ -566,6 +608,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
         </div>
 
         <p className="pt-2 text-meta leading-5 text-content-muted">{localMode ? 'Local Owner workspace. Instructions, memories, browser profiles, and reusable roles stay on this device.' : `Signed in as ${user.displayName || user.email || 'user'}. Task-scoped instructions, memories, and reusable profiles can be managed from the task control surface and dashboard.`}</p>
+        </div>
       </div>
     </AppShell>
   );

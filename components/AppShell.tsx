@@ -14,9 +14,9 @@ import { CommandPalette, useBaseCommands, useHotkeys, type Command } from './Com
  * geometric vocabulary as the brand mark, never emoji.
  */
 const NAV = [
-  { href: '/chat', label: 'Chat', glyph: '◇', hint: 'Conversation only' },
-  { href: '/work', label: 'Work', glyph: '◆', hint: 'Governed execution' },
-  { href: '/settings', label: 'Control Center', glyph: '⚙', hint: 'Model, roles, policy' },
+  { href: '/chat', label: 'Chat', glyph: '01', hint: 'Conversation only' },
+  { href: '/work', label: 'Work', glyph: '02', hint: 'Governed execution' },
+  { href: '/settings', label: 'Settings', glyph: '03', hint: 'Providers, roles, policy' },
 ];
 
 export default function AppShell({
@@ -108,7 +108,7 @@ export default function AppShell({
   const showUpdate = update && ['available', 'downloading', 'downloaded', 'success', 'error'].includes(update.status);
 
   const navItems = user?.isAdmin && !isLocalSurface
-    ? [...NAV, { href: '/admin', label: 'Admin', glyph: '⛨', hint: 'Users, credits, global model' }]
+    ? [...NAV, { href: '/admin', label: 'Admin', glyph: '04', hint: 'Users, credits, global model' }]
     : NAV;
 
   const shell = (
@@ -214,7 +214,7 @@ export default function AppShell({
                   aria-label="Sign out"
                   className="rounded-control px-1.5 py-1 text-meta text-content-faint transition hover:bg-ink-600 hover:text-content-secondary"
                 >
-                  ⏻
+                  Sign out
                 </button>
               </div>
             )
