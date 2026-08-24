@@ -7,7 +7,6 @@ import type { AgentProfile, AgentSkill } from '@/lib/types';
 import {
   Alert,
   Button,
-  IconButton,
   KeyHint,
   Select,
   StatusBadge,
@@ -15,6 +14,7 @@ import {
   useModKey,
 } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
+import { ThemeToggle } from '@/components/Theme';
 
 type WorkspaceMode = 'chat' | 'work';
 
@@ -156,40 +156,35 @@ export default function UnifiedWorkspace({
 
   return (
     <div className="unified-workspace flex h-full min-h-0">
-      <aside className="unified-history hidden w-64 shrink-0 flex-col border-r border-line-subtle md:flex">
-        <div className="flex h-14 shrink-0 items-center justify-between border-b border-line-subtle px-4">
-          <div>
-            <p className="text-micro font-semibold uppercase tracking-[0.18em] text-content-faint">Workspace</p>
-            <p className="mt-0.5 text-ui font-medium text-content-primary">Recent activity</p>
-          </div>
-          <Link href="/chat" aria-label="New workspace session">
-            <IconButton label="New session" size="sm"><span aria-hidden="true" className="text-ui">+</span></IconButton>
+      <aside className="workspace-rail hidden w-64 shrink-0 flex-col border-r border-line-subtle md:flex">
+        <div className="workspace-rail-brand flex h-14 shrink-0 items-center gap-2.5 border-b border-line-subtle px-4">
+          <Link href="/chat" className="flex min-w-0 items-center gap-2.5" aria-label="Xeo Forge">
+            <span className="brand-mark h-7 w-7 rounded-control" aria-hidden="true"><span /></span>
+            <span className="flex min-w-0 flex-col leading-none"><span className="text-ui font-semibold tracking-tight text-content-primary">Xeo Forge</span><span className="mt-1 text-micro uppercase tracking-[0.14em] text-content-faint">Workspace</span></span>
           </Link>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-          {recentItems.length === 0 ? (
-            <p className="px-2 py-8 text-meta leading-5 text-content-muted">Your recent sessions will appear here.</p>
-          ) : (
-            <div className="space-y-1">
-              {recentItems.map((item) => (
-                <Link
-                  key={`${item.kind}-${item.id}`}
-                  href={item.kind === 'work' ? `/work/${item.id}` : `/chat/${item.id}`}
-                  className="unified-history-item group block rounded-control px-3 py-2.5 text-content-muted transition"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-micro uppercase tracking-[0.14em] text-content-faint">{item.kind === 'work' ? 'Work' : 'Chat'}</span>
-                    {item.kind === 'work' && <StatusBadge status={item.status} />}
-                  </div>
-                  <span className="mt-1 block truncate text-ui leading-5 text-content-secondary group-hover:text-content-primary">{item.goal}</span>
-                </Link>
-              ))}
-            </div>
-          )}
+        <div className="workspace-rail-scroll min-h-0 flex-1 overflow-y-auto px-2.5 py-3">
+          <div className="workspace-rail-section-label">Sessions</div>
+          <Link href="/chat" className="workspace-new-session"><span className="workspace-new-session-icon">+</span><span>New session</span><span className="workspace-new-session-key">⌘ N</span></Link>
+          <div className="mt-2 space-y-1">
+            {recentItems.length === 0 ? <p className="px-2.5 py-5 text-meta leading-5 text-content-muted">No sessions yet</p> : recentItems.map((item) => (
+              <Link key={`${item.kind}-${item.id}`} href={item.kind === 'work' ? `/work/${item.id}` : `/chat/${item.id}`} className="unified-history-item group block rounded-control px-2.5 py-2 text-content-muted transition">
+                <div className="flex items-center justify-between gap-2"><span className="text-micro uppercase tracking-[0.14em] text-content-faint">{item.kind === 'work' ? 'Work' : 'Chat'}</span>{item.kind === 'work' && <StatusBadge status={item.status} />}</div>
+                <span className="mt-1 block truncate text-ui leading-5 text-content-secondary group-hover:text-content-primary">{item.goal}</span>
+              </Link>
+            ))}
+          </div>
+          <div className="workspace-rail-section-label mt-7">Capabilities</div>
+          <nav aria-label="Capabilities" className="space-y-0.5">
+            <Link href="/settings" className="workspace-capability-link"><span className="workspace-capability-icon">◌</span><span>Settings</span></Link>
+            <Link href="/settings#skills" className="workspace-capability-link"><span className="workspace-capability-icon">⌁</span><span>Skills</span></Link>
+            <Link href="/settings#mcp" className="workspace-capability-link"><span className="workspace-capability-icon">⊕</span><span>MCP tools</span></Link>
+          </nav>
         </div>
-        {typeof balance === 'number' && (
-          <div className="border-t border-line-subtle px-4 py-3 text-micro text-content-muted">{balance.toLocaleString()} credits available</div>
-        )}
+        <div className="workspace-rail-footer border-t border-line-subtle px-3 py-3">
+          <div className="flex items-center justify-between"><span className="workspace-gateway-state"><span className="workspace-gateway-dot" />{localMode ? 'Local workspace' : 'Gateway ready'}</span><ThemeToggle /></div>
+          {typeof balance === 'number' && <p className="mt-2 px-1 text-micro text-content-faint">{balance.toLocaleString()} credits available</p>}
+        </div>
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col">
@@ -259,7 +254,7 @@ export default function UnifiedWorkspace({
 
             <section className="mt-9">
               <div className="mb-3 flex items-center justify-between gap-3"><p className="text-micro font-semibold uppercase tracking-[0.16em] text-content-faint">Start with a direction</p><span className="text-micro text-content-faint">{mode === 'chat' ? 'No files or commands' : 'Approval-first execution'}</span></div>
-              <div className="grid gap-2 md:grid-cols-3">
+              <div className="unified-starter-list">
                 {starters.map((starter) => <button key={starter.label} type="button" onClick={() => { setDraft(starter.prompt); composerRef.current?.focus(); }} className="unified-starter text-left"><span className="block text-ui font-medium text-content-primary">{starter.label}</span><span className="mt-1.5 block text-meta leading-5 text-content-muted">{starter.prompt}</span></button>)}
               </div>
             </section>

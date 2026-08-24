@@ -81,3 +81,17 @@ Xeo Forge's unified `/chat` Workspace direction is correct, but the next impleme
 [4]: https://github.com/NousResearch/hermes-agent/blob/main/apps/desktop/src/app/settings/index.tsx "Hermes Desktop Settings source"
 
 [5]: https://github.com/NousResearch/hermes-agent/blob/main/apps/desktop/src/app/skills/mcp-tab.tsx "Hermes Desktop MCP source"
+
+## Live Electron run (Aug 24, 2026)
+
+تم تشغيل Hermes Desktop فعليًا عبر Electron على Xorg، مع renderer Vite من `apps/desktop` وDevTools CDP. تعذر تشغيل background gateway في التشغيل الأول، فظهرت شاشة recovery حقيقية بعنوان **Hermes couldn't start** مع Retry وRepair install وGateway settings وOpen logs. هذا لا يعني أن renderer فشل؛ فحص DOM عبر CDP أكد أن shell نفسه كان مرسومًا ويحتوي على:
+
+- rail ثابتة: `SESSIONS`, `BOTS`, `New session`, `Ctrl N`.
+- capabilities durable: `Messaging`, `Artifacts`, `Scheduled jobs`.
+- مساحة عمل تبدأ بـ `No sessions yet` و`New project`.
+- حالة gateway واضحة: `Gateway offline`.
+- onboarding مدمج داخل التطبيق: `Let's get you setup with Hermes Agent` و`Connect a model provider to start chatting. Most options take one click.`
+
+الاستنتاج التصميمي الجديد: Xeo Forge يجب أن يتوقف عن تقديم شاشة hero كبيرة تشبه landing page. البداية الأنسب هي shell desktop كثيف وهادئ: rail يسارية ثابتة، session list، capability navigation، main pane واضح، setup state مرئي، وcomposer قريب من أسفل مساحة العمل. يجب أن تكون حالة provider/gateway جزءًا من shell، لا مجرد Quick setup بعيد داخل صفحة Settings.
+
+Reference runtime screenshot captured at `/home/ubuntu/hermes-reference/hermes-desktop-main.png`, with runtime notes at `/home/ubuntu/hermes-reference/observations.md`.

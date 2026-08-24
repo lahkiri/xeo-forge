@@ -38,11 +38,11 @@
      the default-tech cyan. Ember is the accent of HEAT — the thing this
      product governs. Copper is the secondary warmth; pass/fail stay
      botanical green and forge-red for instant, learned recognition. */
-  --signal-run: 232 163 61;
+  --signal-run: 113 145 184;
   --signal-gate: 217 108 63;
   --signal-pass: 108 190 124;
   --signal-fail: 224 96 84;
-  --signal-plan: 178 148 96;
+  --signal-plan: 133 151 181;
 
   /* Diff colours are their OWN tokens rather than aliases of signal-pass/fail.
      A diff is not a pass/fail judgement — an added line is not "good" — and the
@@ -90,11 +90,11 @@
 
   /* Day-shift forge: ember holds as deep amber; copper reads as burnt
      sienna. Both clear AA on the light steel panels. */
-  --signal-run: 176 108 22;
+  --signal-run: 0 83 253;
   --signal-gate: 156 74 44;
   --signal-pass: 26 128 66;
   --signal-fail: 186 48 40;
-  --signal-plan: 128 100 52;
+  --signal-plan: 70 104 164;
 
   /* Darker and less saturated than the dark-theme pair: on a near-white panel
      the dark values read as neon, and the +/- gutter glyphs are text so they
@@ -1413,5 +1413,174 @@ body {
   }
   .mcp-form-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ── Desktop shell reset: session rail + capability rail ───────────── */
+.app-shell-flush {
+  background: rgb(var(--ink-800));
+}
+.workspace-rail {
+  background: rgb(var(--ink-900) / 0.55);
+}
+.workspace-rail-brand {
+  background: rgb(var(--ink-900) / 0.28);
+}
+.workspace-rail-section-label {
+  padding: 0.5rem 0.65rem 0.35rem;
+  color: rgb(var(--content-faint));
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.workspace-new-session,
+.workspace-capability-link {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.38rem;
+  color: rgb(var(--content-secondary));
+  font-size: 0.72rem;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.workspace-new-session {
+  padding: 0.55rem 0.65rem;
+  color: rgb(var(--content-primary));
+}
+.workspace-new-session:hover,
+.workspace-capability-link:hover {
+  border-color: rgb(var(--line-subtle));
+  background: rgb(var(--ink-700) / 0.65);
+  color: rgb(var(--content-primary));
+}
+.workspace-new-session-icon {
+  display: grid;
+  width: 1rem;
+  height: 1rem;
+  place-items: center;
+  border: 1px solid rgb(var(--line));
+  border-radius: 0.25rem;
+  color: rgb(var(--signal-run));
+  font-size: 0.8rem;
+}
+.workspace-new-session-key {
+  margin-left: auto;
+  color: rgb(var(--content-faint));
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.58rem;
+}
+.workspace-capability-link {
+  padding: 0.5rem 0.65rem;
+}
+.workspace-capability-icon {
+  display: inline-grid;
+  width: 1rem;
+  place-items: center;
+  color: rgb(var(--content-muted));
+  font-size: 0.85rem;
+}
+.workspace-gateway-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: rgb(var(--content-muted));
+  font-size: 0.62rem;
+}
+.workspace-gateway-dot {
+  width: 0.38rem;
+  height: 0.38rem;
+  border-radius: 999px;
+  background: rgb(var(--signal-pass));
+  box-shadow: 0 0 0 3px rgb(var(--signal-pass) / 0.1);
+}
+.unified-hero {
+  padding-top: 0.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgb(var(--line-subtle) / 0.9);
+}
+.unified-hero h2 {
+  max-width: 38rem;
+  font-size: clamp(1.35rem, 2.7vw, 2rem) !important;
+  letter-spacing: -0.035em;
+}
+.unified-hero p:last-child {
+  max-width: 38rem;
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+.unified-starter {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 0.8rem;
+}
+.unified-starter::after {
+  content: '→';
+  flex: 0 0 auto;
+  color: rgb(var(--content-faint));
+  font-size: 0.9rem;
+  transition: color 140ms ease, transform 140ms ease;
+}
+.unified-starter:hover::after {
+  color: rgb(var(--signal-run));
+  transform: translateX(2px);
+}
+.unified-starter span:last-of-type {
+  max-width: 32rem;
+}
+@media (max-width: 767px) {
+  .workspace-rail {
+    display: none;
+  }
+}
+
+.unified-starter-list {
+  display: grid;
+  border-top: 1px solid rgb(var(--line-subtle));
+}
+.unified-starter-list .unified-starter {
+  border-right: 0;
+  border-bottom: 1px solid rgb(var(--line-subtle));
+  border-left: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.75rem 0.25rem;
+}
+.unified-starter-list .unified-starter:hover {
+  background: rgb(var(--ink-700) / 0.22);
+}
+.unified-starter-list .unified-starter > span:first-child {
+  min-width: 11rem;
+}
+@media (min-width: 768px) {
+  .unified-starter-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .unified-starter-list .unified-starter {
+    border-right: 1px solid rgb(var(--line-subtle));
+    padding: 0.75rem;
+  }
+  .unified-starter-list .unified-starter:last-child {
+    border-right: 0;
+  }
+}
+
+@media (min-width: 768px) {
+  .unified-starter-list .unified-starter {
+    display: grid;
+    grid-template-columns: minmax(8.5rem, 1fr) minmax(0, 1.45fr) auto;
+    align-items: start;
+  }
+  .unified-starter-list .unified-starter > span:first-child {
+    min-width: 0;
+  }
+  .unified-starter-list .unified-starter > span:nth-child(2) {
+    min-width: 0;
   }
 }

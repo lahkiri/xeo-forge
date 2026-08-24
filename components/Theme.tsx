@@ -17,7 +17,7 @@ const STORAGE_KEY = 'xeo-theme';
 
 function resolve(theme: Theme): 'dark' | 'light' {
   if (theme !== 'system') return theme;
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light';
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
@@ -30,13 +30,13 @@ function apply(theme: Theme) {
  * Inline script for the document head. Applies the stored theme before first
  * paint so there is no flash of the wrong theme on load.
  */
-export const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}')||'system';var d=t==='system'?(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):t;document.documentElement.setAttribute('data-theme',d);}catch(e){document.documentElement.setAttribute('data-theme','dark');}})()`;
+export const THEME_BOOTSTRAP = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}')||'light';var d=t==='system'?(window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark'):t;document.documentElement.setAttribute('data-theme',d);}catch(e){document.documentElement.setAttribute('data-theme','light');}})()`;
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>('system');
+  const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    const stored = (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'system';
+    const stored = (localStorage.getItem(STORAGE_KEY) as Theme | null) ?? 'light';
     setTheme(stored);
     apply(stored);
 

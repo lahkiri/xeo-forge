@@ -111,14 +111,14 @@ export default function AppShell({
     : NAV;
 
   const shell = (
-    <div className="app-shell flex min-h-screen text-content-primary">
+    <div className={cx('app-shell flex min-h-screen text-content-primary', flush && 'app-shell-flush')}>
       <a href="#main" className="skip-link">Skip to main content</a>
 
       {/* ── Sidebar ─────────────────────────────────────────────────────
           The workbench silhouette: a fixed instrument rail on the left and
           the surface filling everything else. Vertical nav gives the Work
           surface its full width and reads as a tool, not a website. */}
-      <aside className="app-sidebar sticky top-0 z-30 flex h-screen w-[13.5rem] shrink-0 flex-col border-r border-line-subtle">
+      <aside className={cx('app-sidebar sticky top-0 z-30 flex h-screen w-[13.5rem] shrink-0 flex-col border-r border-line-subtle', flush && 'hidden')}>
         {/* Brand */}
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line-subtle px-4">
           <Link href="/chat" className="flex min-w-0 items-center gap-2.5" aria-label="Xeo Forge">

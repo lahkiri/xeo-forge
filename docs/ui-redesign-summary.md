@@ -57,3 +57,21 @@
 - `/home/ubuntu/screenshots/127_0_0_1_2026-08-24_22-20-40_4669.webp` — Work
 
 تمت مراجعة Settings بعد تحديث MCP. القسم يعرض الآن MCP كـ Capabilities / MCP مع master column للخوادم وdetail pane للحالة والإضافة، وتظهر Quick setup وSettings sidebar في نفس الصفحة. لقطة التحقق: `/home/ubuntu/screenshots/127_0_0_1_2026-08-24_22-21-38_3240.webp`.
+
+## Live Hermes comparison pass
+
+تم تشغيل Hermes Desktop فعليًا عبر Electron وCDP، ثم إعادة تشكيل Workspace في Xeo Forge بناءً على الملاحظة الحية. التغييرات الحالية ليست مجرد palette swap؛ تم إخفاء sidebar العام داخل surfaces الكاملة، وإضافة workspace rail ثابتة تضم Xeo Forge وSessions وNew session وCapabilities وSettings وSkills وMCP tools، مع gateway state في footer. كما أصبح Light هو default theme مع accent أزرق هادئ أقرب إلى Hermes، وتحولت starter prompts من cards متكررة إلى flat rows مفصولة بخطوط دقيقة.
+
+صور المراجعة الحالية:
+
+| Surface | Path |
+|---|---|
+| Hermes runtime recovery / shell reference | `/home/ubuntu/hermes-reference/hermes-desktop-main.png` |
+| Xeo Chat light | `/home/ubuntu/xeo-reference/workspace-chat-light.png` |
+| Xeo Chat flat rows | `/home/ubuntu/xeo-reference/workspace-chat-flat.png` |
+| Xeo Work light | `/home/ubuntu/xeo-reference/workspace-work-light.png` |
+| Xeo Settings light | `/home/ubuntu/xeo-reference/settings-light-new.png` |
+
+المعاينة الأخيرة أظهرت أن Xeo أصبح أقرب إلى desktop control surface: rail ثابتة، pane رئيسي، composer مثبت أسفل الشاشة، وSettings ذات split navigation واضح. ما يزال هناك مجال لتقليل حجم hero في Chat أكثر إذا احتجنا نسخة أكثر كثافة.
+
+المراجعة النهائية للقطات Chat وWork أكدت أن shell أصبح أكثر اتزانًا: left rail ثابتة وهادئة، session/capability navigation واضحة، mode switch في header، composer مثبت أسفل surface، وWork setup ظاهر قبل التنفيذ. تم تثبيت Light كافتراضي ونجحت 699 اختبارات بعد التعديلات.
