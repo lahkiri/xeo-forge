@@ -42,6 +42,7 @@ import {
 } from './prompts';
 import { createToolContext, executeTool, schemasForRun } from './tools';
 import { killSessionsForTask } from './terminal';
+import { registerRun } from './cancellation';
 import { isArchive } from './uploads';
 import { GIT_READ_OPS, isGitOp } from './git';
 import { CREDITS_PER_TOOL_CALL } from '../credits/pricing';
@@ -264,6 +265,12 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   await updateTaskStatus(taskId, 'running');
   await emitTaskEvent(taskId, 'mode', { mode });
   await emitTaskEvent(taskId, 'task_status', { status: 'running' });
+
+  // Cancellation: this run registers an AbortController the cancel route can
+  // signal. The signal is checked each iteration and passed to the model call,
+  // so a cancel stops the provider stream instead of only closing the SSE tab.
+  const runAbort = new AbortController();
+  const unregisterRun = registerRun(taskId, runAbort);
 
   const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
   const ctx = createToolContext(taskId, userId, mode, projectPath);
@@ -761,6 +768,15 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
   try {
     while (true) {
+      // Cooperative cancellation: an operator-requested stop is honoured
+      // between iterations. In-flight tool calls finish (bounded by their own
+      // timeouts); the model stream below also receives the signal.
+      if (runAbort.signal.aborted) {
+        await updateTaskStatus(taskId, 'cancelled');
+        await emitTaskEvent(taskId, 'done', { status: 'cancelled', summary: 'Run cancelled by the operator.' });
+        return;
+      }
+
       // No numeric cap or iteration counter here by design (AGENTS.md §12) —
       // termination is semantic: stagnation detection, verification limits,
       // and credit exhaustion.
@@ -786,9 +802,12 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
       const toolCalls = new Map<number, PendingToolCall>();
       let finishReason: string | null = null;
 
+      // Cancellation reaches the provider: an aborted stream stops fetching
+      // tokens server-side too, not just client-side.
+      const paramsWithSignal = { ...params, options: { ...(params as any).options, signal: runAbort.signal } };
       let stream: Awaited<ReturnType<typeof client.chat.completions.create>>;
       try {
-        stream = await createCompletionWithRetry(client, params, async ({ attempt, maxRetries, delayMs, kind }) => {
+        stream = await createCompletionWithRetry(client, paramsWithSignal, async ({ attempt, maxRetries, delayMs, kind }) => {
           await emitTaskEvent(taskId, 'model_retry', {
             attempt,
             max_retries: maxRetries,
@@ -1114,7 +1133,15 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   } catch (err: any) {
     const info = classifyModelError(err);
     console.error(`[agent] run failed task=${taskId} kind=${info.kind} status=${info.status ?? 'n/a'}:`, err);
-    await failRun(taskId, publicModelErrorMessage(err, model.modelId, model.baseUrl));
+    // An aborted run is not a provider failure; record it as cancelled.
+    if (runAbort.signal.aborted) {
+      await updateTaskStatus(taskId, 'cancelled');
+      await emitTaskEvent(taskId, 'done', { status: 'cancelled', summary: 'Run cancelled by the operator.' });
+    } else {
+      await failRun(taskId, publicModelErrorMessage(err, model.modelId, model.baseUrl));
+    }
+  } finally {
+    unregisterRun();
   }
 }
 

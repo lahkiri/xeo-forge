@@ -15,7 +15,11 @@ const MAX_PROFILE_NAME_LENGTH = 80;
 const MAX_BROWSER_NAME_LENGTH = 80;
 const MAX_VERSION_LENGTH = 40;
 const READ_ACTIONS = new Set(['state', 'read_page', 'screenshot']);
-const SENSITIVE_ACTIONS = new Set(['click', 'type']);
+// MUST mirror lib/agent/browser.ts SENSITIVE_ACTIONS exactly. The agent
+// layer is the primary policy gate; this is defense-in-depth so the bridge
+// can never be the weaker path. navigate is sensitive for the same reason
+// the agent layer documents: it moves the user's real logged-in tab.
+const SENSITIVE_ACTIONS = new Set(['navigate', 'click', 'type']);
 
 function cleanLabel(value, fallback, maxLength) {
   if (typeof value !== 'string') return fallback;

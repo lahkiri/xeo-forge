@@ -433,6 +433,15 @@ export default function WorkClient({
     setStatus('pending');
   };
 
+  const cancelRun = async () => {
+    setBusy(true);
+    const result = await post('/cancel');
+    setBusy(false);
+    if (!result.ok) { toast.push('error', result.error!); return; }
+    toast.push('info', 'Run cancelled. The event trail shows where it stopped.');
+    setStatus('cancelled');
+  };
+
   const sendFollowUp = async () => {
     const text = draft.trim();
     if (!text || busy) return;
@@ -517,6 +526,11 @@ export default function WorkClient({
             <div className="min-w-0 overflow-x-auto">
               <XeoFlow stages={flowStages} onOpen={openFlowStage} />
             </div>
+            {isRunning && (
+              <Button size="sm" variant="secondary" onClick={cancelRun} loading={busy} className="ml-1">
+                Cancel
+              </Button>
+            )}
           </div>
         </div>
 

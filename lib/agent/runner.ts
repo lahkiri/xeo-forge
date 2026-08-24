@@ -35,7 +35,7 @@ export function startAgentRun(args: {
       // runAgent's internal error handling already emitted events.
       // Do not emit duplicate error/done events.
       const existing = await getTaskById(args.taskId);
-      const terminalStates = ['completed', 'failed', 'planned'];
+      const terminalStates = ['completed', 'failed', 'planned', 'cancelled'];
       if (existing && terminalStates.includes(existing.status)) {
         console.log(`[runner] task ${args.taskId} already in terminal state '${existing.status}' — skipping duplicate failure emission`);
         return;

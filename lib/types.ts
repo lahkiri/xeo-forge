@@ -40,7 +40,8 @@ export type TaskStatus =
   | 'planned' // planning run finished; proposed plan awaits user approval
   | 'awaiting_decision' // Work request awaits direct-vs-plan choice
   | 'completed'
-  | 'failed';
+  | 'failed'
+  | 'cancelled'; // operator-requested stop; terminal, replayable in the event trail
 
 /**
  * Native dual-mode execution state (lives on the task — the single source of

@@ -67,7 +67,7 @@ export function isToolEvent(event: ParsedEvent): boolean {
 
 /** A task is terminal when no further agent work is pending. */
 export function isTerminalStatus(status: TaskStatus | string): boolean {
-  return status === 'completed' || status === 'failed';
+  return status === 'completed' || status === 'failed' || status === 'cancelled';
 }
 
 /** SSE stays open for any non-terminal status, including 'planned'. */
