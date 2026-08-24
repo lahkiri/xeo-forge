@@ -26,6 +26,7 @@ import {
   addTaskCredits,
   getTaskById,
   getContextMessages,
+  getMessages,
   appendMessage,
   compactMessages,
   getReadyUploadsByTask,
@@ -749,7 +750,8 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         content:
           `SUMMARY INCOMPLETE — your task_complete summary is missing mandatory sections: ${sectionCheck.missing.join(', ')}. ` +
           `Your summary MUST include: assumptions made, decisions taken, issues found, workarounds used. ` +
-          `Rewrite the summary with all sections included, then call task_complete again.`,
+          `Reply ONLY with the task_complete tool call containing the corrected summary — do NOT repeat your ` +
+          `full answer as text first; the user already read it.`,
       });
       return 'retry';
     }
@@ -1273,6 +1275,44 @@ async function persistMemoryCandidates(
   return saved;
 }
 
+/**
+ * Normalize text for duplicate comparison: collapse whitespace, drop to
+ * lowercase. Deliberately crude — the goal is catching the observed Opus-5
+ * pattern (the task_complete summary restating the answer the user just
+ * read), not forensic similarity.
+ */
+function normalizeForDuplicate(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * True when `summary` substantially restates `previous` — either contains it
+ * (the model re-emitted its answer plus section labels) or overlaps heavily
+ * on a shingle fingerprint. Threshold tuned to catch near-verbatim repeats
+ * while never suppressing a genuinely different summary.
+ */
+function summaryRestatesPrevious(summary: string, previous: string): boolean {
+  const a = normalizeForDuplicate(summary);
+  const b = normalizeForDuplicate(previous);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.length >= b.length && a.includes(b)) return true;
+  // Shingle overlap: 4-word windows shared / min(side).
+  const shingles = (t: string) => {
+    const w = t.split(' ');
+    const out = new Set<string>();
+    for (let i = 0; i + 4 <= w.length; i++) out.add(w.slice(i, i + 4).join(' '));
+    return out;
+  };
+  const sa = shingles(a);
+  const sb = shingles(b);
+  if (sa.size === 0 || sb.size === 0) return false;
+  let shared = 0;
+  for (const s of sa) if (sb.has(s)) shared++;
+  const overlap = shared / Math.min(sa.size, sb.size);
+  return overlap >= 0.6;
+}
+
 async function finalizeComplete(
   taskId: string,
   userId: string,
@@ -1281,8 +1321,16 @@ async function finalizeComplete(
   planOverride?: string,
   memoryCandidates?: unknown,
 ): Promise<boolean> {
-  // Persist the assistant's summary as a conversation message for follow-up context.
-  await appendMessage(taskId, 'assistant', summary);
+  // Persist the assistant's summary as a conversation message for follow-up
+  // context — UNLESS it substantially restates the text the user just read.
+  // The observed Opus-5 pattern: the model answers in full prose, our nudge
+  // asks for task_complete, and it re-emits the same answer as the summary.
+  // Persisting both made the run read as a triple-posted message.
+  const prior = await getMessages(taskId);
+  const lastAssistant = [...prior].reverse().find((m) => m.role === 'assistant' && m.active === 1);
+  if (!lastAssistant || !summaryRestatesPrevious(summary, lastAssistant.content)) {
+    await appendMessage(taskId, 'assistant', summary);
+  }
 
   if (mode === 'planning') {
     // Planning run finished: store the proposed plan and await user approval.

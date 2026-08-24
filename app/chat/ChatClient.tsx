@@ -19,6 +19,7 @@ import {
   useToast,
 } from '@/components/ui';
 import { renderMarkdown } from '@/lib/markdown';
+import { ThinkingBlock, reasoningTextOf } from '@/components/ThinkingBlock';
 
 /* ------------------------------------------------------------------ */
 /*  CHAT SURFACE                                                       */
@@ -71,6 +72,9 @@ export default function ChatClient({
 
   const isStreaming = status === 'running' || status === 'pending';
   const { currentRunEvents, currentRunText } = useMemo(() => splitRuns(events), [events]);
+  // Reasoning models stream thinking tokens before the answer; show them as
+  // a collapsible block so the capability is visible without hijacking the chat.
+  const liveThinking = useMemo(() => reasoningTextOf(currentRunEvents), [currentRunEvents]);
 
   // Tick while streaming so the elapsed timer and the provider-stall threshold
   // are live rather than frozen at the last event.
@@ -328,6 +332,9 @@ export default function ChatClient({
                       />
                     </div>
                   ),
+                )}
+                {isStreaming && liveThinking && (
+                  <ThinkingBlock text={liveThinking} live />
                 )}
                 {isStreaming && !currentRunText && (
                   <RuntimeBanner

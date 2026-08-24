@@ -621,3 +621,35 @@ describe('parallel read-only batch', () => {
     expect(calls.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+/* ─────────── opus-first-run: repetition + reasoning display ─────────── */
+
+describe('the repetition defect (first real Opus-5 run)', () => {
+  // THE DEFECT THIS PINS: on the first real-model run the agent answered a
+  // question in full prose, our task_complete nudge made it re-emit the same
+  // answer, the section-gate retry made it re-emit it AGAIN, and the summary
+  // was persisted once more — the user saw the same message three times.
+
+  const loopSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/loop.ts'), 'utf8');
+  const guardsSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/guards.ts'), 'utf8');
+  const chatSource = fs.readFileSync(path.resolve(__dirname, '../app/chat/ChatClient.tsx'), 'utf8');
+  const workSource = fs.readFileSync(path.resolve(__dirname, '../app/work/WorkClient.tsx'), 'utf8');
+
+  it('both nudges forbid repeating the answer the user already read', () => {
+    expect(guardsSource).toMatch(/Do NOT repeat your previous answer/);
+    expect(loopSource).toContain('do NOT repeat your');
+  });
+
+  it('finalizeComplete skips persisting a summary that restates the last message', () => {
+    expect(loopSource).toContain('function summaryRestatesPrevious(');
+    expect(loopSource).toContain('summaryRestatesPrevious(summary, lastAssistant.content)');
+  });
+
+  it('reasoning deltas render — the capability models paid for is visible', () => {
+    // The loop has always emitted reasoning events; no component rendered
+    // them. Both surfaces must mount ThinkingBlock from the live run events.
+    expect(fs.readFileSync(path.resolve(__dirname, '../components/ThinkingBlock.tsx'), 'utf8')).toContain('reasoningTextOf');
+    expect(chatSource).toMatch(/<ThinkingBlock text=\{liveThinking\} live/);
+    expect(workSource).toMatch(/<ThinkingBlock text=\{liveThinking\} live/);
+  });
+});
