@@ -1584,3 +1584,456 @@ body {
     min-width: 0;
   }
 }
+
+/* =====================================================================
+   Vercel / Geist neutral rebuild
+   Black and white are the product language. Accent is functional only.
+   ===================================================================== */
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --ink-900: 0 0 0;
+  --ink-800: 10 10 10;
+  --ink-700: 17 17 17;
+  --ink-600: 24 24 24;
+  --ink-500: 32 32 32;
+  --line-subtle: 255 255 255;
+  --line: 255 255 255;
+  --line-strong: 255 255 255;
+  --content-primary: 250 250 250;
+  --content-secondary: 190 190 190;
+  --content-muted: 132 132 132;
+  --content-faint: 82 82 82;
+  --signal-run: 255 255 255;
+  --signal-gate: 190 190 190;
+  --signal-pass: 230 230 230;
+  --signal-fail: 150 150 150;
+  --signal-plan: 175 175 175;
+  --diff-add: 215 215 215;
+  --diff-del: 135 135 135;
+  --on-signal: 0 0 0;
+  --shadow-color: 0 0 0;
+  --line-subtle-a: 0.14;
+  --line-a: 0.22;
+  --line-strong-a: 0.38;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --ink-900: 250 250 250;
+  --ink-800: 255 255 255;
+  --ink-700: 250 250 250;
+  --ink-600: 245 245 245;
+  --ink-500: 235 235 235;
+  --line-subtle: 0 0 0;
+  --line: 0 0 0;
+  --line-strong: 0 0 0;
+  --content-primary: 0 0 0;
+  --content-secondary: 55 55 55;
+  --content-muted: 115 115 115;
+  --content-faint: 155 155 155;
+  --signal-run: 0 0 0;
+  --signal-gate: 90 90 90;
+  --signal-pass: 35 35 35;
+  --signal-fail: 100 100 100;
+  --signal-plan: 75 75 75;
+  --diff-add: 35 35 35;
+  --diff-del: 100 100 100;
+  --on-signal: 255 255 255;
+  --shadow-color: 0 0 0;
+  --line-subtle-a: 0.12;
+  --line-a: 0.2;
+  --line-strong-a: 0.32;
+}
+
+html,
+body {
+  background: rgb(var(--ink-800));
+  color: rgb(var(--content-secondary));
+  font-family: Geist, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+.app-shell,
+[data-theme='light'] .app-shell,
+[data-theme='dark'] .app-shell {
+  background: rgb(var(--ink-800));
+}
+
+.app-sidebar,
+[data-theme='light'] .app-sidebar {
+  background: rgb(var(--ink-900));
+  box-shadow: none;
+}
+
+.panel-edge,
+[data-theme='light'] .panel-edge {
+  box-shadow: none;
+}
+
+.brand-mark,
+[data-theme='light'] .brand-mark {
+  border-color: rgb(var(--line) / 0.28);
+  background: rgb(var(--content-primary) / 0.08);
+}
+.brand-mark span {
+  border-color: rgb(var(--content-primary));
+}
+
+.sidebar-nav-item.is-active {
+  background: rgb(var(--content-primary) / 0.09);
+  box-shadow: none;
+}
+.sidebar-nav-item.is-active .sidebar-nav-glyph,
+.sidebar-nav-dash {
+  background: rgb(var(--signal-run));
+  color: rgb(var(--signal-run));
+}
+
+/* Settings surfaces: one hierarchy, no card-in-card treatment. */
+.settings-page .panel-edge,
+.settings-page [class*="rounded-"].panel-edge {
+  box-shadow: none;
+}
+
+/* Hermes-like Workspace shell */
+.app-shell-flush {
+  background: rgb(var(--ink-800));
+}
+.workspace-rail {
+  background: rgb(var(--ink-900));
+  border-color: rgb(var(--line) / var(--line-subtle-a));
+}
+.workspace-rail-brand {
+  background: rgb(var(--ink-900));
+  border-color: rgb(var(--line) / var(--line-subtle-a));
+}
+.workspace-rail-section-label {
+  color: rgb(var(--content-faint));
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+}
+.workspace-new-session,
+.workspace-capability-link {
+  border-radius: 0.25rem;
+  color: rgb(var(--content-secondary));
+}
+.workspace-new-session:hover,
+.workspace-capability-link:hover {
+  border-color: transparent;
+  background: rgb(var(--content-primary) / 0.08);
+  color: rgb(var(--content-primary));
+}
+.workspace-new-session-icon {
+  border-color: rgb(var(--line) / 0.3);
+  color: rgb(var(--content-primary));
+}
+.workspace-new-session-key {
+  color: rgb(var(--content-faint));
+}
+.workspace-rail-footer {
+  border-color: rgb(var(--line) / var(--line-subtle-a));
+}
+.workspace-gateway-dot {
+  background: rgb(var(--content-primary));
+  box-shadow: none;
+}
+
+.unified-header {
+  min-height: 4rem;
+  background: rgb(var(--ink-800));
+  border-color: rgb(var(--line) / var(--line-subtle-a));
+}
+.unified-header > div:first-child p {
+  color: rgb(var(--content-faint));
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+}
+.unified-header > div:first-child h1 {
+  color: rgb(var(--content-primary));
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.workspace-mode-switch {
+  gap: 0;
+  border: 1px solid rgb(var(--line) / 0.24);
+  border-radius: 0.35rem;
+  background: transparent;
+  padding: 0.15rem;
+}
+.workspace-mode-option {
+  min-width: 7.75rem;
+  min-height: 2.35rem;
+  border-radius: 0.2rem;
+  color: rgb(var(--content-muted));
+}
+.workspace-mode-option:hover {
+  background: rgb(var(--content-primary) / 0.06);
+  color: rgb(var(--content-secondary));
+}
+.workspace-mode-option.is-active {
+  background: rgb(var(--content-primary));
+  color: rgb(var(--on-signal));
+  box-shadow: none;
+}
+.workspace-mode-option.is-active .workspace-mode-index,
+.workspace-mode-option.is-active small {
+  color: rgb(var(--on-signal) / 0.6);
+}
+.workspace-mode-index {
+  color: rgb(var(--content-faint));
+}
+
+.unified-main {
+  max-width: 52rem;
+  padding-top: 3rem;
+}
+.unified-hero {
+  border-bottom: 0;
+  padding: 0;
+}
+.unified-hero-rule {
+  display: none;
+}
+.unified-hero p:first-of-type {
+  color: rgb(var(--content-faint));
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+}
+.unified-hero h2 {
+  max-width: 42rem;
+  margin-top: 0.75rem;
+  font-size: clamp(1.75rem, 3.2vw, 2.5rem) !important;
+  font-weight: 600;
+  letter-spacing: -0.055em;
+}
+.unified-hero p:last-child {
+  max-width: 36rem;
+  margin-top: 0.9rem;
+  color: rgb(var(--content-muted));
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.unified-work-setup {
+  border-top: 1px solid rgb(var(--line) / var(--line-subtle-a));
+  border-bottom: 1px solid rgb(var(--line) / var(--line-subtle-a));
+  padding: 1rem 0;
+}
+.unified-setup-cell {
+  border-color: rgb(var(--line) / var(--line-subtle-a));
+  border-radius: 0.25rem;
+  background: transparent;
+}
+.unified-setup-cell:hover {
+  background: rgb(var(--content-primary) / 0.04);
+}
+.unified-setup-status {
+  border-radius: 999px;
+  background: rgb(var(--content-primary) / 0.09);
+  color: rgb(var(--content-secondary));
+}
+.unified-setup-status.is-ready {
+  background: rgb(var(--content-primary) / 0.12);
+  color: rgb(var(--content-primary));
+}
+.unified-starter-list {
+  display: block;
+  border-top: 1px solid rgb(var(--line) / var(--line-subtle-a));
+}
+.unified-starter-list .unified-starter,
+.unified-starter-list .unified-starter:hover {
+  display: grid;
+  grid-template-columns: minmax(12rem, 0.55fr) minmax(0, 1fr) auto;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 1rem;
+  border-right: 0;
+  border-bottom: 1px solid rgb(var(--line) / var(--line-subtle-a));
+  border-left: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0.8rem 0;
+}
+.unified-starter-list .unified-starter:hover {
+  background: rgb(var(--content-primary) / 0.045);
+}
+.unified-starter-list .unified-starter > span:first-child,
+.unified-starter-list .unified-starter > span:nth-child(2) {
+  min-width: 0;
+}
+.unified-starter-list .unified-starter > span:first-child {
+  color: rgb(var(--content-primary));
+}
+.unified-starter-list .unified-starter > span:nth-child(2) {
+  margin-top: 0;
+  color: rgb(var(--content-muted));
+}
+.unified-starter::after {
+  color: rgb(var(--content-faint));
+}
+.unified-starter:hover::after {
+  color: rgb(var(--content-primary));
+}
+.unified-composer {
+  background: rgb(var(--ink-800));
+  border-color: rgb(var(--line) / var(--line-subtle-a));
+}
+.unified-composer-shell {
+  border: 1px solid rgb(var(--line) / 0.28);
+  border-radius: 0.35rem;
+  background: rgb(var(--ink-900));
+  box-shadow: 0 0 0 1px transparent;
+}
+.unified-composer-shell:focus-within {
+  border-color: rgb(var(--content-primary) / 0.7);
+  box-shadow: 0 0 0 3px rgb(var(--content-primary) / 0.08);
+}
+.unified-composer-shell textarea {
+  color: rgb(var(--content-primary));
+}
+.unified-composer-shell button {
+  border-radius: 0.25rem;
+}
+.unified-composer-shell button[data-variant="default"],
+.unified-composer-shell button:not([data-variant]) {
+  background: rgb(var(--content-primary));
+  color: rgb(var(--on-signal));
+}
+.unified-composer > div > p {
+  color: rgb(var(--content-faint));
+}
+
+@media (max-width: 767px) {
+  .unified-main {
+    padding-top: 2rem;
+  }
+  .unified-starter-list .unified-starter {
+    grid-template-columns: 1fr auto;
+  }
+  .unified-starter-list .unified-starter > span:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+
+/* ── Settings / capabilities: Geist-style flat surfaces ─────────── */
+.settings-layout {
+  gap: 3rem;
+}
+.settings-index {
+  border: 1px solid rgb(var(--line) / 0.18);
+  border-radius: 0.35rem;
+  background: transparent;
+  padding: 0.75rem;
+}
+.settings-index-heading {
+  border-bottom: 1px solid rgb(var(--line) / 0.16);
+  padding: 0.35rem 0.45rem 0.75rem;
+}
+.settings-index-kicker,
+.settings-index-count,
+.settings-index-marker,
+.settings-index-note {
+  color: rgb(var(--content-muted));
+}
+.settings-index-item {
+  border-radius: 0.25rem;
+  color: rgb(var(--content-secondary));
+}
+.settings-index-item:hover {
+  background: rgb(var(--content-primary) / 0.06);
+}
+.settings-index-item.is-active {
+  background: rgb(var(--content-primary) / 0.1);
+  color: rgb(var(--content-primary));
+  box-shadow: inset 2px 0 0 rgb(var(--content-primary));
+}
+.settings-index-item.is-active .settings-index-marker {
+  color: rgb(var(--content-primary));
+}
+.settings-index-note {
+  border-top-color: rgb(var(--line) / 0.16);
+}
+.settings-note-dot {
+  background: rgb(var(--content-primary));
+  box-shadow: none;
+}
+.settings-summary-chip,
+.settings-summary-chip.is-accent {
+  border: 1px solid rgb(var(--line) / 0.24);
+  border-radius: 999px;
+  background: transparent;
+  color: rgb(var(--content-secondary));
+}
+.settings-summary-chip.is-accent {
+  background: rgb(var(--content-primary));
+  color: rgb(var(--on-signal));
+}
+.settings-setup-strip {
+  border: 1px solid rgb(var(--line) / 0.18);
+  border-radius: 0.35rem;
+  background: transparent;
+}
+.settings-setup-step:hover {
+  background: rgb(var(--content-primary) / 0.06);
+}
+.settings-setup-step.is-done .settings-setup-state,
+.settings-setup-state {
+  color: rgb(var(--content-primary));
+}
+.settings-section,
+.settings-section.rounded-modal,
+.settings-section > .rounded-modal,
+.settings-section > .rounded-panel,
+.settings-section > .rounded-control {
+  border-color: rgb(var(--line) / 0.18) !important;
+  border-radius: 0.35rem !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.settings-section input,
+.settings-section textarea,
+.settings-section select {
+  border-color: rgb(var(--line) / 0.22) !important;
+  border-radius: 0.3rem !important;
+  background: rgb(var(--ink-900)) !important;
+  color: rgb(var(--content-primary)) !important;
+}
+.settings-section input:focus,
+.settings-section textarea:focus,
+.settings-section select:focus {
+  border-color: rgb(var(--content-primary) / 0.7) !important;
+  box-shadow: 0 0 0 3px rgb(var(--content-primary) / 0.07) !important;
+}
+.settings-section [class*="bg-green"],
+.settings-section [class*="bg-blue"],
+.settings-section [class*="bg-amber"],
+.settings-section [class*="bg-signal"] {
+  background: rgb(var(--content-primary) / 0.08) !important;
+}
+.settings-section [class*="text-green"],
+.settings-section [class*="text-blue"],
+.settings-section [class*="text-amber"],
+.settings-section [class*="text-signal"] {
+  color: rgb(var(--content-secondary)) !important;
+}
+.mcp-master-detail {
+  border-color: rgb(var(--line) / 0.18);
+}
+.mcp-server-list {
+  border-color: rgb(var(--line) / 0.18);
+  background: transparent;
+}
+.mcp-server-row.is-active,
+.mcp-add-row.is-active {
+  border-color: rgb(var(--content-primary) / 0.32);
+  background: rgb(var(--content-primary) / 0.08);
+}
+.mcp-server-dot.is-on {
+  background: rgb(var(--content-primary));
+  box-shadow: none;
+}
+.mcp-detail-status.is-on {
+  background: rgb(var(--content-primary) / 0.1);
+  color: rgb(var(--content-primary));
+}
