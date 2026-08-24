@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.17.0
+
+v1.17.0 — **Stop, Classify, Trust** — real run cancellation (AbortController propagation into the provider stream, terminal-status `cancelled`, event-trailed), the browser policy unified across both enforcement layers with a lockstep contract test, and the typed capability manifest that future policy tooling derives from. Follows the first real live-model runs. 34 files / 699 tests.
+
 ## What changed in v1.16.0
 
 v1.16.0 — **The Real-Model Release** — fixes everything the first genuine Opus 5 field test surfaced: the agent's triple-posted message (three compounding layers, all ours), reasoning models' thinking finally rendered (ThinkingBlock on Chat and Work), and nudge copy that treats the model like a colleague who already read the answer. 32 files / 681 tests.
