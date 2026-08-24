@@ -52,6 +52,7 @@ import TaskContextPanel from '@/app/tasks/[id]/TaskContextPanel';
 import { UploadButton } from '@/components/UploadButton';
 import { DiffView } from '@/components/DiffView';
 import Terminal from '@/components/Terminal';
+import { ThinkingBlock, reasoningTextOf } from '@/components/ThinkingBlock';
 
 /* ------------------------------------------------------------------ */
 /*  WORK SURFACE                                                       */
@@ -147,6 +148,7 @@ export default function WorkClient({
   const decisionExpired = status === 'awaiting_decision' && decisionSeconds <= 0;
 
   const { currentRunEvents, currentRunText } = useMemo(() => splitRuns(events), [events]);
+  const liveThinking = useMemo(() => reasoningTextOf(currentRunEvents), [currentRunEvents]);
   const timeline = useMemo(
     () => buildTimeline({ events, messages, status, goal: task.goal }),
     [events, messages, status, task.goal],
@@ -583,6 +585,9 @@ export default function WorkClient({
                         </div>
                       ))}
 
+                      {isRunning && liveThinking && (
+                        <ThinkingBlock text={liveThinking} live />
+                      )}
                       {isRunning && liveTools.length === 0 && !currentRunText && (
                         <RuntimeBanner
                           label={runtime.label}

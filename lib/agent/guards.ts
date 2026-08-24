@@ -225,9 +225,10 @@ export const NO_WORK_PERFORMED_NUDGE =
   `Text-only responses are not valid task completion.`;
 
 export const CALL_TASK_COMPLETE_NUDGE =
-  `Almost done! You've done real work. Now call task_complete with a summary that includes: ` +
+  `Almost done! You've done real work. Now call task_complete with a SHORT summary that includes: ` +
   `what was built, your assumptions, decisions, issues found, and workarounds. ` +
-  `Do not just write text — use the task_complete tool.`;
+  `Do NOT repeat your previous answer — the user already read it. The summary is engineering ` +
+  `memory, not a second delivery. Do not just write text — use the task_complete tool.`;
 
 export const TEXT_WITHOUT_TOOL_NUDGE =
   `You emitted text without a tool call. In build mode, you must either use a tool or ` +
