@@ -16,11 +16,10 @@ type SkillHubSearchResult = {
 
 type Notice = { tone: 'ok' | 'error'; text: string } | null;
 
-export default function SkillHub({ onImported }: { onImported: () => Promise<void> }) {
+export default function SkillHub() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SkillHubSearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const [importing, setImporting] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
 
   async function search(event: React.FormEvent) {
@@ -37,17 +36,5 @@ export default function SkillHub({ onImported }: { onImported: () => Promise<voi
     finally { setSearching(false); }
   }
 
-  async function importSkill(skill: SkillHubSearchResult) {
-    setImporting(skill.id); setNotice(null);
-    try {
-      const response = await fetch('/api/skill-hub/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source: skill.source, skillId: skill.skillId }) });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || 'Skill import failed.');
-      setNotice({ tone: 'ok', text: `${skill.name} was imported with its SKILL.md and supporting files.` });
-      await onImported();
-    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Skill import failed.' }); }
-    finally { setImporting(''); }
-  }
-
-  return <section className="skill-hub-panel"><div className="skill-hub-head"><div><p className="skill-hub-kicker">SKILL HUB</p><h2>Discover skills from the open directory</h2><p>Search skills.sh, inspect the source, and import the complete skill folder. Imported scripts stay inert until you explicitly use them.</p></div><span className="skill-hub-badge">skills.sh</span></div><form className="skill-hub-search" onSubmit={search}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search skills, e.g. git, research, next.js" aria-label="Search Skill Hub" /><Button type="submit" loading={searching} disabled={query.trim().length < 2}>Search</Button></form>{notice && <p className={`skill-hub-notice ${notice.tone}`}>{notice.text}</p>}{results.length > 0 && <div className="skill-hub-results" aria-live="polite">{results.map((skill) => <article className="skill-hub-result" key={skill.id}><div className="skill-hub-result-copy"><strong>{skill.name}</strong><small>{skill.source} · {skill.installs.toLocaleString()} installs</small></div><div className="skill-hub-result-actions">{skill.url && <a href={skill.url} target="_blank" rel="noreferrer">View source</a>}<Button size="sm" variant="secondary" loading={importing === skill.id} disabled={Boolean(importing)} onClick={() => void importSkill(skill)}>Import</Button></div></article>)}</div>}</section>;
+  return <section className="skill-hub-panel"><div className="skill-hub-head"><div><p className="skill-hub-kicker">SKILL HUB / DISCOVERY</p><h2>Explore skills from the open directory</h2><p>Search skills.sh and inspect what is available. To add one to your workspace, use the explicit import actions in Skill Studio below.</p></div><span className="skill-hub-badge">skills.sh</span></div><form className="skill-hub-search" onSubmit={search}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search skills, e.g. git, research, next.js" aria-label="Search Skill Hub" /><Button type="submit" loading={searching} disabled={query.trim().length < 2}>Search</Button></form>{notice && <p className={`skill-hub-notice ${notice.tone}`}>{notice.text}</p>}{results.length > 0 && <div className="skill-hub-results" aria-live="polite">{results.map((skill) => <article className="skill-hub-result" key={skill.id}><div className="skill-hub-result-copy"><strong>{skill.name}</strong><small>{skill.source} · {skill.installs.toLocaleString()} installs</small></div>{skill.url && <a className="skill-hub-result-link" href={skill.url} target="_blank" rel="noreferrer">View source ↗</a>}</article>)}</div>}</section>;
 }

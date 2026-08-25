@@ -1,7 +1,8 @@
-import { createHash } from 'node:crypto';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createAgentSkill } from '@/lib/db/queries';
+import { extractArchive } from '@/lib/agent/archive';
 import type { AgentSkill, AgentSkillKind, SkillHubFile } from '@/lib/types';
 
 const SKILLS_SH_API = 'https://skills.sh/api';
@@ -55,7 +56,7 @@ async function fetchJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function parseSkillMarkdown(markdown: string): { name: string; description: string; kind: AgentSkillKind; instructions: string } {
+export function parseSkillMarkdown(markdown: string): { name: string; description: string; kind: AgentSkillKind; instructions: string } {
   const match = markdown.match(/^---\s*\n([\s\S]*?)\n---\s*\n?([\s\S]*)$/);
   if (!match) throw new Error('SKILL.md must contain YAML frontmatter.');
   const fields: Record<string, string> = {};
@@ -168,7 +169,7 @@ export async function importSkillFromGitHub(input: { userId: string; source: str
 export async function readImportedSkillFile(input: { userId: string; skillId: string; relativePath: string }): Promise<string> {
   const { getAgentSkillById } = await import('@/lib/db/queries');
   const skill = await getAgentSkillById(input.skillId, input.userId);
-  if (!skill || !skill.enabled || skill.source_type !== 'skills_sh' || !skill.source_path) throw new Error('The requested imported skill is not available.');
+  if (!skill || !skill.enabled || !['skills_sh', 'local', 'github'].includes(skill.source_type) || !skill.source_path) throw new Error('The requested imported skill is not available.');
   const relativePath = normalizeRelativePath(input.relativePath);
   let manifest: SkillHubFile[];
   try { manifest = JSON.parse(skill.files_json || '[]') as SkillHubFile[]; } catch { throw new Error('Skill manifest is invalid.'); }
@@ -179,4 +180,58 @@ export async function readImportedSkillFile(input: { userId: string; skillId: st
   const { readFile } = await import('node:fs/promises');
   const content = await readFile(absolutePath, 'utf8');
   return content.slice(0, MAX_FILE_BYTES);
+}
+
+
+async function collectLocalFiles(root: string, current = '', total = { count: 0, bytes: 0 }): Promise<ImportedFile[]> {
+  const directory = path.join(root, current);
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files: ImportedFile[] = [];
+  for (const entry of entries) {
+    const relativePath = normalizeRelativePath(current ? `${current}/${entry.name}` : entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await collectLocalFiles(root, relativePath, total));
+      continue;
+    }
+    if (!entry.isFile()) throw new Error(`Unsupported local skill entry: ${relativePath}`);
+    total.count += 1;
+    if (total.count > MAX_FILES) throw new Error(`Skill exceeds the ${MAX_FILES}-file import limit.`);
+    const absolutePath = path.resolve(root, relativePath);
+    const info = await stat(absolutePath);
+    if (info.size > MAX_FILE_BYTES) throw new Error(`Skill file ${relativePath} exceeds the ${MAX_FILE_BYTES}-byte limit.`);
+    const bytes = await readFile(absolutePath);
+    total.bytes += bytes.byteLength;
+    if (total.bytes > MAX_TOTAL_BYTES) throw new Error(`Skill exceeds the ${MAX_TOTAL_BYTES}-byte total import limit.`);
+    files.push({ path: relativePath, bytes });
+  }
+  return files;
+}
+
+export async function importLocalSkill(input: { userId: string; filename: string; bytes: Buffer }): Promise<AgentSkill> {
+  if (input.bytes.byteLength > MAX_TOTAL_BYTES) throw new Error(`Skill exceeds the ${MAX_TOTAL_BYTES}-byte total import limit.`);
+  const importId = randomUUID();
+  const relRoot = path.posix.join('data', 'skills', input.userId, importId);
+  const absoluteRoot = path.resolve(process.cwd(), relRoot);
+  await mkdir(absoluteRoot, { recursive: true });
+  try {
+    const lowerName = input.filename.toLowerCase();
+    if (lowerName === 'skill.md') {
+      await writeFile(path.join(absoluteRoot, 'SKILL.md'), input.bytes, { flag: 'wx' });
+    } else {
+      const suffix = lowerName.endsWith('.tar.gz') ? '.tar.gz' : lowerName.endsWith('.tgz') ? '.tgz' : path.extname(lowerName);
+      if (!['.zip', '.tar', '.tar.gz', '.tgz'].includes(suffix)) throw new Error('Local import accepts SKILL.md, .zip, .tar, .tar.gz, or .tgz.');
+      await extractArchive(input.bytes, suffix, absoluteRoot);
+    }
+    const files = await collectLocalFiles(absoluteRoot);
+    if (files.length === 0) throw new Error('The local skill archive is empty.');
+    const skillFile = files.find((file) => file.path.toLowerCase() === 'skill.md') || files.find((file) => file.path.toLowerCase().endsWith('/skill.md'));
+    if (!skillFile) throw new Error('Local import must contain a SKILL.md file.');
+    const metadata = parseSkillMarkdown(skillFile.bytes.toString('utf8'));
+    const manifest: SkillHubFile[] = files.map((file) => ({ path: file.path, bytes: file.bytes.byteLength, sha256: createHash('sha256').update(file.bytes).digest('hex') }));
+    const skillHash = createHash('sha256').update(Buffer.concat(files.map((file) => file.bytes))).digest('hex');
+    return await createAgentSkill({ userId: input.userId, name: metadata.name, kind: metadata.kind, description: metadata.description, instructions: metadata.instructions, sourceType: 'local', sourceId: `local/${importId}`, sourcePath: relRoot, sourceRef: null, sourceHash: skillHash, filesJson: JSON.stringify(manifest), importedAt: new Date().toISOString() });
+  } catch (error) {
+    await rm(absoluteRoot, { recursive: true, force: true });
+    throw error;
+  }
 }

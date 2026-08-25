@@ -3011,3 +3011,12 @@ body {
 .skill-hub-result-actions a { color: rgb(var(--content-muted)); font-size: .6rem; white-space: nowrap; }
 .skill-hub-result-actions a:hover { color: rgb(var(--content-primary)); }
 @media (max-width: 560px) { .skill-hub-head, .skill-hub-result { display: grid; } .skill-hub-result-actions { justify-content: space-between; } }
+
+
+.skill-studio-actions { display: flex; flex-wrap: wrap; gap: .55rem; }
+.skill-modal-input { width: 100%; border: 1px solid rgb(var(--line) / .28); border-radius: .28rem; background: rgb(var(--ink-900)); padding: .58rem .65rem; color: rgb(var(--content-primary)); font-size: .7rem; outline: none; }
+.skill-modal-input:focus { border-color: rgb(var(--content-primary) / .65); }
+.skill-modal-input option { background: rgb(var(--ink-900)); color: rgb(var(--content-primary)); }
+.skill-modal-label { color: rgb(var(--content-muted)); font-size: .64rem; }
+.skill-hub-result-link { color: rgb(var(--content-muted)); font-size: .6rem; white-space: nowrap; }
+.skill-hub-result-link:hover { color: rgb(var(--content-primary)); }
