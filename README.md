@@ -51,6 +51,10 @@ Where this sits in the market: **Claude Code / Codex / OpenCode are execution su
 
 Per-release changes now live in [docs/RELEASES.md](docs/RELEASES.md).
 
+## Watch it work — before you configure anything
+
+Desktop Local ships with a **recorded governed run**: press *Watch it work* on the Work surface and the full loop replays in front of you — read-only inspection, a plan you would approve, gated build writes with live file activity, a green verification gate, and memory proposals awaiting your decision. No API key, no account, works offline. The replay is labeled as a recording everywhere it appears; we don't fake live runs.
+
 ## Product preview
 
 Captured from the running application (v1.15.1 — the forge identity: ember on charcoal).
