@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.18.0
+
+v1.18.0 — **The Hardening Release** — closes every defect a live deep-inspection session plus a full code review could prove: the consecutive-empty-response counter actually resets (three scattered empties no longer kill a productive run), `python()` execution is rewritten to fs-written snippets with per-platform interpreter resolution (the printf path never worked on cmd.exe — our primary desktop target), mid-batch credit failures close their audit events instead of leaving dangling tool_calls, Arabic autonomy-violation detectors bring language parity to the build-mode guards, and a new security-model document states each layer's claim boundary with denylist bypass classes written down verbatim. 6 files / 715 tests.
+
 ## What changed in v1.17.0
 
 v1.17.0 — **Stop, Classify, Trust** — real run cancellation (AbortController propagation into the provider stream, terminal-status `cancelled`, event-trailed), the browser policy unified across both enforcement layers with a lockstep contract test, and the typed capability manifest that future policy tooling derives from. Follows the first real live-model runs. 34 files / 699 tests.
