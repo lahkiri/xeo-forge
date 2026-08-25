@@ -84,18 +84,25 @@ export default function WorkClient({
   initialEvents,
   initialMessages,
   initialUploads,
+  demoMode = false,
+  demoSource = [],
 }: {
   runs: { id: string; goal: string; status: string; mode: string }[];
   task: Task;
   initialEvents: TaskEvent[];
   initialMessages: Message[];
   initialUploads: Upload[];
+  /** Recorded-demo pacing: reveal events over time instead of all at once. */
+  demoMode?: boolean;
+  demoSource?: TaskEvent[];
 }) {
   const router = useRouter();
   const toast = useToast();
   const mod = useModKey();
 
-  const [events, setEvents] = useState<ParsedEvent[]>(() => parseEvents(initialEvents));
+  // Demo replay starts visually empty; the pacer below reveals the recorded
+  // script through the same addEvent path live events use.
+  const [events, setEvents] = useState<ParsedEvent[]>(() => parseEvents(demoMode ? [] : initialEvents));
   const [messages, setMessages] = useState<Message[]>(initialMessages);
   const [uploads, setUploads] = useState<Upload[]>(initialUploads);
   const [status, setStatus] = useState(task.status);
@@ -200,7 +207,7 @@ export default function WorkClient({
     for (const { call } of toolPairs) {
       const name = String(call.data.name);
       if (name !== 'file_write' && name !== 'file_edit') continue;
-      const args = call.data.args as Record<string, unknown> | undefined;
+      const args = call.data.args as unknown as Record<string, unknown> | undefined;
       if (args && typeof args.path === 'string') set.add(args.path);
     }
     return Array.from(set);
@@ -251,7 +258,7 @@ export default function WorkClient({
     let last: string | null = null;
     for (const event of parseEvents(initialEvents)) {
       if (event.type === 'tool_call' && event.data.name === 'git_op') {
-        const args = event.data.args as Record<string, unknown> | undefined;
+        const args = event.data.args as unknown as Record<string, unknown> | undefined;
         pending = args?.op === 'diff';
       } else if (event.type === 'tool_result' && event.data.name === 'git_op') {
         if (pending) {
@@ -340,7 +347,7 @@ export default function WorkClient({
       setFileChanges((prev) => [...prev, { action: String(data.action ?? 'changed'), path: String(data.path) }]);
     } else if (type === 'tool_call' && data.name === 'git_op') {
       // Mark a pending diff so the matching tool_result can feed the Diff tab.
-      const args = data.args as Record<string, unknown> | undefined;
+      const args = data.args as unknown as Record<string, unknown> | undefined;
       pendingGitDiffRef.current = args?.op === 'diff';
     } else if (type === 'tool_result' && data.name === 'git_op') {
       if (pendingGitDiffRef.current) {
@@ -359,7 +366,9 @@ export default function WorkClient({
   }, [task.id, loadGitStatus]);
 
   useEffect(() => {
-    if (isTerminal) return;
+    // Demo replay feeds the same events through the pacer; a parallel live
+    // subscription here would double-deliver everything.
+    if (isTerminal || demoMode) return;
     const source = new EventSource(`/api/tasks/${task.id}/stream`);
     // Subscriptions come from the shared registry. A hardcoded array here is
     // how v1.10.0's context_layers/memory events were silently dropped.
@@ -376,7 +385,48 @@ export default function WorkClient({
       types.forEach((t) => source.removeEventListener(t, handler as EventListener));
       source.close();
     };
-  }, [task.id, isTerminal, addEvent]);
+  }, [task.id, isTerminal, demoMode, addEvent]);
+
+  /* ── Recorded-demo pacer ── */
+  // When opened with ?demo=1 the seeded task already contains every event;
+  // instead of dumping them we reveal them on the recorded cadence through
+  // addEvent — the exact path live SSE events take. The Skip control dumps
+  // the remainder at once via a ref mirror (restarting the effect would
+  // replay from the top; seenSeq dedupes, but the timer chain is cleaner).
+  const [demoDone, setDemoDone] = useState(false);
+  const demoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const demoRevealAllRef = useRef(false);
+  useEffect(() => {
+    if (!demoMode || demoSource.length === 0) return;
+    let cancelled = false;
+    const dtmsOf = (e: unknown): number => {
+      const d = (e as { content?: { dtms?: unknown } })?.content;
+      return typeof d?.dtms === 'number' ? Math.min(2500, Math.max(150, d.dtms)) : 500;
+    };
+    const revealFrom = (idx: number) => {
+      if (cancelled || idx >= demoSource.length) {
+        if (!cancelled) setDemoDone(true);
+        return;
+      }
+      const ev = demoSource[idx];
+      addEvent({ seq: ev.seq, type: ev.type, data: (ev.content ?? {}) as unknown as Record<string, unknown>, ts: Date.now() });
+      if (demoRevealAllRef.current) {
+        for (let j = idx + 1; j < demoSource.length; j += 1) {
+          const e2 = demoSource[j];
+          addEvent({ seq: e2.seq, type: e2.type, data: (e2.content ?? {}) as unknown as Record<string, unknown>, ts: Date.now() });
+        }
+        setDemoDone(true);
+        return;
+      }
+      const nextDelay = dtmsOf(demoSource[idx]);
+      demoTimerRef.current = setTimeout(() => revealFrom(idx + 1), nextDelay);
+    };
+    demoTimerRef.current = setTimeout(() => revealFrom(0), 300);
+    return () => {
+      cancelled = true;
+      if (demoTimerRef.current) clearTimeout(demoTimerRef.current);
+    };
+  }, [demoMode, demoSource, addEvent]);
 
   /* ── Governance actions ── */
   async function post(path: string, body?: unknown): Promise<{ ok: boolean; error?: string }> {
@@ -677,6 +727,15 @@ export default function WorkClient({
 
         {tab === 'activity' && (
           <div className="min-h-0 flex-1 overflow-y-auto">
+            {demoMode && !demoDone && (
+              <button
+                type="button"
+                onClick={() => { demoRevealAllRef.current = true; }}
+                className="mb-2 rounded-control border border-line-subtle px-3 py-1.5 text-meta text-content-muted transition hover:text-content-primary hover:border-accent-gold/40"
+              >
+                Skip to the end of the recording
+              </button>
+            )}
             <FileActivity events={events} isRunning={status === 'running'} />
             <ExecutionTimeline events={events} />
           </div>
@@ -781,8 +840,10 @@ export default function WorkClient({
               <StatusBadge status={status} />
               <Badge tone={task.mode === 'build' ? 'violet' : 'amber'}>{task.mode}</Badge>
               {task.intent_kind && <Badge tone="gray">{INTENT_LABEL[task.intent_kind] ?? task.intent_kind}</Badge>}
-            </div>
-          </div>
+              {demoMode && (
+                <Badge tone="amber">recorded demo</Badge>
+              )}
+            </div>          </div>
 
           <div>
             <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">

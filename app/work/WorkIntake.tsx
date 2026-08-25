@@ -56,10 +56,32 @@ export default function WorkIntake({
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [choosingProject, setChoosingProject] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
   const needsProject = localMode && !projectPath;
 
+
+  // Seed and open the recorded golden-run demo. Desktop Local only - the
+  // endpoint answers 403 elsewhere, so the button only renders in localMode.
+  async function startDemo() {
+    if (demoLoading) return;
+    setDemoLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/demo', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok || !body.task?.id) {
+        setError(body.error || 'Could not start the demo.');
+        setDemoLoading(false);
+        return;
+      }
+      router.push(`/work/${body.task.id}?demo=1`);
+    } catch {
+      setError('Network error while starting the demo.');
+      setDemoLoading(false);
+    }
+  }
   async function chooseProject() {
     setError('');
     if (!window.xeoDesktop) {
@@ -328,6 +350,23 @@ export default function WorkIntake({
                   </button>
                 ))}
               </div>
+
+              {localMode && (
+                <button
+                  type="button"
+                  onClick={startDemo}
+                  disabled={demoLoading}
+                  className="group mt-3 flex w-full items-center justify-between rounded-control border border-line-subtle bg-ink-900/70 px-4 py-3 text-left transition hover:border-accent-gold/40 hover:bg-ink-800 disabled:opacity-60"
+                >
+                  <span>
+                    <span className="block text-ui font-medium text-content-primary">Watch a governed run — no setup</span>
+                    <span className="mt-0.5 block text-meta leading-5 text-content-muted">A recorded real task replays the full loop: inspect, plan, approve, build, verify.</span>
+                  </span>
+                  <span className="ml-4 shrink-0 text-micro font-semibold uppercase tracking-[0.14em] text-signal-plan group-hover:text-content-primary">
+                    {demoLoading ? 'Loading…' : 'Watch it work'}
+                  </span>
+                </button>
+              )}
             </div>
           )}
 
