@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card } from '@/components/ui';
 import type { AgentProfile, AgentSkill, AgentSkillKind } from '@/lib/types';
+import SkillHub from './SkillHub';
 
 const kinds: AgentSkillKind[] = ['build', 'research', 'analysis', 'operations', 'content', 'custom'];
 
@@ -67,7 +68,8 @@ export default function SkillStudio() {
 
   return (
     <Card className="mb-6">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <SkillHub onImported={load} />
+      <div className="mb-5 mt-8 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-meta font-semibold uppercase tracking-[0.18em] text-signal-run">SKILL STUDIO</p>
           <h2 className="mt-1 font-semibold">Reusable workflows</h2>
@@ -83,7 +85,7 @@ export default function SkillStudio() {
         <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={4} placeholder="1. Inspect the repository. 2. Propose a plan. 3. Implement in small slices. 4. Run tests and report evidence…" className="w-full resize-y rounded-md border border-line bg-ink-700/60 px-3 py-2 text-ui leading-6 outline-none placeholder:text-content-muted focus:border-signal-run/45 md:col-span-2" />
         <div className="flex flex-wrap items-center gap-3 md:col-span-2"><select value={profileId} onChange={(e) => setProfileId(e.target.value)} className="rounded-md border border-line bg-[#111419] px-3 py-2 text-meta text-content-secondary outline-none focus:border-signal-run/45"><option value="">No profile override</option>{profiles.filter((p) => p.enabled).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select><Button type="submit" disabled={busy || !name.trim() || !instructions.trim()}>Create skill</Button></div>
       </form>
-      {skills.length > 0 && <div className="mt-5 grid gap-3 md:grid-cols-2">{skills.map((skill) => <div key={skill.id} className="rounded-control border border-line-subtle bg-ink-700/60 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-ui font-medium text-content-primary">{skill.name}</p><p className="mt-1 text-micro uppercase tracking-wider text-content-muted">{skill.kind} · v{skill.version}</p></div><span className={`rounded-full px-2 py-1 text-micro ${skill.enabled ? 'bg-green-500/15 text-green-300' : 'bg-white/10 text-content-muted'}`}>{skill.enabled ? 'enabled' : 'disabled'}</span></div><p className="mt-3 line-clamp-3 text-meta leading-5 text-content-muted">{skill.description || skill.instructions}</p><div className="mt-3 flex gap-2"><Button variant="ghost" disabled={busy} onClick={() => void toggle(skill)}>{skill.enabled ? 'Disable' : 'Enable'}</Button><Button variant="ghost" disabled={busy} onClick={() => void remove(skill)}>Delete</Button></div></div>)}</div>}
+      {skills.length > 0 && <div className="mt-5 grid gap-3 md:grid-cols-2">{skills.map((skill) => <div key={skill.id} className="rounded-control border border-line-subtle bg-ink-700/60 p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-ui font-medium text-content-primary">{skill.name}</p><p className="mt-1 text-micro uppercase tracking-wider text-content-muted">{skill.kind} · v{skill.version}{skill.source_type === 'skills_sh' ? ` · Skill Hub${skill.source_id ? ` · ${skill.source_id}` : ''}` : ''}</p></div><span className={`rounded-full px-2 py-1 text-micro ${skill.enabled ? 'bg-green-500/15 text-green-300' : 'bg-white/10 text-content-muted'}`}>{skill.enabled ? 'enabled' : 'disabled'}</span></div><p className="mt-3 line-clamp-3 text-meta leading-5 text-content-muted">{skill.description || skill.instructions}</p>{skill.source_type === 'skills_sh' && <p className="mt-2 text-micro text-content-muted">Imported folder · {(() => { try { return JSON.parse(skill.files_json || '[]').length; } catch { return 0; } })()} files · scripts remain inert until explicitly used.</p>}<div className="mt-3 flex gap-2"><Button variant="ghost" disabled={busy} onClick={() => void toggle(skill)}>{skill.enabled ? 'Disable' : 'Enable'}</Button><Button variant="ghost" disabled={busy} onClick={() => void remove(skill)}>Delete</Button></div></div>)}</div>}
     </Card>
   );
 }

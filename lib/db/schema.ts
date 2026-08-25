@@ -224,6 +224,14 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
       description TEXT NOT NULL DEFAULT '',
       instructions TEXT NOT NULL,
       profile_id TEXT,
+      source_type TEXT NOT NULL DEFAULT 'local',
+      source_id TEXT,
+      source_url TEXT,
+      source_path TEXT,
+      source_ref TEXT,
+      source_hash TEXT,
+      files_json TEXT NOT NULL DEFAULT '[]',
+      imported_at ${ts},
       enabled INTEGER NOT NULL DEFAULT 1,
       version INTEGER NOT NULL DEFAULT 1,
       created_at ${ts} NOT NULL ${nowDefault},
@@ -334,6 +342,17 @@ const TASK_MODE_COLUMNS: Array<{ name: string; ddl: string }> = [
   { name: 'provider_model_id', ddl: `ADD COLUMN provider_model_id TEXT` },
 ];
 
+const SKILL_HUB_COLUMNS: Array<{ table: string; name: string; ddl: string }> = [
+  { table: 'agent_skills', name: 'source_type', ddl: `ADD COLUMN source_type TEXT NOT NULL DEFAULT 'local'` },
+  { table: 'agent_skills', name: 'source_id', ddl: `ADD COLUMN source_id TEXT` },
+  { table: 'agent_skills', name: 'source_url', ddl: `ADD COLUMN source_url TEXT` },
+  { table: 'agent_skills', name: 'source_path', ddl: `ADD COLUMN source_path TEXT` },
+  { table: 'agent_skills', name: 'source_ref', ddl: `ADD COLUMN source_ref TEXT` },
+  { table: 'agent_skills', name: 'source_hash', ddl: `ADD COLUMN source_hash TEXT` },
+  { table: 'agent_skills', name: 'files_json', ddl: `ADD COLUMN files_json TEXT NOT NULL DEFAULT '[]'` },
+  { table: 'agent_skills', name: 'imported_at', ddl: `ADD COLUMN imported_at TEXT` },
+];
+
 /**
  * Context-management columns added after the original table shapes.
  * - model_settings: the admin-configurable context window + auto-compact
@@ -400,6 +419,14 @@ async function migrateColumns(): Promise<void> {
     if (existing.has(col.name)) continue;
     await db.exec(`ALTER TABLE ${col.table} ${col.ddl}`);
     existing.add(col.name);
+  }
+
+  // Skill Hub source metadata on the existing user-owned skill table.
+  const skillCols = await columnsOf('agent_skills');
+  for (const col of SKILL_HUB_COLUMNS) {
+    if (skillCols.has(col.name)) continue;
+    await db.exec(`ALTER TABLE ${col.table} ${col.ddl}`);
+    skillCols.add(col.name);
   }
 }
 

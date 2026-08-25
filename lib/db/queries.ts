@@ -1184,6 +1184,14 @@ export async function createAgentSkill(input: {
   description?: string;
   instructions: string;
   profileId?: string | null;
+  sourceType?: AgentSkill['source_type'];
+  sourceId?: string | null;
+  sourceUrl?: string | null;
+  sourcePath?: string | null;
+  sourceRef?: string | null;
+  sourceHash?: string | null;
+  filesJson?: string;
+  importedAt?: string | null;
 }): Promise<AgentSkill> {
   const id = uuidv4();
   const ts = nowIso();
@@ -1195,10 +1203,10 @@ export async function createAgentSkill(input: {
   }
   await db
     .prepare(
-      `INSERT INTO agent_skills (id, user_id, name, kind, description, instructions, profile_id, enabled, version, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)`,
+      `INSERT INTO agent_skills (id, user_id, name, kind, description, instructions, profile_id, source_type, source_id, source_url, source_path, source_ref, source_hash, files_json, imported_at, enabled, version, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?, ?)`,
     )
-    .run(id, input.userId, input.name.trim(), input.kind, (input.description ?? '').trim(), input.instructions.trim(), profileId, ts, ts);
+    .run(id, input.userId, input.name.trim(), input.kind, (input.description ?? '').trim(), input.instructions.trim(), profileId, input.sourceType ?? 'local', input.sourceId ?? null, input.sourceUrl ?? null, input.sourcePath ?? null, input.sourceRef ?? null, input.sourceHash ?? null, input.filesJson ?? '[]', input.importedAt ?? null, ts, ts);
   const row = await getAgentSkillById(id, input.userId);
   if (!row) throw new Error('createAgentSkill: row not found after insert');
   return row;

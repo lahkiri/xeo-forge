@@ -222,6 +222,13 @@ export interface AgentMemory {
 export type AgentProfileKind = 'builder' | 'researcher' | 'analyst' | 'operator' | 'custom';
 
 export type AgentSkillKind = 'build' | 'research' | 'analysis' | 'operations' | 'content' | 'custom';
+export type AgentSkillSourceType = 'local' | 'skills_sh' | 'github';
+
+export interface SkillHubFile {
+  path: string;
+  bytes: number;
+  sha256: string;
+}
 
 export interface AgentProfile {
   id: string;
@@ -245,6 +252,14 @@ export interface AgentSkill {
   description: string;
   instructions: string;
   profile_id: string | null;
+  source_type: AgentSkillSourceType;
+  source_id: string | null;
+  source_url: string | null;
+  source_path: string | null;
+  source_ref: string | null;
+  source_hash: string | null;
+  files_json: string;
+  imported_at: string | null;
   enabled: number;
   version: number;
   created_at: string;
