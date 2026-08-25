@@ -202,9 +202,16 @@ function detectLanguage(text: string): string {
   const cyrillicChars = (sample.match(/[\u0400-\u04FF]/g) || []).length;
 
   const total = sample.length || 1;
-  if (arabicChars / total > 0.15) return 'ar';
-  if (cjkChars / total > 0.15) return 'zh';
-  if (cyrillicChars / total > 0.15) return 'ru';
+  // Thresholds: Arabic/CJK/Cyrillic are distinct Unicode blocks — a small
+  // fraction of their characters is already conclusive. Latin-script
+  // diacritics are weaker evidence (an English goal quoting a French word,
+  // or code comments, trips them), so that threshold stays deliberately low.
+  // Lowered from 0.15 to 0.08 (v1.18): a real Arabic goal mixed with English
+  // identifiers/paths commonly lands at 8-15% Arabic characters and was being
+  // misclassified as English, breaking the LANGUAGE AFFINITY contract.
+  if (arabicChars / total > 0.08) return 'ar';
+  if (cjkChars / total > 0.08) return 'zh';
+  if (cyrillicChars / total > 0.08) return 'ru';
   if (frenchIndicators / total > 0.03) return 'fr';
   return 'en';
 }
@@ -492,7 +499,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   interface TodoItem { id: string; description: string; status: 'pending' | 'in_progress' | 'done'; }
   let todoItems: TodoItem[] = [];
   let verificationAttempts = 0;
-  // Reset on any non-empty response; see MAX_EMPTY_RESPONSES.
+  // Reset on any productive stream; see the reset site below for the contract.
   let consecutiveEmptyResponses = 0;
 
   // Execution evidence — deterministic system signals for truth-based verification.
@@ -853,6 +860,17 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         if (choice.finish_reason) finishReason = choice.finish_reason;
       }
 
+      // The provider produced a stream (even one that yielded only an error
+      // shape is handled below); any iteration that reaches past stream
+      // consumption with text, reasoning, or tool calls counts as a live
+      // response and resets the CONSECUTIVE empty-response counter. Without
+      // this reset the counter accumulates across the whole run lifetime and
+      // three scattered empties fail a productive run (v1.18 fix — the reset
+      // was documented in the declaration comment but never implemented).
+      if (textBuf.trim() || reasoningBuf.trim() || toolCalls.size > 0) {
+        consecutiveEmptyResponses = 0;
+      }
+
       // In planning mode, accumulate the model's prose as the candidate plan.
       if (mode === 'planning' && textBuf.trim()) {
         planBuffer += (planBuffer ? '\n\n' : '') + textBuf.trim();
@@ -968,13 +986,33 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           calls.every((c) => isParallelSafeRead(c.name, parseArgs(c.arguments)));
 
         if (allParallelSafe) {
-          for (const call of calls) {
+          // Debit and emit in call order first. If any debit fails mid-batch,
+          // the already-emitted tool_call events are closed out with explicit
+          // tool_result error events before failing the run — an audit stream
+          // must never contain a tool_call without a matching terminal
+          // observation (v1.18 fix: previously the run failed with dangling
+          // tool_call events, breaking the diff-receipt contract).
+          const debited = new Set<number>();
+          for (const [i, call] of calls.entries()) {
             await emitTaskEvent(taskId, 'tool_call', { name: call.name, args: parseArgs(call.arguments) });
             const ok = await debitForTool();
             if (!ok) {
-              await failRun(taskId, 'Out of credits during execution.');
-              return;
+              debited.add(i);
+              break;
             }
+            debited.add(i);
+          }
+          if (debited.size < calls.length) {
+            for (const [i, call] of calls.entries()) {
+              if (!debited.has(i)) continue;
+              await emitTaskEvent(taskId, 'tool_result', {
+                name: call.name,
+                ok: false,
+                result: `Error: run terminated before execution — credit debit failed at batch position ${debited.size}.`,
+              });
+            }
+            await failRun(taskId, 'Out of credits during execution.');
+            return;
           }
           const batch = calls.slice(0, MAX_PARALLEL_READS);
           const observations = await Promise.all(
@@ -1119,7 +1157,11 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
       }
       // Empty response (flaky provider). This is non-progress, so it is bounded
       // semantically rather than by an iteration cap: a provider that returns
-      // nothing repeatedly is broken, not thorough.
+      // nothing repeatedly is broken, not thorough. The counter is CONSECUTIVE:
+      // any iteration that produced output (text, reasoning, or tool calls)
+      // resets it, so scattered empties across a long productive run cannot
+      // accumulate into a false "provider broken" failure (v1.18 fix: the
+      // reset promised by the declaration comment never existed).
       consecutiveEmptyResponses++;
       if (consecutiveEmptyResponses >= MAX_EMPTY_RESPONSES) {
         await failRun(

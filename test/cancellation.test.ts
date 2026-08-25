@@ -64,7 +64,9 @@ describe('the loop honours cancellation (source contract)', () => {
 
   it('registers a controller and unregisters in finally', () => {
     expect(loopSource).toContain('registerRun(taskId, runAbort)');
-    expect(loopSource).toContain('finally {\n    unregisterRun();');
+    // CRLF-agnostic: the repo may be checked out with either line ending.
+    const finallyRe = /finally \{(?:\r?\n {4}unregisterRun\(\);)/;
+    expect(loopSource).toMatch(finallyRe);
   });
 
   it('checks the signal every iteration and exits as cancelled', () => {

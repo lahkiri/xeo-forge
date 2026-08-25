@@ -20,6 +20,8 @@
 
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
+import fs from 'node:fs';
+import path from 'node:path';
 import { workspaceFor } from './files';
 
 const execAsync = promisify(exec);
@@ -195,12 +197,33 @@ export class CodeTool {
     return run(command, this.workDir);
   }
 
+  /**
+   * Run a Python snippet: the code is written to an in-workspace file with
+   * fs.writeFileSync and executed directly — NO shell quoting of user code.
+   *
+   * v1.18 fix: the previous implementation piped the snippet through
+   * `printf '%s' '<escaped>'` shell syntax, which (a) never works on Windows
+   * where exec() runs cmd.exe, and (b) broke on any snippet containing a
+   * single quote. Writing the file from Node removes the entire quoting
+   * layer. The boundary check still runs on the CODE text itself before it
+   * is written.
+   */
   async python(code: string): Promise<ExecResult> {
     assertBoundaries(code);
-    // Write to a temp file in-workspace and run it, avoiding shell-quoting issues.
     const file = `._snippet_${Date.now()}.py`;
-    const escaped = code.replace(/'/g, `'\\''`);
-    const command = `printf '%s' '${escaped}' > ${file} && python3 ${file}; rm -f ${file}`;
-    return run(command, this.workDir);
+    const abs = path.join(this.workDir, file);
+    fs.writeFileSync(abs, code, 'utf8');
+    // Interpreter resolution: `python3` on POSIX; on Windows, `py` (the
+    // launcher ships with python.org installs) then `python` — the bare
+    // `python3` name resolves to the Microsoft Store stub there.
+    const runner = process.platform === 'win32' ? 'py -3 || python' : 'python3';
+    try {
+      return await run(`${runner} ${file} & del ${file}`, this.workDir);
+    } catch (err) {
+      // Ensure cleanup even when the command itself is rejected upstream
+      // (denylist match happens inside run(); the temp file must not linger).
+      try { fs.unlinkSync(abs); } catch { /* best effort */ }
+      throw err;
+    }
   }
 }

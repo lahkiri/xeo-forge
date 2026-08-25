@@ -26,6 +26,13 @@ export const QUESTION_PATTERNS: readonly RegExp[] = [
   /please (tell|provide|clarify|confirm|specify)/i,
   /let me know/i,
   /waiting for (your|the) (input|response|confirmation|decision)/i,
+  // Arabic autonomy-violation patterns. The runtime context instructs the
+  // model to answer in the user's detected language; an Arabic-language run
+  // that asks instead of acting used to slip past these detectors entirely.
+  /هل (تريد|تود|يجب|يمكنني|أبدأ|أتوقف)/,
+  /أخبرني إذا|اطلب مني/,
+  /بانتظار (ردك|تأكيدك|موافقتك|قرارك)/,
+  /دعني أعرف/i,
 ];
 
 /**
