@@ -13,8 +13,6 @@
  */
 
 import {
-  createModelProvider,
-  createProviderModel,
   getModelSettings,
   getSelectedProviderModel,
   listModelProviders,
@@ -171,25 +169,10 @@ function providerToSafe(provider: ModelProvider, models: Awaited<ReturnType<type
 
 /** Return the provider/model catalog used by Settings and the Chat composer. */
 export async function getProviderCatalogSafe(userId: string): Promise<ProviderCatalog> {
-  let providers = await listModelProviders(userId);
-  if (providers.length === 0) {
-    const legacy = await getModelSettings();
-    const env = legacy ? {
-      name: legacy.name,
-      baseUrl: legacy.base_url,
-      apiKey: legacy.api_key,
-      modelId: legacy.model_id,
-      temperature: legacy.temperature,
-      maxTokens: legacy.max_tokens,
-      contextWindow: legacy.context_window,
-      autoCompactThreshold: legacy.auto_compact_threshold,
-    } : modelFromEnv();
-    if (env) {
-      const provider = await createModelProvider({ userId, name: 'Default provider', slug: 'default', baseUrl: env.baseUrl, apiKey: env.apiKey });
-      await createProviderModel({ userId, providerId: provider.id, name: env.name, modelId: env.modelId, temperature: env.temperature, maxTokens: env.maxTokens, contextWindow: env.contextWindow, autoCompactThreshold: env.autoCompactThreshold });
-      providers = await listModelProviders(userId);
-    }
-  }
+  // Providers are explicit user-owned connections. Do not materialize a fake
+  // "Default provider" from legacy settings or ENV; resolveModel() below keeps
+  // the old singleton fallback available for existing installations/tasks.
+  const providers = await listModelProviders(userId);
   const models = await listProviderModels(userId);
   const safeProviders = providers.map((provider) => providerToSafe(provider, models));
   const activeProvider = safeProviders.find((provider) => provider.enabled && provider.models.some((model) => model.enabled));

@@ -3020,3 +3020,17 @@ body {
 .skill-modal-label { color: rgb(var(--content-muted)); font-size: .64rem; }
 .skill-hub-result-link { color: rgb(var(--content-muted)); font-size: .6rem; white-space: nowrap; }
 .skill-hub-result-link:hover { color: rgb(var(--content-primary)); }
+
+
+.provider-import-form { margin-top: .75rem; }
+.settings-form-help { margin-top: .35rem; color: rgb(var(--content-muted)); font-size: .65rem; }
+.provider-import-toolbar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; border-bottom: 1px solid rgb(var(--line) / .16); padding-bottom: .65rem; color: rgb(var(--content-muted)); font-size: .63rem; }
+.settings-text-button { margin-left: .7rem; color: rgb(var(--content-secondary)); font-size: .63rem; }
+.settings-text-button:hover { color: rgb(var(--content-primary)); }
+.provider-import-options { display: grid; max-height: 20rem; gap: .35rem; margin-top: .7rem; overflow-y: auto; }
+.provider-import-option { display: flex; align-items: center; gap: .65rem; border: 1px solid rgb(var(--line) / .16); border-radius: .28rem; padding: .55rem .65rem; cursor: pointer; }
+.provider-import-option:hover { background: rgb(var(--line) / .06); }
+.provider-import-option input { accent-color: rgb(var(--content-primary)); }
+.provider-import-option span { display: grid; min-width: 0; gap: .18rem; }
+.provider-import-option strong { overflow: hidden; color: rgb(var(--content-primary)); font-size: .68rem; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.provider-import-option small { overflow: hidden; color: rgb(var(--content-muted)); font-family: ui-monospace, monospace; font-size: .58rem; text-overflow: ellipsis; white-space: nowrap; }
