@@ -17,6 +17,7 @@ import { renderMarkdown } from '@/lib/markdown';
 import { deriveChatRuntime, formatElapsed } from '@/lib/agent/runtime-state';
 import { eventTypesFor } from '@/lib/agent/events';
 import { ExecutionTimeline, buildActivityRows } from '@/components/ExecutionTimeline';
+import { FileActivity } from '@/components/FileActivity';
 import {
   AuthorityRow,
   RuntimeBanner,
@@ -676,6 +677,7 @@ export default function WorkClient({
 
         {tab === 'activity' && (
           <div className="min-h-0 flex-1 overflow-y-auto">
+            <FileActivity events={events} isRunning={status === 'running'} />
             <ExecutionTimeline events={events} />
           </div>
         )}

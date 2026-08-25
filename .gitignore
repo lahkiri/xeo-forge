@@ -47,3 +47,6 @@ logs/
 # Debug scripts (not part of the project)
 _check-db.js
 _query-*.js
+
+# Marketing videos live as release assets, not in git
+*.mp4
