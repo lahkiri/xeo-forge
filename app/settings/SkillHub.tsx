@@ -1,0 +1,61 @@
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui';
+
+type SkillHubSearchResult = {
+  id: string;
+  skillId: string;
+  name: string;
+  source: string;
+  installs: number;
+  sourceType: string;
+  installUrl?: string;
+  url?: string;
+};
+
+type Notice = { tone: 'ok' | 'error'; text: string } | null;
+
+export default function SkillHub({ installedSources, onInstalled }: { installedSources: string[]; onInstalled: () => Promise<void> }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SkillHubSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [installing, setInstalling] = useState('');
+  const [installed, setInstalled] = useState<string[]>([]);
+  const [notice, setNotice] = useState<Notice>(null);
+
+  async function search(event: React.FormEvent) {
+    event.preventDefault();
+    if (query.trim().length < 2) return;
+    setSearching(true); setNotice(null);
+    try {
+      const response = await fetch(`/api/skill-hub/search?q=${encodeURIComponent(query.trim())}`);
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Skill Hub search failed.');
+      setResults(body.skills || []);
+      if ((body.skills || []).length === 0) setNotice({ tone: 'error', text: 'No matching skills found.' });
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Skill Hub search failed.' }); }
+    finally { setSearching(false); }
+  }
+
+  async function install(skill: SkillHubSearchResult) {
+    const sourceId = `${skill.source}/${skill.skillId}`;
+    setInstalling(skill.id); setNotice(null);
+    try {
+      const response = await fetch('/api/skill-hub/import', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ source: skill.source, skillId: skill.skillId }) });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || 'Skill installation failed.');
+      setInstalled((current) => current.includes(sourceId) ? current : [...current, sourceId]);
+      setNotice({ tone: 'ok', text: `${skill.name} installed with SKILL.md and all available resources.` });
+      await onInstalled();
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Skill installation failed.' }); }
+    finally { setInstalling(''); }
+  }
+
+  function isInstalled(skill: SkillHubSearchResult) {
+    const sourceId = `${skill.source}/${skill.skillId}`;
+    return installed.includes(sourceId) || installedSources.includes(sourceId);
+  }
+
+  return <section className="skill-hub-panel"><div className="skill-hub-head"><div><p className="skill-hub-kicker">SKILL HUB / DISCOVERY</p><h2>Explore skills from the open directory</h2><p>Search skills.sh, review popularity and source, then install a complete skill folder with its references and resources when you are ready.</p></div><span className="skill-hub-badge">skills.sh</span></div><form className="skill-hub-search" onSubmit={search}><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search skills, e.g. git, research, next.js" aria-label="Search Skill Hub" /><Button type="submit" loading={searching} disabled={query.trim().length < 2}>Search</Button></form>{notice && <p className={`skill-hub-notice ${notice.tone}`}>{notice.text}</p>}{results.length > 0 && <div className="skill-hub-results" aria-live="polite">{results.map((skill) => <article className="skill-hub-result" key={skill.id}><div className="skill-hub-result-copy"><strong>{skill.name}</strong><small>{skill.source} · {skill.installs.toLocaleString()} installs</small></div><div className="skill-hub-result-actions">{skill.url && <a className="skill-hub-result-link" href={skill.url} target="_blank" rel="noreferrer">View source ↗</a>}<Button size="sm" variant={isInstalled(skill) ? 'ghost' : 'secondary'} disabled={isInstalled(skill) || Boolean(installing)} loading={installing === skill.id} onClick={() => void install(skill)}>{isInstalled(skill) ? 'Installed' : 'Install'}</Button></div></article>)}</div>}</section>;
+}

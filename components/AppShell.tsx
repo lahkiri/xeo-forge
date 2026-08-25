@@ -14,9 +14,8 @@ import { CommandPalette, useBaseCommands, useHotkeys, type Command } from './Com
  * geometric vocabulary as the brand mark, never emoji.
  */
 const NAV = [
-  { href: '/chat', label: 'Chat', glyph: '◇', hint: 'Conversation only' },
-  { href: '/work', label: 'Work', glyph: '◆', hint: 'Governed execution' },
-  { href: '/settings', label: 'Control Center', glyph: '⚙', hint: 'Model, roles, policy' },
+  { href: '/chat', label: 'Workspace', glyph: '01', hint: 'Chat and Work in one place' },
+  { href: '/settings', label: 'Settings', glyph: '02', hint: 'Providers, roles, policy' },
 ];
 
 export default function AppShell({
@@ -62,6 +61,12 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
+    const openPalette = () => setPaletteOpen(true);
+    window.addEventListener('xeo:open-command-palette', openPalette);
+    return () => window.removeEventListener('xeo:open-command-palette', openPalette);
+  }, []);
+
+  useEffect(() => {
     const desktop = window.xeoDesktop;
     if (!desktop) return;
     let active = true;
@@ -100,7 +105,7 @@ export default function AppShell({
   useHotkeys([
     { combo: 'mod+k', run: () => setPaletteOpen((v) => !v), allowInInput: true },
     { combo: 'mod+shift+c', run: () => router.push('/chat') },
-    { combo: 'mod+shift+w', run: () => router.push('/work') },
+    { combo: 'mod+shift+w', run: () => router.push('/chat') },
     { combo: 'mod+,', run: () => router.push('/settings') },
   ]);
 
@@ -108,18 +113,18 @@ export default function AppShell({
   const showUpdate = update && ['available', 'downloading', 'downloaded', 'success', 'error'].includes(update.status);
 
   const navItems = user?.isAdmin && !isLocalSurface
-    ? [...NAV, { href: '/admin', label: 'Admin', glyph: '⛨', hint: 'Users, credits, global model' }]
+    ? [...NAV, { href: '/admin', label: 'Admin', glyph: '03', hint: 'Users, credits, global model' }]
     : NAV;
 
   const shell = (
-    <div className="app-shell flex min-h-screen text-content-primary">
+    <div className={cx('app-shell flex min-h-screen text-content-primary', flush && 'app-shell-flush')}>
       <a href="#main" className="skip-link">Skip to main content</a>
 
       {/* ── Sidebar ─────────────────────────────────────────────────────
           The workbench silhouette: a fixed instrument rail on the left and
           the surface filling everything else. Vertical nav gives the Work
           surface its full width and reads as a tool, not a website. */}
-      <aside className="app-sidebar sticky top-0 z-30 flex h-screen w-[13.5rem] shrink-0 flex-col border-r border-line-subtle">
+      <aside className={cx('app-sidebar sticky top-0 z-30 flex h-screen w-[13.5rem] shrink-0 flex-col border-r border-line-subtle', flush && 'hidden')}>
         {/* Brand */}
         <div className="flex h-14 shrink-0 items-center gap-2.5 border-b border-line-subtle px-4">
           <Link href="/chat" className="flex min-w-0 items-center gap-2.5" aria-label="Xeo Forge">
@@ -214,7 +219,7 @@ export default function AppShell({
                   aria-label="Sign out"
                   className="rounded-control px-1.5 py-1 text-meta text-content-faint transition hover:bg-ink-600 hover:text-content-secondary"
                 >
-                  ⏻
+                  Sign out
                 </button>
               </div>
             )

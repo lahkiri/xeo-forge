@@ -85,6 +85,8 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
       plan_version INTEGER NOT NULL DEFAULT 0,
       profile_id TEXT,
       skill_id TEXT,
+      provider_id TEXT,
+      provider_model_id TEXT,
       result_summary TEXT,
       credits_spent INTEGER NOT NULL DEFAULT 0,
       error TEXT,
@@ -122,6 +124,38 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
 
   // messages.active: 1 = part of the live context window, 0 = archived after
   // compaction (kept for audit/UI, excluded from the agent's LLM context).
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS model_providers (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      slug TEXT NOT NULL,
+      base_url TEXT NOT NULL,
+      api_key TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault},
+      UNIQUE(user_id, slug)
+    )
+  `);
+
+  statements.push(`
+    CREATE TABLE IF NOT EXISTS provider_models (
+      id TEXT PRIMARY KEY,
+      provider_id TEXT NOT NULL,
+      name TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      temperature REAL NOT NULL DEFAULT 0.7,
+      max_tokens INTEGER NOT NULL DEFAULT 4000,
+      context_window INTEGER NOT NULL DEFAULT 128000,
+      auto_compact_threshold INTEGER NOT NULL DEFAULT 80,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      created_at ${ts} NOT NULL ${nowDefault},
+      updated_at ${ts} NOT NULL ${nowDefault},
+      UNIQUE(provider_id, model_id)
+    )
+  `);
+
   statements.push(`
     CREATE TABLE IF NOT EXISTS messages (
       id ${pk},
@@ -190,6 +224,14 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
       description TEXT NOT NULL DEFAULT '',
       instructions TEXT NOT NULL,
       profile_id TEXT,
+      source_type TEXT NOT NULL DEFAULT 'local',
+      source_id TEXT,
+      source_url TEXT,
+      source_path TEXT,
+      source_ref TEXT,
+      source_hash TEXT,
+      files_json TEXT NOT NULL DEFAULT '[]',
+      imported_at ${ts},
       enabled INTEGER NOT NULL DEFAULT 1,
       version INTEGER NOT NULL DEFAULT 1,
       created_at ${ts} NOT NULL ${nowDefault},
@@ -296,6 +338,19 @@ const TASK_MODE_COLUMNS: Array<{ name: string; ddl: string }> = [
   { name: 'plan_version', ddl: `ADD COLUMN plan_version INTEGER NOT NULL DEFAULT 0` },
   { name: 'profile_id', ddl: `ADD COLUMN profile_id TEXT` },
   { name: 'skill_id', ddl: `ADD COLUMN skill_id TEXT` },
+  { name: 'provider_id', ddl: `ADD COLUMN provider_id TEXT` },
+  { name: 'provider_model_id', ddl: `ADD COLUMN provider_model_id TEXT` },
+];
+
+const SKILL_HUB_COLUMNS: Array<{ table: string; name: string; ddl: string }> = [
+  { table: 'agent_skills', name: 'source_type', ddl: `ADD COLUMN source_type TEXT NOT NULL DEFAULT 'local'` },
+  { table: 'agent_skills', name: 'source_id', ddl: `ADD COLUMN source_id TEXT` },
+  { table: 'agent_skills', name: 'source_url', ddl: `ADD COLUMN source_url TEXT` },
+  { table: 'agent_skills', name: 'source_path', ddl: `ADD COLUMN source_path TEXT` },
+  { table: 'agent_skills', name: 'source_ref', ddl: `ADD COLUMN source_ref TEXT` },
+  { table: 'agent_skills', name: 'source_hash', ddl: `ADD COLUMN source_hash TEXT` },
+  { table: 'agent_skills', name: 'files_json', ddl: `ADD COLUMN files_json TEXT NOT NULL DEFAULT '[]'` },
+  { table: 'agent_skills', name: 'imported_at', ddl: `ADD COLUMN imported_at TEXT` },
 ];
 
 /**
@@ -365,6 +420,14 @@ async function migrateColumns(): Promise<void> {
     await db.exec(`ALTER TABLE ${col.table} ${col.ddl}`);
     existing.add(col.name);
   }
+
+  // Skill Hub source metadata on the existing user-owned skill table.
+  const skillCols = await columnsOf('agent_skills');
+  for (const col of SKILL_HUB_COLUMNS) {
+    if (skillCols.has(col.name)) continue;
+    await db.exec(`ALTER TABLE ${col.table} ${col.ddl}`);
+    skillCols.add(col.name);
+  }
 }
 
 export async function initSchema(): Promise<void> {
@@ -373,4 +436,6 @@ export async function initSchema(): Promise<void> {
     await db.exec(sql);
   }
   await migrateColumns();
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_model_providers_user ON model_providers(user_id, enabled, updated_at)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_provider_models_provider ON provider_models(provider_id, enabled, updated_at)`);
 }

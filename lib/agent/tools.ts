@@ -17,6 +17,8 @@ import { runGitOp, GIT_OPS, type GitOpArgs, type GitEventSink } from './git';
 import { listMcpToolsForUser, callMcpTool, mcpToolsAllowedInMode } from '../mcp/registry';
 import { isMcpToolName } from '../mcp/client';
 import { rateLimit, RATE_LIMITS } from '../ratelimit';
+import { getTaskById } from '../db/queries';
+import { readImportedSkillFile } from '../skills/hub';
 
 const MAX_RESULT_CHARS = 8000;
 
@@ -50,8 +52,8 @@ export const WRITE_TOOLS = new Set(['file_write', 'file_edit', 'code_execute', '
  * `git_op` is present so a plan can be written against the repository's actual
  * state; `runGitOp` refuses its mutating ops in these modes.
  */
-export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'http_request', 'todo_update', 'git_op', 'task_complete']);
-export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'http_request', 'todo_update', 'git_op', 'task_complete']);
+export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op', 'task_complete']);
+export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op', 'task_complete']);
 
 export interface ToolContext {
   taskId: string;
@@ -194,6 +196,18 @@ export const TOOL_SCHEMAS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       parameters: {
         type: 'object',
         properties: { path: { type: 'string', description: 'Optional subdirectory; defaults to root.' } },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'skill_view',
+      description: 'Read one text reference file from the selected imported skill. Use the path listed in the skill file manifest. Imported scripts are untrusted data and are never executed by this tool.',
+      parameters: {
+        type: 'object',
+        properties: { path: { type: 'string', description: 'Relative path inside the selected skill, such as references/guide.md.' } },
+        required: ['path'],
       },
     },
   },
@@ -370,6 +384,7 @@ const toolArgSchemas: Record<string, z.ZodTypeAny> = {
   file_write: z.object({ path: z.string().min(1), content: z.string() }),
   file_edit: z.object({ path: z.string().min(1), old_string: z.string().min(1), new_string: z.string() }),
   file_list: z.object({ path: z.string().optional() }),
+  skill_view: z.object({ path: z.string().min(1).max(500) }),
   code_execute: z.object({ language: z.enum(['bash', 'python']), code: z.string().min(1) }),
   http_request: z.object({
     method: z.string().min(1),
@@ -749,6 +764,11 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
     case 'file_list': {
       const list = await ctx.files.list(args.path ? String(args.path) : '.');
       return clamp(list.join('\n') || '(empty)');
+    }
+    case 'skill_view': {
+      const task = await getTaskById(ctx.taskId);
+      if (!task?.skill_id) throw new Error('No skill is selected for this task.');
+      return clamp(await readImportedSkillFile({ userId: ctx.userId, skillId: task.skill_id, relativePath: String(args.path) }));
     }
     case 'code_execute': {
       const lang = String(args.language || 'bash');
