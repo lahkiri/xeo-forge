@@ -74,6 +74,8 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [testingModel, setTestingModel] = useState(false);
+  const [probingRunPath, setProbingRunPath] = useState(false);
+  const [runPathVerdict, setRunPathVerdict] = useState<{ verdict: string; detail: string } | null>(null);
   const [notice, setNotice] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
   const [instructionName, setInstructionName] = useState('');
   const [instructionContent, setInstructionContent] = useState('');
@@ -255,6 +257,28 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
     }
   };
 
+  // Probe the SAVED provider with the governed-run request shape (stream+tool)
+  // and surface an honest diagnosis. Distinct from the plain connection test:
+  // a provider can serve Chat while every Planning/Build run fails.
+  const probeGovernedRunPath = async () => {
+    if (probingRunPath) return;
+    setProbingRunPath(true);
+    setNotice(null);
+    try {
+      const res = await fetch('/api/settings/model/health', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok) {
+        setNotice({ type: 'error', text: body.error || 'Provider probe failed.' });
+        return;
+      }
+      setRunPathVerdict({ verdict: body.verdict, detail: body.detail });
+    } catch {
+      setNotice({ type: 'error', text: 'Network error during the governed-run probe.' });
+    } finally {
+      setProbingRunPath(false);
+    }
+  };
+
   const saveModel = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
@@ -413,6 +437,15 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-meta leading-5 text-content-muted">Context window: <span className="text-content-secondary">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this workspace. Use at least 256 output tokens; reasoning models can reject tiny budgets. Test the connection before saving if you are unsure about the key or model ID.</p>
                 <div className="flex items-center gap-2"><input value={modelContextWindow} onChange={(e) => setModelContextWindow(e.target.value)} aria-label="Context window" type="number" min="1024" max="10000000" className="w-32 rounded-md border border-line bg-black/10 px-3 py-2 text-ui outline-none focus:border-signal-plan/50" /><Button type="button" variant="ghost" disabled={testingModel || !modelBaseUrl.trim() || !modelId.trim()} onClick={testModelConnection}>{testingModel ? 'Testing…' : 'Test connection'}</Button><Button type="submit" disabled={busy || !modelName.trim() || !modelBaseUrl.trim() || !modelId.trim()}>Save model</Button></div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="ghost" disabled={probingRunPath} onClick={probeGovernedRunPath}>{probingRunPath ? 'Probing…' : 'Test governed-run path'}</Button>
+                  <span className="text-meta text-content-muted">Streams a tool-calling request — Planning and Build need this even if Chat works.</span>
+                </div>
+                {runPathVerdict && (
+                  <p className={runPathVerdict.verdict === "healthy" ? "text-meta text-signal-pass" : runPathVerdict.verdict === "stream_tools_unsupported" ? "text-meta text-amber-300" : "text-meta text-signal-gate"}>
+                    <span className="font-semibold uppercase tracking-[0.12em]">{runPathVerdict.verdict}</span> — {runPathVerdict.detail}
+                  </p>
+                )}
               </div>
             </form>
         </section>
