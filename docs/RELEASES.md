@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.19.0
+
+v1.19.0 — **Alive** — the first-open release, and the first with an outside contributor (@malekradwan1300's UI rebuild v2: Hermes-inspired unified workspace, multi-provider catalog, Skill Hub discovery). On top of it: *Watch a governed run — no setup* (a 24-event recorded run replays the full loop through the real components — inspect, plan, approve, build, verify — no API key needed), a provider health probe that tells you honestly when a provider serves Chat but fails Planning/Build (stream+tools), the decision event as a first-class timeline row, and contract tests pinning all of it. 38 files / 744 tests.
+
 ## What changed in v1.18.0
 
 v1.18.0 — **The Hardening Release** — closes every defect a live deep-inspection session plus a full code review could prove: the consecutive-empty-response counter actually resets (three scattered empties no longer kill a productive run), `python()` execution is rewritten to fs-written snippets with per-platform interpreter resolution (the printf path never worked on cmd.exe — our primary desktop target), mid-batch credit failures close their audit events instead of leaving dangling tool_calls, Arabic autonomy-violation detectors bring language parity to the build-mode guards, and a new security-model document states each layer's claim boundary with denylist bypass classes written down verbatim. 6 files / 715 tests.
