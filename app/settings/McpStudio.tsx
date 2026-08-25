@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, StatusBadge } from '@/components/ui';
+import { Button } from '@/components/ui';
 
 interface McpServerConfigView {
   id: string;

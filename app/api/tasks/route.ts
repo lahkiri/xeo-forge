@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser } from '@/lib/auth/guard';
 import { isDesktopLocalMode } from '@/lib/auth/session';
-import { getTasksByUser, createTask, updateTaskStatus, appendMessage, appendTaskEvent } from '@/lib/db/queries';
+import { getTasksByUser, createTask, getSelectedProviderModel, updateTaskStatus, appendMessage, appendTaskEvent } from '@/lib/db/queries';
 import { tryDebit } from '@/lib/credits/engine';
 import { TASK_CREATE_COST } from '@/lib/credits/pricing';
 import { startAgentRun } from '@/lib/agent/runner';
@@ -20,6 +20,8 @@ const CreateTaskSchema = z.object({
   projectPath: z.string().trim().min(1).max(4096).nullable().optional(),
   profileId: z.string().uuid().nullable().optional(),
   skillId: z.string().uuid().nullable().optional(),
+  providerId: z.string().uuid().nullable().optional(),
+  providerModelId: z.string().uuid().nullable().optional(),
 });
 
 export async function GET() {
@@ -58,6 +60,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A non-empty goal is required.' }, { status: 400 });
     }
 
+    if (parsed.data.providerId || parsed.data.providerModelId) {
+      if (!parsed.data.providerId || !parsed.data.providerModelId) {
+        return NextResponse.json({ error: 'Choose both a provider and a model.' }, { status: 400 });
+      }
+      const selectedModel = await getSelectedProviderModel({ userId: user.id, providerId: parsed.data.providerId, providerModelId: parsed.data.providerModelId });
+      if (!selectedModel) {
+        return NextResponse.json({ error: 'The selected provider or model is disabled or unavailable.' }, { status: 400 });
+      }
+    }
+
     const requestedMode = parsed.data.mode === 'chat' ? 'chat' : 'planning';
     const surface = parsed.data.surface ?? (requestedMode === 'chat' ? 'chat' : 'work');
     const intent = surface === 'work'
@@ -83,6 +95,8 @@ export async function POST(req: NextRequest) {
       projectPath: parsed.data.projectPath,
       profileId: parsed.data.profileId,
       skillId: parsed.data.skillId,
+      providerId: parsed.data.providerId,
+      providerModelId: parsed.data.providerModelId,
       status: needsDecision ? 'awaiting_decision' : 'pending',
       intentKind: intent.kind,
       decisionState: needsDecision ? 'pending' : null,

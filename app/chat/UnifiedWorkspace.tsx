@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import type { AgentProfile, AgentSkill } from '@/lib/types';
+import type { AgentProfile, AgentSkill, ProviderCatalog } from '@/lib/types';
 import { Alert, Button, KeyHint, Select, StatusBadge, cx, useModKey } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
 import { ThemeToggle } from '@/components/Theme';
@@ -29,6 +29,7 @@ export default function UnifiedWorkspace({
   runs,
   profiles,
   skills,
+  providerCatalog,
   balance,
   localMode,
 }: {
@@ -36,6 +37,7 @@ export default function UnifiedWorkspace({
   runs: Run[];
   profiles: AgentProfile[];
   skills: AgentSkill[];
+  providerCatalog: ProviderCatalog;
   balance?: number;
   localMode: boolean;
 }) {
@@ -54,6 +56,15 @@ export default function UnifiedWorkspace({
   const [error, setError] = useState('');
   const [sending, setSending] = useState(false);
   const [choosingProject, setChoosingProject] = useState(false);
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [providerId, setProviderId] = useState(providerCatalog.active_provider_id ?? '');
+  const [providerModelId, setProviderModelId] = useState(providerCatalog.active_model_id ?? '');
+
+  const selectedProvider = providerCatalog.providers.find((provider) => provider.id === providerId && provider.enabled);
+  const selectedModel = selectedProvider?.models.find((model) => model.id === providerModelId && model.enabled);
+  const selectedModelLabel = selectedProvider && selectedModel
+    ? `${selectedProvider.name} / ${selectedModel.name}`
+    : 'Choose a model';
 
   const workNeedsProject = mode === 'work' && localMode && !projectPath;
   const starters = mode === 'chat' ? CHAT_STARTERS : WORK_STARTERS;
@@ -102,6 +113,7 @@ export default function UnifiedWorkspace({
           mode: isWork ? 'planning' : 'chat',
           surface: isWork ? 'work' : 'chat',
           ...(isWork ? { projectPath, profileId: profileId || null, skillId: skillId || null } : {}),
+          ...(providerId && providerModelId ? { providerId, providerModelId } : {}),
         }),
       });
       const data = await res.json();
@@ -168,9 +180,9 @@ export default function UnifiedWorkspace({
           <div className="codex-nav-heading codex-capabilities-heading"><span>Capabilities</span><span>⌘</span></div>
           <nav className="codex-capability-list" aria-label="Capabilities">
             <Link href="/settings" className="codex-capability-row"><span>◈</span><span>Settings</span></Link>
-            <Link href="/settings#profiles" className="codex-capability-row"><span>◎</span><span>Profiles</span></Link>
-            <Link href="/settings#skills" className="codex-capability-row"><span>◇</span><span>Skills</span></Link>
-            <Link href="/settings#mcp" className="codex-capability-row"><span>⊕</span><span>MCP tools</span></Link>
+            <Link href="/settings/profiles" className="codex-capability-row"><span>◎</span><span>Profiles</span></Link>
+            <Link href="/settings/skills" className="codex-capability-row"><span>◇</span><span>Skills</span></Link>
+            <Link href="/settings/mcp" className="codex-capability-row"><span>⊕</span><span>MCP tools</span></Link>
           </nav>
         </div>
 
@@ -223,7 +235,7 @@ export default function UnifiedWorkspace({
 
         <footer className="codex-composer-dock">
           {mode === 'chat' && staged.length > 0 && <div className="codex-attachment-row"><span>Context</span>{staged.map((file, index) => <button key={`${file.name}-${index}`} type="button" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>{file.name} ×</button>)}</div>}
-          <div className="codex-composer-wrap"><div className="codex-composer-topline"><button type="button" className="codex-model-button">Xeo model <span>⌄</span></button><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
+          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true">⌄</span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const availableModels = provider.models.filter((model) => model.enabled); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => { setProviderId(provider.id); setProviderModelId(model.id); setModelPickerOpen(false); }}><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? '✓' : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
           <p className="codex-composer-note">{mode === 'chat' ? 'Switch to Work when you want Xeo to inspect files or make changes.' : 'Xeo will never write or run commands before you approve the plan.'}</p>
         </footer>
       </section>

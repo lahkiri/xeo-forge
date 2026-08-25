@@ -75,6 +75,8 @@ export interface Task {
   plan_version: number; // increments each time a plan is approved
   profile_id: string | null; // reusable agent profile selected at task creation
   skill_id: string | null; // reusable workflow selected at task creation
+  provider_id: string | null; // provider selected at task creation
+  provider_model_id: string | null; // concrete model selected at task creation
   result_summary: string | null;
   credits_spent: number;
   error: string | null;
@@ -112,6 +114,46 @@ export type ModelSettingsSafe = Omit<ModelSettings, 'api_key'> & {
   /** Whether the stored key looks like a local/example placeholder. */
   api_key_issue: 'placeholder' | null;
 };
+
+/** A configured inference provider. The raw api_key is server-only. */
+export interface ModelProvider {
+  id: string;
+  user_id: string;
+  name: string;
+  slug: string;
+  base_url: string;
+  api_key: string;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A model belonging to one provider. */
+export interface ProviderModel {
+  id: string;
+  provider_id: string;
+  name: string;
+  model_id: string;
+  temperature: number;
+  max_tokens: number;
+  context_window: number;
+  auto_compact_threshold: number;
+  enabled: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ModelProviderSafe = Omit<ModelProvider, 'api_key'> & {
+  api_key_set: boolean;
+  api_key_issue: 'placeholder' | null;
+  models: ProviderModel[];
+};
+
+export interface ProviderCatalog {
+  providers: ModelProviderSafe[];
+  active_provider_id: string | null;
+  active_model_id: string | null;
+}
 
 export interface AdminAction {
   id: number;

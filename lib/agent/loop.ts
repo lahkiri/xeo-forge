@@ -242,10 +242,18 @@ export interface RunAgentArgs {
 }
 
 export async function runAgent({ taskId, userId, goal, mode, projectPath, approvedPlan }: RunAgentArgs): Promise<void> {
-  const model = await resolveModel();
+  const task = await getTaskById(taskId);
+  const model = await resolveModel({
+    userId,
+    providerId: task?.provider_id,
+    providerModelId: task?.provider_model_id,
+  });
   if (!model) {
-    await updateTaskStatus(taskId, 'failed', { error: 'No global model is configured.' });
-    await emitTaskEvent(taskId, 'error', { message: 'No global model is configured.' });
+    const error = task?.provider_id || task?.provider_model_id
+      ? 'The selected provider or model is disabled or unavailable.'
+      : 'No global model is configured.';
+    await updateTaskStatus(taskId, 'failed', { error });
+    await emitTaskEvent(taskId, 'error', { message: error });
     await emitTaskEvent(taskId, 'done', { status: 'failed' });
     return;
   }

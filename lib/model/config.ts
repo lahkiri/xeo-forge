@@ -12,8 +12,16 @@
  * config — no separate subsystem.
  */
 
-import { getModelSettings, upsertModelSettings } from '../db/queries';
-import type { ModelSettings, ModelSettingsSafe } from '../types';
+import {
+  createModelProvider,
+  createProviderModel,
+  getModelSettings,
+  getSelectedProviderModel,
+  listModelProviders,
+  listProviderModels,
+  upsertModelSettings,
+} from '../db/queries';
+import type { ModelProvider, ModelProviderSafe, ModelSettings, ModelSettingsSafe, ProviderCatalog } from '../types';
 
 /** Values commonly used by local setup files and must not be presented as a valid provider key. */
 export function isPlaceholderApiKey(apiKey: string | null | undefined): boolean {
@@ -81,7 +89,29 @@ export function modelFromEnv(): ResolvedModel | null {
  * if absent, fall back to env (so a fresh dev box still works before db:init
  * seeds the row). Returns null if neither is configured.
  */
-export async function resolveModel(): Promise<ResolvedModel | null> {
+export async function resolveModel(selection?: {
+  userId?: string;
+  providerId?: string | null;
+  providerModelId?: string | null;
+}): Promise<ResolvedModel | null> {
+  if (selection?.userId && (selection.providerId || selection.providerModelId)) {
+    const selected = await getSelectedProviderModel({
+      userId: selection.userId,
+      providerId: selection.providerId,
+      providerModelId: selection.providerModelId,
+    });
+    if (!selected) return null;
+    return {
+      name: selected.name,
+      baseUrl: normalizeBaseUrl(selected.base_url),
+      apiKey: selected.api_key.trim(),
+      modelId: selected.model_id.trim(),
+      temperature: selected.temperature,
+      maxTokens: normalizeMaxTokens(selected.max_tokens),
+      contextWindow: selected.context_window,
+      autoCompactThreshold: selected.auto_compact_threshold,
+    };
+  }
   const row = await getModelSettings();
   if (row) {
     return {
@@ -126,6 +156,48 @@ export async function getModelSafe(): Promise<ModelSettingsSafe | null> {
     auto_compact_threshold: env.autoCompactThreshold,
     updated_at: '',
     ...safeKeyState(env.apiKey),
+  };
+}
+
+function providerToSafe(provider: ModelProvider, models: Awaited<ReturnType<typeof listProviderModels>>): ModelProviderSafe {
+  const { api_key, ...rest } = provider;
+  return {
+    ...rest,
+    base_url: normalizeBaseUrl(rest.base_url),
+    ...safeKeyState(api_key),
+    models: models.filter((model) => model.provider_id === provider.id),
+  };
+}
+
+/** Return the provider/model catalog used by Settings and the Chat composer. */
+export async function getProviderCatalogSafe(userId: string): Promise<ProviderCatalog> {
+  let providers = await listModelProviders(userId);
+  if (providers.length === 0) {
+    const legacy = await getModelSettings();
+    const env = legacy ? {
+      name: legacy.name,
+      baseUrl: legacy.base_url,
+      apiKey: legacy.api_key,
+      modelId: legacy.model_id,
+      temperature: legacy.temperature,
+      maxTokens: legacy.max_tokens,
+      contextWindow: legacy.context_window,
+      autoCompactThreshold: legacy.auto_compact_threshold,
+    } : modelFromEnv();
+    if (env) {
+      const provider = await createModelProvider({ userId, name: 'Default provider', slug: 'default', baseUrl: env.baseUrl, apiKey: env.apiKey });
+      await createProviderModel({ userId, providerId: provider.id, name: env.name, modelId: env.modelId, temperature: env.temperature, maxTokens: env.maxTokens, contextWindow: env.contextWindow, autoCompactThreshold: env.autoCompactThreshold });
+      providers = await listModelProviders(userId);
+    }
+  }
+  const models = await listProviderModels(userId);
+  const safeProviders = providers.map((provider) => providerToSafe(provider, models));
+  const activeProvider = safeProviders.find((provider) => provider.enabled && provider.models.some((model) => model.enabled));
+  const activeModel = activeProvider?.models.find((model) => model.enabled);
+  return {
+    providers: safeProviders,
+    active_provider_id: activeProvider?.id ?? null,
+    active_model_id: activeModel?.id ?? null,
   };
 }
 
