@@ -13,7 +13,9 @@ import WorkClient from '../WorkClient';
 
 export const dynamic = 'force-dynamic';
 
-export default async function WorkRunPage({ params }: { params: { id: string } }) {
+export default async function WorkRunPage(
+  { params, searchParams }: { params: { id: string }; searchParams?: { demo?: string } },
+) {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
 
@@ -48,6 +50,8 @@ export default async function WorkRunPage({ params }: { params: { id: string } }
         initialEvents={events}
         initialMessages={messages}
         initialUploads={uploads}
+        demoMode={searchParams?.demo === '1'}
+        demoSource={searchParams?.demo === '1' ? events : []}
       />
     </AppShell>
   );

@@ -69,6 +69,28 @@ export default function UnifiedWorkspace({
   const workNeedsProject = mode === 'work' && localMode && !projectPath;
   const starters = mode === 'chat' ? CHAT_STARTERS : WORK_STARTERS;
 
+  // Recorded golden-run demo (Desktop Local): seeds a real task and opens
+  // the paced replay through the same components live events use.
+  const [demoLoading, setDemoLoading] = useState(false);
+  async function startDemo() {
+    if (demoLoading) return;
+    setDemoLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/demo', { method: 'POST' });
+      const body = await res.json();
+      if (!res.ok || !body.task?.id) {
+        setError(body.error || 'Could not start the demo.');
+        setDemoLoading(false);
+        return;
+      }
+      router.push(`/work/${body.task.id}?demo=1`);
+    } catch {
+      setError('Network error while starting the demo.');
+      setDemoLoading(false);
+    }
+  }
+
   useEffect(() => { setMode(routeMode); }, [routeMode]);
 
   function changeMode(nextMode: WorkspaceMode) {
@@ -229,6 +251,21 @@ export default function UnifiedWorkspace({
             )}
 
             <section className="codex-starters"><div className="codex-section-heading"><span>{mode === 'chat' ? 'Start with a prompt' : 'Common starting points'}</span><span>{mode === 'chat' ? '⌘ ↵' : 'Approval required'}</span></div><div className="codex-starter-list">{starters.map((starter) => <button key={starter.label} type="button" className="codex-starter-row" onClick={() => { setDraft(starter.prompt); composerRef.current?.focus(); }}><span className="codex-starter-glyph">{starter.glyph}</span><span className="min-w-0 flex-1"><strong>{starter.label}</strong><small>{starter.prompt}</small></span><span className="codex-starter-arrow">↗</span></button>)}</div></section>
+            {mode === 'work' && localMode && (
+              <button
+                type="button"
+                onClick={startDemo}
+                disabled={demoLoading}
+                className="codex-starter-row"
+              >
+                <span className="codex-starter-glyph">▶</span>
+                <span className="min-w-0 flex-1">
+                  <strong>Watch a governed run — no setup</strong>
+                  <small>A recorded real task replays the full loop: inspect, plan, approve, build, verify.</small>
+                </span>
+                <span className="codex-starter-arrow">{demoLoading ? "…" : "▶"}</span>
+              </button>
+            )}
             {error && <div className="codex-inline-error"><Alert tone="error" title="Before you continue">{error}</Alert></div>}
           </div>
         </div>

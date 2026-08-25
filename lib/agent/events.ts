@@ -36,6 +36,7 @@ export const AGENT_EVENT_TYPES = [
   'file_activity',
   'memory',
   'memory_decision',
+  'decision',
   'git_status',
   'git_commit',
   'terminal',
@@ -97,6 +98,7 @@ export const AGENT_EVENTS: Record<AgentEventType, EventDescriptor> = {
   file_activity: { purpose: 'A workspace file was created, edited, or deleted.', surfaces: ['work'] },
   memory: { purpose: 'A memory candidate was proposed. NOT yet in context.', surfaces: ['work'] },
   memory_decision: { purpose: 'The user kept, rejected, or deleted a memory.', surfaces: ['work'] },
+  decision: { purpose: 'A recorded operator decision on a run (approve/reject).', surfaces: ['work'] },
   // Git and terminal are Work-only. Both are supervision of a real repository and
   // a real host process; Chat cannot reach either, so subscribing there would
   // advertise an authority that surface does not have.
@@ -504,6 +506,15 @@ export function describeEvent(type: string, data: Record<string, unknown>): Acti
       // The cause. 'done' reports the terminal transition separately, so these
       // two must never share a label or the timeline reads as a duplicate.
       return { title: 'Error', detail: str(data.message), tone: 'bad' };
+    case 'decision': {
+      // Recorded-demo operator decisions (and future real decision trails).
+      const note = typeof data.note === 'string' ? data.note : '';
+      return {
+        title: 'Operator decision recorded',
+        detail: note,
+        tone: 'warn',
+      };
+    }
     case 'done': {
       const status = str(data.status) ?? 'finished';
       if (status === 'completed') return { title: 'Run completed', tone: 'good' };
