@@ -108,7 +108,7 @@ export default function SkillStudio() {
 
   return (
     <Card className="mb-6">
-      <SkillHub />
+      <SkillHub installedSources={skills.filter((skill) => skill.source_id && ['skills_sh', 'github'].includes(skill.source_type)).map((skill) => skill.source_id as string)} onInstalled={load} />
       <section className="mt-8">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div><p className="text-meta font-semibold uppercase tracking-[0.18em] text-signal-run">SKILL STUDIO</p><h2 className="mt-1 font-semibold">Installed skills</h2><p className="mt-1 max-w-2xl text-meta leading-5 text-content-muted">Create, import, and manage the workflows that appear in Work. Discovery stays in Skill Hub; these actions change your local catalog.</p></div>

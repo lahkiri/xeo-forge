@@ -30,3 +30,8 @@ Xeo Forge should keep database metadata and imported files separate: catalog met
 The documented `/api/v1/skills/search` and detail endpoints currently return HTTP 401 without an official token. The legacy `/api/search?q=git` endpoint remains publicly accessible and returns `{ query, searchType, searchVersion, skills }`, with result fields such as `skillId`, `name`, `installs`, and `source`. The Xeo Skill Hub therefore uses the public legacy search endpoint for discovery and the GitHub Contents API for complete file import, rather than pretending the token-protected v1 API is unauthenticated.
 
 The local Skills page now shows the Skill Hub above the existing Skill Studio. A live search for `git` returned multiple results from `github/awesome-copilot`, `mattpocock/skills`, and `obra/superpowers`, each with an Import action and source/install metadata.
+
+
+## Install flow verification
+
+The Skill Hub discovery results now expose an explicit `Install` action. After searching `git`, the previously imported `github/awesome-copilot/git-commit` result correctly displayed `Installed`, while the remaining results displayed `Install`. Installation uses the existing full-folder GitHub importer, so SKILL.md and available references/resources are downloaded into the local skill bundle and the catalog is refreshed after completion.
