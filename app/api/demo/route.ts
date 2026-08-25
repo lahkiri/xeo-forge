@@ -29,9 +29,9 @@ export async function POST(_req: NextRequest) {
 
     // Reuse the newest completed demo when one exists (bounded sidebar churn).
     const mine = await getTasksByUser(user.id);
-    const priorDemo = mine.find(
-      (t) => t.goal.startsWith(DEMO_GOAL_PREFIX) && (t.status === 'completed' || t.status === 'planned'),
-    );
+    // A demo task keeps status 'pending' forever - its lifecycle lives in the
+    // event stream, so any prior demo qualifies for reuse.
+    const priorDemo = mine.find((t) => t.goal.startsWith(DEMO_GOAL_PREFIX));
     if (priorDemo) {
       return NextResponse.json({ task: priorDemo, reused: true }, { status: 200 });
     }
