@@ -61,6 +61,12 @@ export default function AppShell({
   }, []);
 
   useEffect(() => {
+    const openPalette = () => setPaletteOpen(true);
+    window.addEventListener('xeo:open-command-palette', openPalette);
+    return () => window.removeEventListener('xeo:open-command-palette', openPalette);
+  }, []);
+
+  useEffect(() => {
     const desktop = window.xeoDesktop;
     if (!desktop) return;
     let active = true;
