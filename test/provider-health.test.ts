@@ -1,4 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
+
+const REPO_ROOT = path.resolve(__dirname, '..');
 import { classifyProbe } from '../lib/model/health';
 
 /**
@@ -55,5 +59,25 @@ describe('classifyProbe: provider health verdicts', () => {
     const body = JSON.stringify({ error: { message: 'tools is not supported by this model' } });
     const { verdict } = classifyProbe(true, 400, body);
     expect(verdict).toBe('stream_tools_unsupported');
+  });
+});
+
+describe('health route contract (source-level)', () => {
+  const route = fs.readFileSync(path.join(REPO_ROOT, 'app/api/settings/model/health/route.ts'), 'utf8');
+
+  it('local mode: any session may probe; hosted: admin only (shared quota)', () => {
+    expect(route).toMatch(/isDesktopLocalMode\(\)/);
+    expect(route).toContain('requireUser');
+    expect(route).toContain('requireAdmin');
+  });
+
+  it('answers honestly when no model is configured (409, not a fake verdict)', () => {
+    expect(route).toContain('No model is configured yet. Add a provider first.');
+  });
+
+  it('never echoes the API key in the response payload', () => {
+    const payload = route.split('return NextResponse.json({')[1];
+    expect(payload).not.toMatch(/api_key|apiKey/);
+    expect(payload).toMatch(/verdict/);
   });
 });
