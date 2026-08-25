@@ -430,12 +430,21 @@ async function migrateColumns(): Promise<void> {
   }
 }
 
+async function removeAutoSeededProviders(): Promise<void> {
+  // Older builds materialized legacy model_settings/ENV as a fake provider.
+  // Remove only that exact generated identity; explicitly named user providers
+  // remain untouched, and resolveModel() still supports legacy fallback.
+  await db.exec(`DELETE FROM provider_models WHERE provider_id IN (SELECT id FROM model_providers WHERE slug = 'default' AND name = 'Default provider')`);
+  await db.exec(`DELETE FROM model_providers WHERE slug = 'default' AND name = 'Default provider'`);
+}
+
 export async function initSchema(): Promise<void> {
   const statements = ddl(db.kind);
   for (const sql of statements) {
     await db.exec(sql);
   }
   await migrateColumns();
+  await removeAutoSeededProviders();
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_model_providers_user ON model_providers(user_id, enabled, updated_at)`);
   await db.exec(`CREATE INDEX IF NOT EXISTS idx_provider_models_provider ON provider_models(provider_id, enabled, updated_at)`);
 }
