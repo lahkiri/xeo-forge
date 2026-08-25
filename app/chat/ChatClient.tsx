@@ -117,6 +117,15 @@ export default function ChatClient({
 
     if (event.type === 'done') {
       const summary = typeof event.data.summary === 'string' ? event.data.summary : '';
+      // The server persists the verbatim streamed answer in chat mode (loop.ts
+      // chatTextBuffer). If that streamed text is present and already CONTAINS
+      // the terse task_complete summary, appending it would duplicate a subset
+      // of what the user just read. Skip; reload shows the persisted prose.
+      const streamedNow = splitRuns(events).currentRunText;
+      if (summary && streamedNow && streamedNow.includes(summary)) {
+        setStatus(typeof event.data.status === 'string' ? (event.data.status as TaskStatus) : status);
+        return;
+      }
       if (summary) {
         setMessages((prev) => {
           const last = prev[prev.length - 1];

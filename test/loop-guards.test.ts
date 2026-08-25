@@ -642,7 +642,10 @@ describe('the repetition defect (first real Opus-5 run)', () => {
 
   it('finalizeComplete skips persisting a summary that restates the last message', () => {
     expect(loopSource).toContain('function summaryRestatesPrevious(');
-    expect(loopSource).toContain('summaryRestatesPrevious(summary, lastAssistant.content)');
+    // v1.19.1: chat persists the verbatim streamed prose (chatProse); the
+    // anti-duplicate guard now applies to whatever is chosen for persistence.
+    expect(loopSource).toContain('function summaryRestatesPrevious(');
+    expect(loopSource).toContain('summaryRestatesPrevious(persistedText, lastAssistant.content)');
   });
 
   it('reasoning deltas render — the capability models paid for is visible', () => {

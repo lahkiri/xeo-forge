@@ -20,6 +20,7 @@ const NAV = [
 
 export default function AppShell({
   children,
+  sessions = [],
   user,
   balance,
   localMode,
@@ -29,6 +30,8 @@ export default function AppShell({
   subtitle,
 }: {
   children: ReactNode;
+  /** Sessions surfaced in the Ctrl+K palette (goal snippet + href). */
+  sessions?: { id: string; label: string; href: string; kind: 'chat' | 'work' }[];
   user?: AuthUser;
   balance?: number;
   localMode?: boolean;
@@ -99,7 +102,14 @@ export default function AppShell({
     if (!isLocalSurface && user) {
       extra.push({ id: 'auth.signout', label: 'Sign out', group: 'Account', run: () => void signOut() });
     }
-    return [...baseCommands, ...extra];
+    const sessionCommands: Command[] = sessions.map((s) => ({
+      id: 'session.' + s.kind + '.' + s.id,
+      label: s.label.length > 64 ? s.label.slice(0, 61) + '…' : s.label,
+      hint: s.kind === 'chat' ? 'Open chat session' : 'Open work run',
+      group: 'Sessions',
+      run: () => router.push(s.href),
+    }));
+    return [...baseCommands, ...extra, ...sessionCommands];
   }, [baseCommands, isLocalSurface, user, router, signOut]);
 
   useHotkeys([
@@ -117,7 +127,11 @@ export default function AppShell({
     : NAV;
 
   const shell = (
-    <div className={cx('app-shell flex min-h-screen text-content-primary', flush && 'app-shell-flush')}>
+    <div className={cx(
+          'app-shell flex text-content-primary',
+          flush ? 'h-screen overflow-hidden' : 'min-h-screen',
+          flush && 'app-shell-flush',
+        )}>
       <a href="#main" className="skip-link">Skip to main content</a>
 
       {/* ── Sidebar ─────────────────────────────────────────────────────
@@ -268,7 +282,7 @@ export default function AppShell({
         )}
 
         {flush ? (
-          <div id="main" className="min-h-0 flex-1">{children}</div>
+          <div id="main" className="flex h-full min-w-0 flex-col">{children}</div>
         ) : (
           <main id="main" className="min-h-0 flex-1 overflow-y-auto px-4 py-8 sm:px-6 lg:px-10">
             <div className="mx-auto max-w-6xl">

@@ -35,6 +35,7 @@ import { debit } from '../credits/engine';
 import { resolveModel } from '../model/config';
 import {
   AGENT_SYSTEM_PROMPT,
+  CHAT_SYSTEM_PROMPT,
   PLANNING_SYSTEM_PROMPT,
   FALLBACK_TOOL_INSTRUCTIONS,
   STAGNATION_NUDGE,
@@ -314,7 +315,10 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   // System prompt is mode-driven. Build runs that originate from an approved
   // plan get the immutable plan injected as a contract.
   let systemPrompt: string;
-  if (mode === 'planning') {
+  if (mode === 'chat') {
+    // Chat has its own contract: prose IS the deliverable (see prompts.ts).
+    systemPrompt = CHAT_SYSTEM_PROMPT;
+  } else if (mode === 'planning') {
     systemPrompt = PLANNING_SYSTEM_PROMPT;
   } else if (approvedPlan && approvedPlan.trim()) {
     systemPrompt = `${AGENT_SYSTEM_PROMPT}\n\n${buildModePreamble(approvedPlan)}`;
@@ -420,6 +424,8 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   // the richest text as the proposed plan so the approval gate shows the
   // actual plan, not the terse completion summary (bug fix: plan loss).
   let planBuffer = '';
+  // Chat-mode streamed answer, accumulated across iterations.
+  let chatTextBuffer = '';
 
   const debitForTool = async (): Promise<boolean> => {
     if (isDesktopLocalMode()) return true;
@@ -883,6 +889,14 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
       if (mode === 'planning' && textBuf.trim()) {
         planBuffer += (planBuffer ? '\n\n' : '') + textBuf.trim();
       }
+      // In chat mode, accumulate ALL streamed prose across iterations. Chat
+      // has no files to prove work — the streamed answer IS the deliverable,
+      // and finalizeComplete must persist it verbatim (v1.19.1 fix: only the
+      // terse task_complete summary was persisted; 2,405 chars of a real
+      // answer were replaced by a 247-char summary in the UI and DB).
+      if (mode === 'chat' && textBuf.trim()) {
+        chatTextBuffer += textBuf;
+      }
 
       /* ---- Fallback text-action path ---- */
       if (useFallback) {
@@ -892,7 +906,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           if (textBuf.trim()) {
             // Planning mode: text without <action> is acceptable.
             if (mode === 'planning') {
-              await finalizeComplete(taskId, userId, mode, textBuf.trim(), planBuffer);
+              await finalizeComplete(taskId, userId, mode, textBuf.trim(), planBuffer, undefined, chatTextBuffer);
               return;
             }
             // Build mode: text without task_complete is suspicious.
@@ -916,7 +930,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
           const verdict = await evaluateCompletion(summary);
           if (verdict === 'failed') return;
           if (verdict === 'retry') continue;
-          await finalizeComplete(taskId, userId, mode, summary, planBuffer, action.args.memory_candidates);
+          await finalizeComplete(taskId, userId, mode, summary, planBuffer, action.args.memory_candidates, chatTextBuffer);
           return;
         }
         if (action.tool === 'todo_update') {
@@ -1049,7 +1063,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
             const verdict = await evaluateCompletion(summary);
             if (verdict === 'failed') return;
             if (verdict === 'retry') continue; // back to the model with the reason
-            await finalizeComplete(taskId, userId, mode, summary, planBuffer, args.memory_candidates);
+            await finalizeComplete(taskId, userId, mode, summary, planBuffer, args.memory_candidates, chatTextBuffer);
             return;
           }
           if (call.name === 'todo_update') {
@@ -1100,7 +1114,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
         // Planning mode: text termination is acceptable — plans end in text.
         if (mode === 'planning') {
-          await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer);
+          await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer, undefined, chatTextBuffer);
           return;
         }
 
@@ -1160,7 +1174,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         }
 
         // Fallback: accept text as completion (should rarely reach here)
-        await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer);
+        await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer, undefined, chatTextBuffer);
         return;
       }
       // Empty response (flaky provider). This is non-progress, so it is bounded
@@ -1397,16 +1411,25 @@ async function finalizeComplete(
   summary: string,
   planOverride?: string,
   memoryCandidates?: unknown,
+  /** Chat mode: the verbatim streamed answer — the real deliverable. */
+  chatProse?: string,
 ): Promise<boolean> {
   // Persist the assistant's summary as a conversation message for follow-up
   // context — UNLESS it substantially restates the text the user just read.
   // The observed Opus-5 pattern: the model answers in full prose, our nudge
   // asks for task_complete, and it re-emits the same answer as the summary.
   // Persisting both made the run read as a triple-posted message.
+  // What the user should keep in history: in chat, the verbatim streamed
+  // answer; elsewhere, the task_complete summary. Anti-duplicate guard
+  // still applies against whatever we choose to persist.
+  const persistedText =
+    mode === 'chat' && chatProse && chatProse.trim().length > summary.trim().length
+      ? chatProse.trim()
+      : summary;
   const prior = await getMessages(taskId);
   const lastAssistant = [...prior].reverse().find((m) => m.role === 'assistant' && m.active === 1);
-  if (!lastAssistant || !summaryRestatesPrevious(summary, lastAssistant.content)) {
-    await appendMessage(taskId, 'assistant', summary);
+  if (!lastAssistant || !summaryRestatesPrevious(persistedText, lastAssistant.content)) {
+    await appendMessage(taskId, 'assistant', persistedText);
   }
 
   if (mode === 'planning') {
