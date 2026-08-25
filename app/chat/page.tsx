@@ -29,7 +29,16 @@ export default async function ChatPage() {
     .map((task) => ({ id: task.id, goal: task.goal, status: task.status, mode: task.mode }));
 
   return (
-    <AppShell user={user} balance={localMode ? undefined : credits?.balance ?? 0} localMode={localMode} flush>
+    <AppShell
+      user={user}
+      balance={localMode ? undefined : credits?.balance ?? 0}
+      localMode={localMode}
+      flush
+      sessions={[
+        ...threads.slice(0, 12).map((task) => ({ id: task.id, label: task.goal, href: `/chat/${task.id}`, kind: 'chat' as const })),
+        ...runs.slice(0, 12).map((run) => ({ id: run.id, label: run.goal, href: `/work/${run.id}`, kind: 'work' as const })),
+      ]}
+    >
       <UnifiedWorkspace
         threads={threads}
         runs={runs}

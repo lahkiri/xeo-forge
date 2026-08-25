@@ -7,19 +7,28 @@ import type { AgentProfile, AgentSkill, ProviderCatalog } from '@/lib/types';
 import { Alert, Button, KeyHint, Select, StatusBadge, cx, useModKey } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
 import { ThemeToggle } from '@/components/Theme';
+import {
+  IconPlay,
+  IconArrowUpRight,
+  IconZap,
+  IconDiamond,
+  IconChevronDown,
+  IconCheck,
+  IconTerminal,
+} from '@/components/icons';
 
 type WorkspaceMode = 'chat' | 'work';
 type Thread = { id: string; goal: string; status: string; updated_at: string };
 type Run = { id: string; goal: string; status: string; mode: string };
 
 const CHAT_STARTERS = [
-  { label: 'Think through a decision', prompt: 'Help me compare the tradeoffs and recommend a practical path.', glyph: '↗' },
-  { label: 'Explain a technical issue', prompt: 'Explain this error clearly, then suggest the safest next step.', glyph: '⌁' },
-  { label: 'Shape an idea', prompt: 'Help me turn this rough idea into a focused, executable brief.', glyph: '◇' },
+  { label: 'Think through a decision', prompt: 'Help me compare the tradeoffs and recommend a practical path.', glyph: 'arrow' },
+  { label: 'Explain a technical issue', prompt: 'Explain this error clearly, then suggest the safest next step.', glyph: 'zap' },
+  { label: 'Shape an idea', prompt: 'Help me turn this rough idea into a focused, executable brief.', glyph: 'diamond' },
 ];
 
 const WORK_STARTERS = [
-  { label: 'Fix a failing test', prompt: 'The auth session test is failing. Find the cause and fix it.', glyph: '⌘' },
+  { label: 'Fix a failing test', prompt: 'The auth session test is failing. Find the cause and fix it.', glyph: 'terminal' },
   { label: 'Add a feature', prompt: 'Add pagination to the users list endpoint, with tests.', glyph: '+' },
   { label: 'Audit the code', prompt: 'Review error handling across the API routes and report every silent failure.', glyph: '✓' },
 ];
@@ -176,7 +185,7 @@ export default function UnifiedWorkspace({
             <span className="min-w-0"><strong>Xeo Forge</strong><small>Agent workspace</small></span>
           </Link>
           <button type="button" className="codex-workspace-switcher" aria-label="Switch workspace">
-            <span><small>Workspace</small><strong>Local project</strong></span><span aria-hidden="true">⌄</span>
+            <span><small>Workspace</small><strong>Local project</strong></span><span aria-hidden="true"><IconChevronDown size={12} /></span>
           </button>
         </div>
 
@@ -203,7 +212,7 @@ export default function UnifiedWorkspace({
           <nav className="codex-capability-list" aria-label="Capabilities">
             <Link href="/settings" className="codex-capability-row"><span>◈</span><span>Settings</span></Link>
             <Link href="/settings/profiles" className="codex-capability-row"><span>◎</span><span>Profiles</span></Link>
-            <Link href="/settings/skills" className="codex-capability-row"><span>◇</span><span>Skills</span></Link>
+            <Link href="/settings/skills" className="codex-capability-row"><span><IconDiamond size={13} /></span><span>Skills</span></Link>
             <Link href="/settings/mcp" className="codex-capability-row"><span>⊕</span><span>MCP tools</span></Link>
           </nav>
         </div>
@@ -250,7 +259,7 @@ export default function UnifiedWorkspace({
               </section>
             )}
 
-            <section className="codex-starters"><div className="codex-section-heading"><span>{mode === 'chat' ? 'Start with a prompt' : 'Common starting points'}</span><span>{mode === 'chat' ? '⌘ ↵' : 'Approval required'}</span></div><div className="codex-starter-list">{starters.map((starter) => <button key={starter.label} type="button" className="codex-starter-row" onClick={() => { setDraft(starter.prompt); composerRef.current?.focus(); }}><span className="codex-starter-glyph">{starter.glyph}</span><span className="min-w-0 flex-1"><strong>{starter.label}</strong><small>{starter.prompt}</small></span><span className="codex-starter-arrow">↗</span></button>)}</div></section>
+            <section className="codex-starters"><div className="codex-section-heading"><span>{mode === 'chat' ? 'Start with a prompt' : 'Common starting points'}</span><span>{mode === 'chat' ? '⌘ ↵' : 'Approval required'}</span></div><div className="codex-starter-list">{starters.map((starter) => <button key={starter.label} type="button" className="codex-starter-row" onClick={() => { setDraft(starter.prompt); composerRef.current?.focus(); }}><span className="codex-starter-glyph">{starter.glyph === 'arrow' ? <IconArrowUpRight size={13} /> : starter.glyph === 'zap' ? <IconZap size={13} /> : starter.glyph === 'diamond' ? <IconDiamond size={13} /> : <IconTerminal size={13} />}</span><span className="min-w-0 flex-1"><strong>{starter.label}</strong><small>{starter.prompt}</small></span><span className="codex-starter-arrow"><IconArrowUpRight size={13} /></span></button>)}</div></section>
             {mode === 'work' && localMode && (
               <button
                 type="button"
@@ -258,12 +267,12 @@ export default function UnifiedWorkspace({
                 disabled={demoLoading}
                 className="codex-starter-row"
               >
-                <span className="codex-starter-glyph">▶</span>
+                <span className="codex-starter-glyph"><IconPlay size={13} /></span>
                 <span className="min-w-0 flex-1">
                   <strong>Watch a governed run — no setup</strong>
                   <small>A recorded real task replays the full loop: inspect, plan, approve, build, verify.</small>
                 </span>
-                <span className="codex-starter-arrow">{demoLoading ? "…" : "▶"}</span>
+                <span className="codex-starter-arrow"><IconPlay size={13} /></span>
               </button>
             )}
             {error && <div className="codex-inline-error"><Alert tone="error" title="Before you continue">{error}</Alert></div>}
@@ -272,7 +281,7 @@ export default function UnifiedWorkspace({
 
         <footer className="codex-composer-dock">
           {mode === 'chat' && staged.length > 0 && <div className="codex-attachment-row"><span>Context</span>{staged.map((file, index) => <button key={`${file.name}-${index}`} type="button" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>{file.name} ×</button>)}</div>}
-          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true">⌄</span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const availableModels = provider.models.filter((model) => model.enabled); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => { setProviderId(provider.id); setProviderModelId(model.id); setModelPickerOpen(false); }}><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? '✓' : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
+          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const availableModels = provider.models.filter((model) => model.enabled); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => { setProviderId(provider.id); setProviderModelId(model.id); setModelPickerOpen(false); }}><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
           <p className="codex-composer-note">{mode === 'chat' ? 'Switch to Work when you want Xeo to inspect files or make changes.' : 'Xeo will never write or run commands before you approve the plan.'}</p>
         </footer>
       </section>

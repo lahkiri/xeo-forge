@@ -2408,11 +2408,11 @@ body {
 .codex-transcript {
   width: min(100%, 55rem);
   margin: 0 auto;
-  padding: 4.75rem 2rem 9rem;
+  padding: 2.5rem 2rem 2.75rem;
 }
 .codex-welcome {
   max-width: 42rem;
-  margin: 0 auto 3.75rem;
+  margin: 0 auto 2.25rem;
   text-align: center;
 }
 .codex-welcome-mark {
