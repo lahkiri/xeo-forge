@@ -110,6 +110,15 @@ import { ProgressModel, InformationGainTracker } from './progress';
  */
 const globalHookRegistry = defaultHooks();
 
+/**
+ * v1.20.1 (audit A2): the chat answer belongs to the user even when the run
+ * fails or is cancelled. The loop registers its accumulated prose here so
+ * every terminal path — success, failure, cancel — can persist it. Keyed by
+ * task id; cleared on unregister.
+ */
+const liveChatProse = new Map<string, string>();
+
+
 function normalizeAutonomyLevel(value?: string | null): AutonomyLevel {
   return isAutonomyLevel(value) ? value : 'execute';
 }
@@ -945,6 +954,17 @@ export async function runAgent({
       // between iterations. In-flight tool calls finish (bounded by their own
       // timeouts); the model stream below also receives the signal.
       if (runAbort.signal.aborted) {
+        // v1.20.1 (audit A2): cancellation keeps what was already said.
+        try {
+          const prose = liveChatProse.get(taskId);
+          if (mode === 'chat' && prose && prose.trim()) {
+            await appendMessage(taskId, 'assistant', prose.trim());
+          }
+        } catch (persistErr) {
+          console.warn(`[agent] could not persist chat prose on cancel for task=${taskId}:`, persistErr);
+        } finally {
+          liveChatProse.delete(taskId);
+        }
         await updateTaskStatus(taskId, 'cancelled');
         await emitTaskEvent(taskId, 'done', { status: 'cancelled', summary: 'Run cancelled by the operator.' });
         return;
@@ -1062,6 +1082,9 @@ export async function runAgent({
       // answer were replaced by a 247-char summary in the UI and DB).
       if (mode === 'chat' && textBuf.trim()) {
         chatTextBuffer += textBuf;
+        // v1.20.1 (audit A2): keep the latest prose reachable from every
+        // terminal path, including failRun and cancellation.
+        liveChatProse.set(taskId, chatTextBuffer);
       }
 
       /* ---- Fallback text-action path ---- */
@@ -1373,6 +1396,7 @@ export async function runAgent({
       await failRun(taskId, publicModelErrorMessage(err, model.modelId, model.baseUrl));
     }
   } finally {
+    liveChatProse.delete(taskId);
     unregisterRun();
   }
 }
@@ -1644,8 +1668,60 @@ async function finalizeComplete(
   return true;
 }
 
-async function failRun(taskId: string, error: string): Promise<void> {
+/**
+ * v1.20.1 (audit A5): translate raw provider/infra errors into user-facing
+ * language. Honest about what happened and what to do — never a stack trace.
+ */
+export function describeRunError(raw: string): string {
+  const e = raw.toLowerCase();
+  if (e.includes('auth_unavailable') || e.includes('401') || e.includes('invalid api key') || e.includes('incorrect api key')) {
+    return 'The model provider rejected the API key. Check the key in Settings → Providers, then retry.';
+  }
+  if (e.includes('429') || e.includes('rate limit')) {
+    return 'The model provider is rate-limiting requests. Wait a minute and retry — your work so far is saved.';
+  }
+  if (e.includes('insufficient') && e.includes('credit')) {
+    return 'Not enough credits for this run. Credits reset daily; you can also ask an admin for a top-up.';
+  }
+  if (e.includes('timeout') || e.includes('etimedout') || e.includes('econnaborted')) {
+    return 'The model provider took too long to respond. Retry — if it keeps happening, the provider may be down.';
+  }
+  if (e.includes('enotfound') || e.includes('econnrefused') || e.includes('fetch failed') || e.includes('network')) {
+    return 'Could not reach the model provider (network error). Check your connection and the provider URL in Settings.';
+  }
+  if (e.includes('503') || e.includes('502') || e.includes('504') || e.includes('overloaded')) {
+    return 'The model provider is temporarily unavailable (server error). Retry in a few minutes.';
+  }
+  if (e.includes('no measurable progress')) {
+    return 'The run stopped because it kept repeating actions without any result changing. Try rephrasing the goal with a concrete, achievable outcome.';
+  }
+  return raw.length > 300 ? raw.slice(0, 300) + '…' : raw;
+}
+
+async function failRun(taskId: string, rawError: string): Promise<void> {
+  /*
+   * v1.20.1 (audit A5): provider internals must not reach the user raw.
+   * Classify the common failure shapes into honest, actionable language;
+   * the full technical text still goes to the server log.
+   */
+  const error = describeRunError(rawError);
+  console.error(`[agent] task=${taskId} failed: ${rawError.slice(0, 400)}`);
   await updateTaskStatus(taskId, 'failed', { error });
+  /*
+   * v1.20.1 (audit A2): a failed run must not swallow what the user already
+   * watched stream in. Persist accumulated chat prose verbatim as the
+   * assistant message BEFORE the terminal status lands.
+   */
+  try {
+    const prose = liveChatProse.get(taskId);
+    if (prose && prose.trim()) {
+      await appendMessage(taskId, 'assistant', prose.trim());
+    }
+  } catch (persistErr) {
+    console.warn(`[agent] could not persist chat prose on failure for task=${taskId}:`, persistErr);
+  } finally {
+    liveChatProse.delete(taskId);
+  }
   await emitTaskEvent(taskId, 'error', { message: error });
   await emitTaskEvent(taskId, 'done', { status: 'failed' });
   // The task is in a terminal state: any terminal session it still owns is

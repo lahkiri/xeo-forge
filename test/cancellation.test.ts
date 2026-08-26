@@ -65,7 +65,8 @@ describe('the loop honours cancellation (source contract)', () => {
   it('registers a controller and unregisters in finally', () => {
     expect(loopSource).toContain('registerRun(taskId, runAbort)');
     // CRLF-agnostic: the repo may be checked out with either line ending.
-    const finallyRe = /finally \{(?:\r?\n {4}unregisterRun\(\);)/;
+    // v1.20.1: unregister is preceded by prose-map cleanup (audit A2).
+    const finallyRe = /finally \{(?:\r?\n {4}liveChatProse\.delete\(taskId\);)\r?\n {4}unregisterRun\(\);/;
     expect(loopSource).toMatch(finallyRe);
   });
 

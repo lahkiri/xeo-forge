@@ -28,8 +28,10 @@ describe('local browser capability policy', () => {
     expect(schemasForMode('chat').some((tool) => tool.function.name === 'browser')).toBe(false);
     expect(schemasForMode('planning').some((tool) => tool.function.name === 'browser')).toBe(false);
     expect(schemasForMode('planning').some((tool) => tool.function.name === 'file_write')).toBe(false);
-    // The checklist is run bookkeeping, not an action on the world, so it stays.
-    expect(CHAT_TOOLS.has('todo_update')).toBe(true);
+    // v1.20.1 (audit A1): todo_update left chat — a greeting that mutates the
+    // checklist made the progress guard kill simple hellos. Planning keeps it
+    // (plan checklists are its deliverable).
+    expect(CHAT_TOOLS.has('todo_update')).toBe(false);
     expect(PLANNING_TOOLS.has('todo_update')).toBe(true);
   });
 

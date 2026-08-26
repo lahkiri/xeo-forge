@@ -16,7 +16,17 @@
  * the per-tool timeouts and is stated here rather than hidden.
  */
 
-const controllers = new Map<string, AbortController>();
+/**
+ * v1.20.1 (audit A3): the registry MUST be a process-wide singleton. A plain
+ * module-level Map is instantiated once per compiled bundle — in dev (and any
+ * setup where route bundles load separately) the cancel route's Map and the
+ * loop's Map could differ, making cancelRun report "no live loop" while the
+ * run kept streaming (observed live: events flowed 97s after a 'successful'
+ * cancel). Anchoring on globalThis guarantees one instance per process.
+ */
+const globalRegistry = globalThis as { __xeoCancelControllers?: Map<string, AbortController> };
+const controllers: Map<string, AbortController> =
+  globalRegistry.__xeoCancelControllers ?? (globalRegistry.__xeoCancelControllers = new Map());
 
 /** Register the controller for a running task. Returns an unregister fn. */
 export function registerRun(taskId: string, controller: AbortController): () => void {
