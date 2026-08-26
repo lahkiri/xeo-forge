@@ -646,6 +646,7 @@ export async function upsertModelSettings(input: {
   maxTokens: number;
   contextWindow?: number;
   autoCompactThreshold?: number;
+  reasoningEffort?: string;
 }): Promise<void> {
   const existing = await getModelSettings();
   const ts = nowIso();
@@ -656,23 +657,23 @@ export async function upsertModelSettings(input: {
       .prepare(
         `UPDATE model_settings
          SET name = ?, base_url = ?, api_key = ?, model_id = ?, temperature = ?,
-             max_tokens = ?, context_window = ?, auto_compact_threshold = ?, updated_at = ?
+             max_tokens = ?, context_window = ?, auto_compact_threshold = ?, reasoning_effort = ?, updated_at = ?
          WHERE id = 1`,
       )
       .run(
         input.name, input.baseUrl, input.apiKey, input.modelId,
-        input.temperature, input.maxTokens, contextWindow, threshold, ts,
+        input.temperature, input.maxTokens, contextWindow, threshold, input.reasoningEffort ?? existing?.reasoning_effort ?? 'default', ts,
       );
   } else {
     await db
       .prepare(
         `INSERT INTO model_settings (id, name, base_url, api_key, model_id, temperature,
-         max_tokens, context_window, auto_compact_threshold, updated_at)
-         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         max_tokens, context_window, auto_compact_threshold, reasoning_effort, updated_at)
+         VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.name, input.baseUrl, input.apiKey, input.modelId,
-        input.temperature, input.maxTokens, contextWindow, threshold, ts,
+        input.temperature, input.maxTokens, contextWindow, threshold, input.reasoningEffort ?? 'default', ts,
       );
   }
 }

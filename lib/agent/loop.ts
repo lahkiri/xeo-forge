@@ -807,13 +807,27 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
         await runCompaction(usage.percentage);
       }
 
+      // Reasoning-effort control (v1.20): 'default' sends nothing — the
+      // provider uses its own default. Levels pass through for models that
+      // support the parameter; others ignore it server-side.
+      const reasoningEffortParam =
+        model.reasoningEffort && model.reasoningEffort !== 'default'
+          ? { reasoning_effort: model.reasoningEffort }
+          : {};
       const baseParams = {
+        ...reasoningEffortParam,
         model: model.modelId,
         messages: useFallback ? withFallbackPrompt(messages) : messages,
         temperature: model.temperature,
         max_tokens: model.maxTokens,
         stream: true as const,
       };
+      // Reasoning-effort control (v1.20): 'default' sends nothing — the
+      // provider uses its own default. Levels map straight through for
+      // models that support the parameter; others ignore it.
+      if (model.reasoningEffort && model.reasoningEffort !== 'default') {
+        baseParams.reasoning_effort = model.reasoningEffort;
+      }
       const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = useFallback
         ? baseParams
         : { ...baseParams, tools: toolSchemas, tool_choice: 'auto' };

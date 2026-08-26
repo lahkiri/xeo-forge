@@ -427,6 +427,17 @@ async function migrateColumns(): Promise<void> {
   const pmCols = await columnsOf('provider_models');
   if (!pmCols.has('selected')) {
     await db.exec(`ALTER TABLE provider_models ADD COLUMN selected INTEGER NOT NULL DEFAULT 0`);
+    // Backfill: honor the model configured before this column existed, so an
+    // upgrade does not visually reset the pick to the first enabled row.
+    await db.exec(`UPDATE provider_models SET selected = 1
+      WHERE model_id = (SELECT model_id FROM model_settings WHERE id = 1)
+        AND EXISTS (SELECT 1 FROM model_settings WHERE id = 1);`);
+  }
+  // Reasoning-effort control (user-facing toggle + levels). NULL/'default' =
+  // do not send the parameter; the provider uses its own default.
+  const msCols = await columnsOf('model_settings');
+  if (!msCols.has('reasoning_effort')) {
+    await db.exec(`ALTER TABLE model_settings ADD COLUMN reasoning_effort TEXT NOT NULL DEFAULT 'default'`);
   }
   // Skill Hub source metadata on the existing user-owned skill table.
   const skillCols = await columnsOf('agent_skills');

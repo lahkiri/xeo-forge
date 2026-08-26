@@ -2815,7 +2815,7 @@ body {
   overflow-y: auto;
   border: 1px solid rgb(var(--line) / 0.36);
   border-radius: 0.45rem;
-  background: rgb(var(--ink-950));
+  background: rgb(var(--ink-900));
   box-shadow: 0 16px 40px rgb(0 0 0 / 0.2);
   padding: 0.35rem;
 }
@@ -2894,7 +2894,7 @@ body {
 .settings-shell {
   display: flex;
   min-height: 100%;
-  background: rgb(var(--ink-950));
+  background: rgb(var(--ink-900));
   color: rgb(var(--content-primary));
 }
 .settings-sidebar {
@@ -2971,7 +2971,7 @@ body {
 .settings-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; }
 .settings-form-grid label, .settings-stack label, .settings-inline-controls label { display: grid; gap: .35rem; color: rgb(var(--content-secondary)); font-size: .64rem; }
 .settings-form-wide { grid-column: 1 / -1; }
-.settings-input { width: 100%; min-height: 2.2rem; border: 1px solid rgb(var(--line) / .24); border-radius: .28rem; background: rgb(var(--ink-950)); padding: .5rem .6rem; color: rgb(var(--content-primary)); font-size: .68rem; outline: none; }
+.settings-input { width: 100%; min-height: 2.2rem; border: 1px solid rgb(var(--line) / .24); border-radius: .28rem; background: rgb(var(--ink-900)); padding: .5rem .6rem; color: rgb(var(--content-primary)); font-size: .68rem; outline: none; }
 .settings-input:focus { border-color: rgb(var(--content-primary) / .65); }
 .settings-textarea { min-height: 7rem; resize: vertical; line-height: 1.5; }
 .settings-form-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: 1rem; }
@@ -3097,3 +3097,18 @@ body {
 /* xterm base styles — imported here (not in the component) so test
  * environments that load Terminal.tsx without CSS handling keep working. */
 @import '@xterm/xterm/css/xterm.css';
+
+/* Heartbeat sweep indicator on the model picker */
+.codex-model-sweep {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: rgb(var(--content-faint));
+  font-size: 0.6rem;
+  padding: 0.25rem 0.35rem 0;
+}
+.codex-model-sweep .codex-model-dot { animation: health-pulse 1s ease-in-out infinite; }
+@keyframes health-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.85); }
+  50% { opacity: 1; transform: scale(1.15); }
+}

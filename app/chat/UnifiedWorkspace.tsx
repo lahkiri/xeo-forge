@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AgentProfile, AgentSkill, ProviderCatalog } from '@/lib/types';
@@ -100,24 +100,73 @@ export default function UnifiedWorkspace({
     }
   }
 
-  /** Cached verdicts: 'ok' | 'warn' | 'bad' keyed by `${providerId}:${modelId}`.
-   *  Populated by the Control Center health probe; unverified renders amber.
-   */
-  function modelHealth(pid: string, mid: string): 'ok' | 'warn' | 'bad' {
-    if (typeof window === 'undefined') return 'warn';
+  // Heartbeat-driven health map: localStorage cache + server sweep on open/interval.
+  const [healthMap, setHealthMap] = useState<Record<string, 'ok' | 'warn' | 'bad'>>({});
+  const [sweeping, setSweeping] = useState(false);
+
+  const runHeartbeat = useCallback(async () => {
+    if (sweeping) return;
+    setSweeping(true);
+    try {
+      const res = await fetch('/api/providers/heartbeat', { method: 'POST' });
+      if (!res.ok) return;
+      const body = await res.json();
+      const next: Record<string, 'ok' | 'warn' | 'bad'> = { ...healthMap };
+      for (const r of body.results ?? []) {
+        next[r.providerId + ':' + r.modelId] =
+          r.verdict === 'healthy' ? 'ok'
+          : r.verdict === 'stream_tools_unsupported' ? 'bad'
+          : 'warn';
+      }
+      setHealthMap(next);
+      try { window.localStorage.setItem('xeo.modelHealth', JSON.stringify(next)); } catch {}
+    } catch {
+      // offline / transient — dots keep last known state
+    } finally {
+      setSweeping(false);
+    }
+  }, [sweeping, healthMap]);
+
+  useEffect(() => {
     try {
       const raw = window.localStorage.getItem('xeo.modelHealth');
-      if (!raw) return 'warn';
-      const map = JSON.parse(raw) as Record<string, 'ok' | 'warn' | 'bad'>;
-      return map[pid + ':' + mid] ?? 'warn';
-    } catch {
-      return 'warn';
-    }
+      if (raw) setHealthMap(JSON.parse(raw));
+    } catch {}
+  }, []);
+  useEffect(() => {
+    if (!modelPickerOpen || !localMode) return;
+    void runHeartbeat();
+    const id = setInterval(() => void runHeartbeat(), 5 * 60 * 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelPickerOpen, localMode]);
+
+  function modelHealth(pid: string, mid: string): 'ok' | 'warn' | 'bad' {
+    return healthMap[pid + ':' + mid] ?? 'warn';
   }
   useEffect(() => { setMode(routeMode); }, [routeMode]);
 
   // Model picker: local filter + persisted selection (survives restarts).
   const [modelQuery, setModelQuery] = useState('');
+
+  // Layout control: collapse/expand + width of the workspace sidebar.
+  const [sidebarHidden, setSidebarHidden] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(256);
+  useEffect(() => {
+    try {
+      setSidebarHidden(window.localStorage.getItem('xeo.sidebarHidden') === '1');
+      const w = Number(window.localStorage.getItem('xeo.sidebarWidth'));
+      if (w >= 180 && w <= 420) setSidebarWidth(w);
+    } catch {}
+  }, []);
+  function persistSidebar(hidden: boolean, width: number) {
+    setSidebarHidden(hidden);
+    setSidebarWidth(width);
+    try {
+      window.localStorage.setItem('xeo.sidebarHidden', hidden ? '1' : '0');
+      window.localStorage.setItem('xeo.sidebarWidth', String(width));
+    } catch {}
+  }
   async function chooseModel(providerId: string, modelId: string) {
     setProviderId(providerId);
     setProviderModelId(modelId);
@@ -210,8 +259,12 @@ export default function UnifiedWorkspace({
 
   return (
     <div className="codex-workspace flex h-full min-h-0">
-      <aside className="codex-sidebar hidden w-[16rem] shrink-0 flex-col md:flex" aria-label="Workspace navigation">
+      {!sidebarHidden && (
+      <aside style={{ width: sidebarWidth }} className="codex-sidebar shrink-0 flex-col md:flex" aria-label="Workspace navigation">
         <div className="codex-sidebar-top">
+          <button type="button" aria-label="Hide sidebar" title="Hide sidebar"
+            className="codex-action-icon"
+            onClick={() => persistSidebar(true, sidebarWidth)}>‹</button>
           <Link href="/chat" className="codex-brand" aria-label="Xeo Forge home">
             <span className="brand-mark h-7 w-7" aria-hidden="true"><span /></span>
             <span className="min-w-0"><strong>Xeo Forge</strong><small>Agent workspace</small></span>
@@ -254,6 +307,35 @@ export default function UnifiedWorkspace({
           <div className="codex-account-row"><span className="codex-avatar">{localMode ? 'L' : 'X'}</span><span className="min-w-0 flex-1"><strong>{localMode ? 'Local operator' : 'Xeo account'}</strong><small>{typeof balance === 'number' ? `${balance.toLocaleString()} credits` : 'Offline-first'}</small></span><span className="codex-account-menu">•••</span></div>
         </div>
       </aside>
+      )}
+      {!sidebarHidden && (
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          const startX = e.clientX;
+          const startW = sidebarWidth;
+          const onMove = (ev: MouseEvent) => {
+            const w = Math.min(420, Math.max(180, startW + (ev.clientX - startX)));
+            const aside = document.querySelector<HTMLElement>('.codex-sidebar');
+            if (aside) aside.style.width = w + 'px';
+          };
+          const onUp = () => {
+            window.removeEventListener('mousemove', onMove);
+            window.removeEventListener('mouseup', onUp);
+            const aside = document.querySelector<HTMLElement>('.codex-sidebar');
+            const w = aside ? parseInt(aside.style.width, 10) || startW : startW;
+            persistSidebar(false, w);
+          };
+          window.addEventListener('mousemove', onMove);
+          window.addEventListener('mouseup', onUp);
+        }}
+        className="w-1 cursor-col-resize bg-transparent hover:bg-[rgb(var(--content-primary)/0.35)] transition-colors"
+      />
+      )}
+
 
       <section className="codex-main min-w-0 flex-1">
         <header className="codex-topbar">
@@ -269,7 +351,14 @@ export default function UnifiedWorkspace({
           </div>
         </div>
 
-        <div className="codex-body min-h-0 flex-1 overflow-y-auto">
+        {sidebarHidden && (
+        <button type="button" aria-label="Show sidebar" title="Show sidebar"
+          onClick={() => persistSidebar(false, sidebarWidth)}
+          className="self-start m-1.5 rounded-control border border-[rgb(var(--line)/0.35)] px-2 py-1 text-meta text-content-muted hover:text-content-primary hover:border-[rgb(var(--content-primary)/0.6)]">
+          › Show sidebar
+        </button>
+      )}
+<div className="codex-body min-h-0 flex-1 overflow-y-auto">
           <div className={cx('codex-transcript', mode === 'work' && 'is-work')}>
             <div className="codex-welcome">
               <span className="codex-welcome-mark" aria-hidden="true"><span /></span>
@@ -313,7 +402,7 @@ export default function UnifiedWorkspace({
 
         <footer className="codex-composer-dock">
           {mode === 'chat' && staged.length > 0 && <div className="codex-attachment-row"><span>Context</span>{staged.map((file, index) => <button key={`${file.name}-${index}`} type="button" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>{file.name} ×</button>)}</div>}
-          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model"><input type="search" value={modelQuery} onChange={(e) => setModelQuery(e.target.value)} placeholder="Search models…" aria-label="Search models" className="codex-model-search" />{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const q = modelQuery.trim().toLowerCase(); const availableModels = provider.models.filter((model) => model.enabled && (!q || model.name.toLowerCase().includes(q) || model.model_id.toLowerCase().includes(q))); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => void chooseModel(provider.id, model.id)}><span className={cx('codex-model-dot', 'is-' + modelHealth(provider.id, model.id))} aria-hidden="true" /><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
+          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{sweeping && <span className="codex-model-sweep"><span className={cx('codex-model-dot', 'is-warn')} />checking models…</span>}<input type="search" value={modelQuery} onChange={(e) => setModelQuery(e.target.value)} placeholder="Search models…" aria-label="Search models" className="codex-model-search" />{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const q = modelQuery.trim().toLowerCase(); const availableModels = provider.models.filter((model) => model.enabled && (!q || model.name.toLowerCase().includes(q) || model.model_id.toLowerCase().includes(q))); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => void chooseModel(provider.id, model.id)}><span className={cx('codex-model-dot', 'is-' + modelHealth(provider.id, model.id))} aria-hidden="true" /><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
           <p className="codex-composer-note">{mode === 'chat' ? 'Switch to Work when you want Xeo to inspect files or make changes.' : 'Xeo will never write or run commands before you approve the plan.'}</p>
         </footer>
       </section>

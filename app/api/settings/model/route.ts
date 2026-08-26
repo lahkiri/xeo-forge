@@ -42,6 +42,7 @@ const UpdateSchema = z.object({
   apiKey: z.string().min(1).optional(),
   contextWindow: z.number().int().min(1024).max(10000000).optional(),
   autoCompactThreshold: z.number().int().min(10).max(95).optional(),
+  reasoningEffort: z.enum(['default','off','minimal','low','medium','high','enhanced_high','max','ultra']).optional(),
 });
 
 export async function PUT(req: NextRequest) {
