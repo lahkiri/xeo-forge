@@ -30,7 +30,9 @@ export type PermissionAction =
   | 'subagent'
   | 'skill'
   | 'git_mutation'
-  | 'external_directory';
+  | 'external_directory'
+  /** v1.21: physical (computer-use) acts, zone-classified at design time. */
+  | 'gui';
 
 export type PermissionEffect = 'allow' | 'ask' | 'deny';
 
@@ -290,4 +292,151 @@ export function describeAutonomy(level: AutonomyLevel): {
         asksAbout: ['Publishing packages', 'Secrets', 'Outside the workspace'],
       };
   }
+}
+
+/* ------------------------------------------------------------------ */
+/* Physical-action zones (v1.21) — governing acts, not names           */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The attack this layer answers: our rules are name-based ('shell',
+ * 'git push *'), but a physical act has no name to match. "Click (450, 220)"
+ * is not a string a policy can be written against in advance.
+ *
+ * The resolution is NOT a parallel system — it is classification at DESIGN
+ * time. Every GUI capability a driver exposes is tagged with the structural
+ * zone it belongs to; the tag becomes the resource, and the existing
+ * rule engine governs it unchanged. Classification lives with the driver
+ * author who KNOWS what the act structurally is, not with a text guesser.
+ *
+ * Zones are ordered by structural reversibility:
+ *   free_read     — observing cannot damage anything. Never asks.
+ *   workspace     — acts confined to the task workspace. Follows autonomy level.
+ *   app           — touching another application. Asks once per app per session,
+ *                   not per click: the approval-fatigue trap documented by
+ *                   Operator is a governance failure, not user weakness.
+ *   irreversible  — structurally unrecoverable (delete, send, install/uninstall,
+ *                   system settings). Asks ALWAYS, at every autonomy level,
+ *                   including autonomous. No override can silence it.
+ */
+export type GuiZone = 'free_read' | 'workspace' | 'app' | 'irreversible';
+
+export const GUI_ZONE_ACTION: PermissionAction = 'gui';
+
+/**
+ * Build the resource value for a zone-scoped physical act.
+ * The `detail` (app name, window title) is informational for the ask prompt;
+ * authority decisions key on the ZONE, never on guessed intent from detail.
+ */
+export function guiResource(zone: GuiZone, detail?: string): string {
+  return detail ? `zone:${zone}:${detail}` : `zone:${zone}`;
+}
+
+/** Rules every autonomy level carries for physical acts. */
+export const GUI_ZONE_RULES: PermissionRule[] = [
+  { action: 'gui', resource: 'zone:free_read', effect: 'allow', note: 'Observation cannot damage' },
+  { action: 'gui', resource: 'zone:free_read:*', effect: 'allow', note: 'Observation cannot damage' },
+  // workspace + app defaults are appended per-level below; irreversible is last.
+  { action: 'gui', resource: 'zone:irreversible', effect: 'ask', note: 'Structurally unrecoverable' },
+  { action: 'gui', resource: 'zone:irreversible:*', effect: 'ask', note: 'Structurally unrecoverable' },
+];
+
+const GUI_LEVEL_DEFAULTS: Record<AutonomyLevel, PermissionRule[]> = {
+  read_only: [
+    ...GUI_ZONE_RULES.filter((r) => !r.resource.startsWith('zone:irreversible')),
+    { action: 'gui', resource: 'zone:workspace', effect: 'deny', note: 'Read-only autonomy' },
+    { action: 'gui', resource: 'zone:workspace:*', effect: 'deny', note: 'Read-only autonomy' },
+    { action: 'gui', resource: 'zone:app', effect: 'ask', note: 'Another application' },
+    { action: 'gui', resource: 'zone:app:*', effect: 'ask', note: 'Another application' },
+    ...GUI_ZONE_RULES.filter((r) => r.resource.startsWith('zone:irreversible')),
+  ],
+  assist: [
+    ...GUI_ZONE_RULES.filter((r) => !r.resource.startsWith('zone:irreversible')),
+    { action: 'gui', resource: 'zone:workspace', effect: 'ask' },
+    { action: 'gui', resource: 'zone:app', effect: 'ask' },
+    { action: 'gui', resource: 'zone:app:*', effect: 'ask', note: 'Another application' },
+    ...GUI_ZONE_RULES.filter((r) => r.resource.startsWith('zone:irreversible')),
+  ],
+  execute: [
+    ...GUI_ZONE_RULES.filter((r) => !r.resource.startsWith('zone:irreversible')),
+    { action: 'gui', resource: 'zone:workspace', effect: 'allow', note: 'Confined to workspace' },
+    { action: 'gui', resource: 'zone:workspace:*', effect: 'allow', note: 'Confined to workspace' },
+    { action: 'gui', resource: 'zone:app', effect: 'ask', note: 'One ask per app per session' },
+    { action: 'gui', resource: 'zone:app:*', effect: 'ask', note: 'Another application' },
+    ...GUI_ZONE_RULES.filter((r) => r.resource.startsWith('zone:irreversible')),
+  ],
+  autonomous: [
+    ...GUI_ZONE_RULES.filter((r) => !r.resource.startsWith('zone:irreversible')),
+    { action: 'gui', resource: 'zone:workspace', effect: 'allow' },
+    { action: 'gui', resource: 'zone:workspace:*', effect: 'allow', note: 'Confined to workspace' },
+    { action: 'gui', resource: 'zone:app', effect: 'ask', note: 'Unattended: another app needs consent' },
+    { action: 'gui', resource: 'zone:app:*', effect: 'ask', note: 'Another application' },
+    ...GUI_ZONE_RULES.filter((r) => r.resource.startsWith('zone:irreversible')),
+  ],
+};
+
+/**
+ * Effective GUI rules for a run: level defaults, then overrides, then the
+ * irreversible gate re-appended LAST so no configuration can grant it —
+ * the same pattern that protects UNIVERSAL_DENIES.
+ */
+export function effectiveGuiRules(
+  level: AutonomyLevel,
+  overrides: readonly PermissionRule[] = [],
+): PermissionRule[] {
+  return [
+    ...GUI_LEVEL_DEFAULTS[level],
+    ...overrides,
+    { action: 'gui', resource: 'zone:irreversible', effect: 'ask', note: 'Structurally unrecoverable' },
+    { action: 'gui', resource: 'zone:irreversible:*', effect: 'ask', note: 'Structurally unrecoverable' },
+  ];
+}
+
+/**
+ * Fail-closed evaluation for physical acts (v1.21).
+ *
+ * If the GOVERNANCE LAYER ITSELF is broken — empty rule set, unknown zone,
+ * classifier missing — the act is DENIED, not waved through. Silent failure
+ * is what hands an unattended machine to an attacker; loud failure just
+ * costs a retry. There is deliberately NO global kill-switch for this: an
+ * escape hatch requires a full, conscious approval of the specific command,
+ * which is exactly what a per-run override rule is.
+ */
+export type FailClosedVerdict =
+  | { allowed: false; reason: 'governance_unavailable'; detail: string }
+  | { allowed: false; reason: 'unknown_zone'; detail: string }
+  | { allowed: true; decision: PermissionDecision };
+
+export function evaluateGuiAct(
+  rules: readonly PermissionRule[] | undefined | null,
+  zone: string,
+  detail?: string,
+): FailClosedVerdict {
+  if (!rules || rules.length === 0) {
+    return {
+      allowed: false,
+      reason: 'governance_unavailable',
+      detail: 'No permission rules were supplied for this run. Refusing to execute a physical act ungoverned.',
+    };
+  }
+  const knownZones: readonly string[] = ['free_read', 'workspace', 'app', 'irreversible'];
+  if (!knownZones.includes(zone)) {
+    return {
+      allowed: false,
+      reason: 'unknown_zone',
+      detail: `Zone "${zone.slice(0, 40)}" is not a known structural classification. A driver must classify acts into free_read/workspace/app/irreversible.`,
+    };
+  }
+  const resource = guiResource(zone as GuiZone, detail);
+  const decision = evaluatePermission(rules, GUI_ZONE_ACTION, resource);
+  // Belt and braces: even if a misconfiguration produced allow here, the
+  // irreversible gate re-append makes that impossible for zone:irreversible*.
+  if (zone === 'irreversible' && decision.effect === 'allow') {
+    return {
+      allowed: false,
+      reason: 'governance_unavailable',
+      detail: 'Irreversible acts can never evaluate to allow. This state indicates rule corruption.',
+    };
+  }
+  return { allowed: true, decision };
 }
