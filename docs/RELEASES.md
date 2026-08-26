@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.19.2
+
+v1.19.2 — **The Listener** — every defect reported after the 1.19.1 update, fixed with evidence: sessions open correctly again (a double-viewport layout bug pushed the whole thread view below the fold), model selection now persists across restarts (the reported 'lost my model' was an unpersisted picker recomputed to first-enabled), the composer's model picker gained search and per-model health dots (green verified / amber unverified / red known-incompatible) fed by the governed-run probe, the terminal got its missing xterm stylesheet (it rendered as overlapping unstyled text), and provider quick-start presets (OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, z.ai, Groq, Mistral, Ollama) prefill connections while custom endpoints and single-model imports stay first-class.
+
 ## What changed in v1.19.1
 
 v1.19.1 — **The Answer Keeper** — fixes the worst live-reported defect: chat mode streamed a full 2,405-char answer and then replaced it with a 247-char procedural summary (the build-mode contract leaking into chat). Chat now has its own prompt contract, the verbatim streamed answer is persisted as the message of record, the client no longer appends a contained terse duplicate, Ctrl+K searches sessions as promised, unicode glyph icons became a real inline SVG set, and the empty-state rhythm no longer pushes the composer below the fold. 13 regression tests pin every layer.
