@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.20.0
+
+v1.20.0 — **The Governed Loop** — the loop's biggest intellectual upgrade. Progress replaced counters: stagnation detection now asks "did the world change?" instead of "did you repeat yourself?", so a legitimate test-fix loop is never punished and a useless alternating-read loop is always caught. Authority became data: declarative `{action, resource, effect}` rules where every decision cites its rule, with four autonomy levels (read-only / assist / execute / autonomous) as real state — publishing asks even at maximum autonomy, secrets ask at every level, and universal denies survive any override. Lifecycle hooks shipped second: audit trails, guardrails that catch "claimed but vanished" files mid-run, and completion evidence — all deterministic, all in the same seq-ordered stream. 805 tests, +48 contract tests across the three pillars.
+
 ## What changed in v1.19.3
 
 v1.19.3 — **Polish & Pulse** — from live user testing: the model picker's popover was literally transparent (undefined `--ink-950` token); health dots now pulse via a real heartbeat endpoint sweeping up to 12 models; upgrades no longer reset the user's model pick (migration backfills from the legacy row); full reasoning-effort ladder (off → ultra) exposed in Control Center and injected into completions only when not 'default'; and the chat-swallows-answers bug was root-caused once more — task_complete was still offered as a chat tool, inviting exactly the behavior the prompt forbade. Sidebar gained collapse/expand + drag-resize (persisted). Work surface got the same viewport fix and an explicit exit link.
