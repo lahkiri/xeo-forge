@@ -19,6 +19,7 @@
  */
 
 import { exec } from 'node:child_process';
+import { evaluatePermission, type PermissionRule } from './permissions';
 import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -135,7 +136,21 @@ export function buildSafeEnv(workDir: string): Record<string, string> {
  * one-liners, not a capability boundary. Closing it requires OS-level
  * isolation, which this project deliberately does not claim to have.
  */
-function assertBoundaries(command: string): void {
+function assertBoundaries(command: string, rules?: readonly PermissionRule[]): void {
+  /*
+   * v1.20: the declarative rule set is consulted FIRST when the caller
+   * supplies one, so a shell decision made here is the same decision the UI
+   * showed and the audit trail recorded. The regex denylist below still runs
+   * as a floor for callers that pass no rules (older internal paths).
+   */
+  if (rules && rules.length) {
+    const decision = evaluatePermission(rules, 'shell', command);
+    if (decision.effect === 'deny') {
+      throw new CommandBlockedError(
+        `Command denied by permission rule ${decision.ruleIndex} (${decision.matched?.note ?? decision.matched?.resource ?? 'policy'}): ${command.slice(0, 80)}`,
+      );
+    }
+  }
   for (const re of DANGEROUS) {
     if (re.test(command)) {
       throw new CommandBlockedError(`Command blocked by safety policy: ${command.slice(0, 80)}`);
@@ -163,8 +178,12 @@ export interface ExecResult {
   exitCode: number;
 }
 
-async function run(command: string, workDir: string): Promise<ExecResult> {
-  assertBoundaries(command);
+async function run(
+  command: string,
+  workDir: string,
+  rules?: readonly PermissionRule[],
+): Promise<ExecResult> {
+  assertBoundaries(command, rules);
   try {
     const { stdout, stderr } = await execAsync(command, {
       cwd: workDir,
@@ -188,13 +207,20 @@ async function run(command: string, workDir: string): Promise<ExecResult> {
 
 export class CodeTool {
   private workDir: string;
+  /**
+   * Declarative permission rules for the run that owns this tool (v1.20).
+   * Optional so older internal callers keep working on the regex floor;
+   * when present, a shell decision here is the SAME decision the UI showed.
+   */
+  private rules?: readonly PermissionRule[];
 
-  constructor(taskId: string, projectPath?: string | null) {
+  constructor(taskId: string, projectPath?: string | null, rules?: readonly PermissionRule[]) {
     this.workDir = workspaceFor(taskId, projectPath);
+    this.rules = rules;
   }
 
   async bash(command: string): Promise<ExecResult> {
-    return run(command, this.workDir);
+    return run(command, this.workDir, this.rules);
   }
 
   /**
@@ -209,7 +235,7 @@ export class CodeTool {
    * is written.
    */
   async python(code: string): Promise<ExecResult> {
-    assertBoundaries(code);
+    assertBoundaries(code, this.rules);
     const file = `._snippet_${Date.now()}.py`;
     const abs = path.join(this.workDir, file);
     fs.writeFileSync(abs, code, 'utf8');
