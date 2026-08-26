@@ -537,9 +537,14 @@ export default function WorkClient({
   ];
 
   return (
-    <div className="flex h-screen min-h-0">
+    <div className="flex h-full min-h-0">
       {/* ── Run list ── */}
       <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle 2xl:flex">
+        <div className="flex items-center justify-between px-3 pt-3">
+          <Link href="/chat" className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted hover:text-content-primary">
+            ← Workspace
+          </Link>
+        </div>
         <PanelHeader title="Work">
           <Link href="/work">
             <IconButton label="New work" size="sm">

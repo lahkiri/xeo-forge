@@ -52,7 +52,11 @@ export const WRITE_TOOLS = new Set(['file_write', 'file_edit', 'code_execute', '
  * `git_op` is present so a plan can be written against the repository's actual
  * state; `runGitOp` refuses its mutating ops in these modes.
  */
-export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op', 'task_complete']);
+// v1.20: task_complete is NOT a chat tool. Chat terminates on natural text
+// stop; the streamed answer IS the deliverable (see CHAT_SYSTEM_PROMPT and
+// the loop's chat text-termination path). Offering it invited the model to
+// bury a fine prose answer inside a procedural summary.
+export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op']);
 export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op', 'task_complete']);
 
 export interface ToolContext {

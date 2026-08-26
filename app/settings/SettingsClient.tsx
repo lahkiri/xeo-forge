@@ -95,6 +95,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
   const [modelMaxTokens, setModelMaxTokens] = useState('4000');
   const [modelContextWindow, setModelContextWindow] = useState('128000');
   const [modelCompactThreshold, setModelCompactThreshold] = useState('80');
+  const [modelReasoningEffort, setModelReasoningEffort] = useState<string>(model?.reasoning_effort ?? 'default');
   const [updateState, setUpdateState] = useState<DesktopUpdateState | null>(null);
   const [updateSettings, setUpdateSettings] = useState<DesktopUpdateSettings | null>(null);
   const [activeSection, setActiveSection] = useState<(typeof SETTINGS_SECTIONS)[number]['id']>('providers');
@@ -115,6 +116,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           setModelMaxTokens(String(modelResult.model.max_tokens));
           setModelContextWindow(String(modelResult.model.context_window));
           setModelCompactThreshold(String(modelResult.model.auto_compact_threshold));
+          setModelReasoningEffort(modelResult.model.reasoning_effort ?? 'default');
         }
       }
     } catch (err) {
@@ -306,7 +308,8 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
           maxTokens: Number(modelMaxTokens),
           contextWindow: Number(modelContextWindow),
           autoCompactThreshold: Number(modelCompactThreshold),
-        }),
+        reasoningEffort: modelReasoningEffort,
+          }),
       });
       setModel(response.model);
       setModelApiKey('');
@@ -443,7 +446,20 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
                 <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">API key</span><input value={modelApiKey} onChange={(e) => setModelApiKey(e.target.value)} type="password" placeholder={model?.api_key_set ? 'Leave unchanged' : 'Required by provider'} className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-ui outline-none placeholder:text-content-muted focus:border-signal-plan/50" /></label>
                 <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Temperature</span><input value={modelTemperature} onChange={(e) => setModelTemperature(e.target.value)} type="number" min="0" max="2" step="0.1" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-ui outline-none focus:border-signal-plan/50" /></label>
                 <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Max output tokens</span><input value={modelMaxTokens} onChange={(e) => setModelMaxTokens(e.target.value)} type="number" min="256" max="200000" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-ui outline-none focus:border-signal-plan/50" /></label>
-                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Context compact at %</span><input value={modelCompactThreshold} onChange={(e) => setModelCompactThreshold(e.target.value)} type="number" min="10" max="95" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-ui outline-none focus:border-signal-plan/50" /></label>
+                <label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Reasoning effort</span>
+<select value={modelReasoningEffort} onChange={(e) => setModelReasoningEffort(e.target.value)}
+  className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-ui outline-none focus:border-signal-plan/50">
+  <option value="default">Default (provider decides)</option>
+  <option value="off">Off — no reasoning</option>
+  <option value="minimal">Minimal</option>
+  <option value="low">Low</option>
+  <option value="medium">Medium</option>
+  <option value="high">High</option>
+  <option value="enhanced_high">Enhanced High</option>
+  <option value="max">Max</option>
+  <option value="ultra">Ultra</option>
+</select></label>
+<label className="space-y-1.5"><span className="text-micro uppercase tracking-[0.14em] text-content-muted">Context compact at %</span><input value={modelCompactThreshold} onChange={(e) => setModelCompactThreshold(e.target.value)} type="number" min="10" max="95" className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-ui outline-none focus:border-signal-plan/50" /></label>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-meta leading-5 text-content-muted">Context window: <span className="text-content-secondary">{modelContextWindow || '128000'}</span> tokens. The model configuration is global to this workspace. Use at least 256 output tokens; reasoning models can reject tiny budgets. Test the connection before saving if you are unsure about the key or model ID.</p>

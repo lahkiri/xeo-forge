@@ -62,6 +62,8 @@ export interface ResolvedModel {
   contextWindow: number;
   /** Auto-compact trigger as a percent of contextWindow (1–100, default 80). */
   autoCompactThreshold: number;
+  /** Reasoning effort for reasoning-capable models. 'default' = provider decides. */
+  reasoningEffort: string;
 }
 
 /** Read the env-provided defaults (used for seeding). */
@@ -79,6 +81,7 @@ export function modelFromEnv(): ResolvedModel | null {
     maxTokens: normalizeMaxTokens(Number(process.env.MODEL_MAX_TOKENS || '4000')),
     contextWindow: Number(process.env.MODEL_CONTEXT_WINDOW || '128000'),
     autoCompactThreshold: Number(process.env.MODEL_AUTO_COMPACT_THRESHOLD || '80'),
+    reasoningEffort: process.env.MODEL_REASONING_EFFORT || 'default',
   };
 }
 
@@ -108,6 +111,7 @@ export async function resolveModel(selection?: {
       maxTokens: normalizeMaxTokens(selected.max_tokens),
       contextWindow: selected.context_window,
       autoCompactThreshold: selected.auto_compact_threshold,
+    reasoningEffort: (selected as { reasoning_effort?: string }).reasoning_effort ?? 'default',
     };
   }
   const row = await getModelSettings();
@@ -121,6 +125,7 @@ export async function resolveModel(selection?: {
       maxTokens: normalizeMaxTokens(row.max_tokens),
       contextWindow: row.context_window,
       autoCompactThreshold: row.auto_compact_threshold,
+    reasoningEffort: (row as { reasoning_effort?: string }).reasoning_effort ?? 'default',
     };
   }
   return modelFromEnv();
@@ -128,12 +133,14 @@ export async function resolveModel(selection?: {
 
 export function toSafe(row: ModelSettings): ModelSettingsSafe {
   const { api_key, ...rest } = row;
+  const reasoning_effort = (row as { reasoning_effort?: string }).reasoning_effort ?? 'default';
   return {
     ...rest,
     base_url: normalizeBaseUrl(rest.base_url),
     model_id: rest.model_id.trim(),
     max_tokens: normalizeMaxTokens(rest.max_tokens),
     ...safeKeyState(api_key),
+    reasoning_effort,
   };
 }
 
@@ -151,6 +158,7 @@ export async function getModelSafe(): Promise<ModelSettingsSafe | null> {
     temperature: env.temperature,
     max_tokens: env.maxTokens,
     context_window: env.contextWindow,
+    reasoning_effort: env.reasoningEffort,
     auto_compact_threshold: env.autoCompactThreshold,
     updated_at: '',
     ...safeKeyState(env.apiKey),
@@ -199,6 +207,7 @@ export async function updateModel(input: {
   maxTokens: number;
   contextWindow?: number;
   autoCompactThreshold?: number;
+  reasoningEffort?: string;
 }): Promise<void> {
   // If no new api key supplied, preserve the existing one.
   let apiKey = input.apiKey;
@@ -215,5 +224,6 @@ export async function updateModel(input: {
     maxTokens: normalizeMaxTokens(input.maxTokens),
     contextWindow: input.contextWindow,
     autoCompactThreshold: input.autoCompactThreshold,
+  reasoningEffort: input.reasoningEffort,
   });
 }

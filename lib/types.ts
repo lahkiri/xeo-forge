@@ -105,6 +105,8 @@ export interface ModelSettings {
   context_window: number;
   /** Auto-compact trigger as a percent of context_window (1–100). */
   auto_compact_threshold: number;
+  /** Reasoning effort for reasoning-capable models. */
+  reasoning_effort: string;
   updated_at: string;
 }
 
