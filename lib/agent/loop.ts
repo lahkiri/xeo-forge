@@ -75,6 +75,7 @@ import {
   guardProfileForModel,
   validateSummarySections,
 } from './guards';
+import { defaultHooks, runHooks, persistHookResults, type HookPoint, type HookContext } from './hooks';
 import { effectiveRules, isAutonomyLevel, type AutonomyLevel, type PermissionRule } from './permissions';
 import { isReadTool } from './guards';
 import { ProgressModel, InformationGainTracker } from './progress';
@@ -103,6 +104,12 @@ import { ProgressModel, InformationGainTracker } from './progress';
  * Coerce an untrusted autonomy string into a real level; unknown values
  * fall back DOWN to 'execute', never up.
  */
+/**
+ * Module-level hook registry for points that fire outside the per-run
+ * closure (completion evidence). Same built-ins, same persistence path.
+ */
+const globalHookRegistry = defaultHooks();
+
 function normalizeAutonomyLevel(value?: string | null): AutonomyLevel {
   return isAutonomyLevel(value) ? value : 'execute';
 }
@@ -568,6 +575,12 @@ export async function runAgent({
     postNudgeGrace: POST_ESCALATION_LIMIT,
   });
   const gainTracker = new InformationGainTracker();
+  /*
+   * Lifecycle hooks (v1.20): deterministic actions the loop takes itself.
+   * Every firing is persisted to the same seq-ordered stream as everything
+   * else — hooks inherit the audit trail rather than inventing one.
+   */
+  const hookRegistry = defaultHooks();
   /** Per-iteration observation buckets, drained by the stagnation check. */
   let iterFilesRead: string[] = [];
   let iterFilesChanged: string[] = [];
@@ -824,8 +837,30 @@ export async function runAgent({
       iterExitCodes.push(exitMatch ? parseInt(exitMatch[1], 10) : -1);
     }
     if (!toolOk) iterErrors.push(obs.slice(0, 300));
+    // Lifecycle hooks: outcome audit + guardrails fire here so both tool
+    // paths (native and fallback) get identical coverage.
+    await fireHooks(toolOk ? 'post_tool' : 'tool_failure', {
+      toolName,
+      args: args as Record<string, unknown>,
+      observation: obs,
+    });
     if (toolName === 'todo_update') iterTaskStateChanged = true;
-  };
+  }
+
+  /** Fire lifecycle hooks for a point and persist their results. */
+  const fireHooks = async (
+    point: HookPoint,
+    extra: { toolName?: string; args?: Record<string, unknown>; observation?: string },
+  ): Promise<void> => {
+    const hookCtx: HookContext = {
+      taskId,
+      mode,
+      filesModified: [...executionEvidence.filesModified],
+      ...extra,
+    };
+    const results = await runHooks(hookRegistry, point, hookCtx);
+    await persistHookResults(taskId, point, results);
+  };;
 
   /**
    * Nudge when the agent keeps inspecting without acting. Called once per
@@ -1087,6 +1122,7 @@ export async function runAgent({
           await failRun(taskId, 'Out of credits during execution.');
           return;
         }
+        await fireHooks('pre_tool', { toolName: action.tool, args: action.args as Record<string, unknown> });
         const obs = await safeExecute(taskId, action.tool, action.args, ctx);
         messages.push({ role: 'user', content: `Observation:\n${obs}` });
 
@@ -1216,7 +1252,8 @@ export async function runAgent({
             await failRun(taskId, 'Out of credits during execution.');
             return;
           }
-          const obs = await safeExecute(taskId, call.name, args, ctx);
+          await fireHooks('pre_tool', { toolName: call.name, args: args as Record<string, unknown> });
+        const obs = await safeExecute(taskId, call.name, args, ctx);
           messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
           iterationObservations.push(obs);
 
@@ -1545,6 +1582,18 @@ async function finalizeComplete(
   /** Chat mode: the verbatim streamed answer — the real deliverable. */
   chatProse?: string,
 ): Promise<boolean> {
+  /* v1.20: completion evidence — deterministic, not model-dependent. */
+  try {
+    const hookCtx: HookContext = {
+      taskId,
+      mode,
+      filesModified: [], // finalized runs report via executionEvidence upstream
+    };
+    const hookResults = await runHooks(globalHookRegistry, 'task_completed', hookCtx);
+    await persistHookResults(taskId, 'task_completed', hookResults);
+  } catch {
+    // Hook failures never block completion.
+  }
   // Persist the assistant's summary as a conversation message for follow-up
   // context — UNLESS it substantially restates the text the user just read.
   // The observed Opus-5 pattern: the model answers in full prose, our nudge

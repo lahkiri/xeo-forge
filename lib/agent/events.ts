@@ -40,6 +40,7 @@ export const AGENT_EVENT_TYPES = [
   'git_status',
   'git_commit',
   'terminal',
+  'hook',
 ] as const;
 
 export type AgentEventType = (typeof AGENT_EVENT_TYPES)[number];
@@ -105,6 +106,7 @@ export const AGENT_EVENTS: Record<AgentEventType, EventDescriptor> = {
   git_status: { purpose: 'Repository state after a git operation: branch, dirty count, last commit.', surfaces: ['work'] },
   git_commit: { purpose: 'A commit was created in the task workspace.', surfaces: ['work'] },
   terminal: { purpose: 'A terminal session opened, closed, or was terminated with the task.', surfaces: ['work'] },
+  hook: { purpose: 'A lifecycle hook fired: audit trail entry, guardrail check, or completion evidence.', surfaces: ['work', 'chat'] },
 };
 
 /** Event types a surface should subscribe to. Use this, never a literal array. */
@@ -513,6 +515,20 @@ export function describeEvent(type: string, data: Record<string, unknown>): Acti
         title: 'Operator decision recorded',
         detail: note,
         tone: 'warn',
+      };
+    }
+    case 'hook': {
+      // v1.20 lifecycle hooks — deterministic actions the loop takes
+      // itself, independent of model behavior.
+      const point = typeof data.point === 'string' ? data.point : 'pre_tool';
+      const fired = Array.isArray(data.fired) ? data.fired.length : 0;
+      const first = Array.isArray(data.fired) && data.fired[0] && typeof (data.fired as { summary?: unknown }[])[0].summary === 'string'
+        ? ((data.fired as { summary?: string }[])[0].summary as string)
+        : undefined;
+      return {
+        title: `Hook · ${point.replace('_', ' ')}`,
+        detail: first ?? `${fired} hook${fired === 1 ? '' : 's'} fired`,
+        tone: 'neutral' as const,
       };
     }
     case 'done': {
