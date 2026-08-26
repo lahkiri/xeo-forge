@@ -75,6 +75,9 @@ import {
   guardProfileForModel,
   validateSummarySections,
 } from './guards';
+import { effectiveRules, isAutonomyLevel, type AutonomyLevel, type PermissionRule } from './permissions';
+import { isReadTool } from './guards';
+import { ProgressModel, InformationGainTracker } from './progress';
 
 /**
  * Adaptive execution boundary — replaces hardcoded iteration limits.
@@ -96,6 +99,14 @@ import {
  * ./guards). The historical standard value is 3; frontier models get more
  * room because their repeated shapes are usually legitimate progress.
  */
+/**
+ * Coerce an untrusted autonomy string into a real level; unknown values
+ * fall back DOWN to 'execute', never up.
+ */
+function normalizeAutonomyLevel(value?: string | null): AutonomyLevel {
+  return isAutonomyLevel(value) ? value : 'execute';
+}
+
 const POST_ESCALATION_LIMIT = 3;
 
 /**
@@ -247,9 +258,26 @@ export interface RunAgentArgs {
   projectPath?: string | null;
   /** Frozen, user-approved plan. Required for build runs that came from a plan. */
   approvedPlan?: string | null;
+  /**
+   * v1.20 authority: how much this run may do without asking. Defaults to
+   * 'execute' — routine work proceeds, anything leaving the machine stops.
+   */
+  autonomyLevel?: string | null;
+  /** Extra per-task permission rules layered on top of the level's set. */
+  permissionOverrides?: readonly PermissionRule[];
 }
 
-export async function runAgent({ taskId, userId, goal, mode, projectPath, approvedPlan }: RunAgentArgs): Promise<void> {
+
+export async function runAgent({
+  taskId,
+  userId,
+  goal,
+  mode,
+  projectPath,
+  approvedPlan,
+  autonomyLevel: taskAutonomyLevel,
+  permissionOverrides: taskPermissionOverrides,
+}: RunAgentArgs): Promise<void> {
   const task = await getTaskById(taskId);
   const model = await resolveModel({
     userId,
@@ -290,6 +318,14 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
 
   const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
   const ctx = createToolContext(taskId, userId, mode, projectPath);
+  /*
+   * v1.20 authority: the run's declarative rule set comes from the task's
+   * autonomy level (default 'execute'), plus any per-task overrides recorded
+   * on the row. CodeTool consults it before every command, so what the UI
+   * displays as the level is the same policy the executor enforces.
+   */
+  const autonomyLevel = normalizeAutonomyLevel(taskAutonomyLevel);
+  const permissionRules = effectiveRules(autonomyLevel, taskPermissionOverrides);
   // Structured domain events (git_status / git_commit) ride the same persisted
   // seq-ordered path as every other task event. The sink is an observation
   // channel: capability modules may report, never decide.
@@ -521,16 +557,75 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
   // is checked against this evidence, not the other way around.
   const executionEvidence = createExecutionEvidence();
 
+  /**
+   * Progress model (v1.20). The counter-based stagnation guard asked whether
+   * the agent REPEATED itself; this asks whether the world CHANGED. A
+   * test-fix loop that keeps failing differently is progress; two reads
+   * alternating forever is not, however different their fingerprints look.
+   */
+  const progressModel = new ProgressModel({
+    idleWindow: guardProfile.stagnationThreshold,
+    postNudgeGrace: POST_ESCALATION_LIMIT,
+  });
+  const gainTracker = new InformationGainTracker();
+  /** Per-iteration observation buckets, drained by the stagnation check. */
+  let iterFilesRead: string[] = [];
+  let iterFilesChanged: string[] = [];
+  let iterExitCodes: number[] = [];
+  let iterErrors: string[] = [];
+  let iterTaskStateChanged = false;
+
   const checkStagnation = async (sig: string): Promise<boolean> => {
+    /*
+     * v1.20: the progress model is authoritative. The fingerprint window below
+     * is kept as a secondary signal only — it catches the pathological case of
+     * an identical call with an identical observation, which the progress model
+     * also catches, and costs nothing to keep for the event stream's sake.
+     *
+     * Ordering matters: ask "did anything move?" BEFORE "did you repeat?", so a
+     * legitimate iterated test-fix loop (same two tools, changing results) is
+     * never punished for its shape.
+     */
+    const verdict = progressModel.record({
+      signature: sig,
+      filesRead: iterFilesRead,
+      filesChanged: iterFilesChanged,
+      commandExitCodes: iterExitCodes,
+      errors: iterErrors,
+      taskStateChanged: iterTaskStateChanged,
+    });
+    // Drain the per-iteration buckets regardless of verdict.
+    iterFilesRead = [];
+    iterFilesChanged = [];
+    iterExitCodes = [];
+    iterErrors = [];
+    iterTaskStateChanged = false;
+
+    if (verdict.kind === 'stuck') {
+      await failRun(
+        taskId,
+        `No measurable progress: ${verdict.reason} Terminating to prevent an unproductive loop.`,
+      );
+      return true; // terminate
+    }
+    if (verdict.kind === 'nudge') {
+      await emitTaskEvent(taskId, 'verification', {
+        status: 'fail',
+        attempt: 0,
+        message: verdict.reason,
+      }).catch(() => {});
+      messages.push({ role: 'system', content: STAGNATION_NUDGE });
+      return false; // continue — the agent has been told what is wrong
+    }
+
+    // Secondary fingerprint guard: identical call AND identical observation.
     recentSignatures.push(sig);
     if (recentSignatures.length > guardProfile.stagnationThreshold + 2) recentSignatures.shift();
-
-    const isStagnant =
+    const identicalWindow =
       recentSignatures.length >= guardProfile.stagnationThreshold &&
       recentSignatures.slice(-guardProfile.stagnationThreshold).every((s) => s === sig) &&
       sig !== '';
-
-    if (isStagnant) {
+    if (identicalWindow) {
       stagnationCount++;
       if (!escalationSent) {
         escalationSent = true;
@@ -539,7 +634,7 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
       if (stagnationCount >= guardProfile.stagnationThreshold + POST_ESCALATION_LIMIT) {
         await failRun(
           taskId,
-          `Stagnation: agent repeated the same actions ${stagnationCount} times without progress. Terminating to prevent infinite loop.`,
+          `Stagnation: agent repeated the same action with an identical result ${stagnationCount} times. Terminating to prevent infinite loop.`,
         );
         return true; // terminate
       }
@@ -708,6 +803,28 @@ export async function runAgent({ taskId, userId, goal, mode, projectPath, approv
     if (mode === 'build') {
       consecutiveReads = nextConsecutiveReads(consecutiveReads, toolName);
     }
+
+    // ---- Progress-model observations (v1.20) ----
+    // Same facts, different question: not "did you repeat?" but "did anything
+    // move?". Fed here so both the native and fallback tool paths contribute.
+    if (isReadTool(toolName)) {
+      const path = String(args.path || args.pattern || args.dir || '');
+      if (path) {
+        iterFilesRead.push(path);
+        // Information gain replaces a fixed read ceiling: a hash of the
+        // observation tells us whether this read taught the agent anything.
+        gainTracker.record(path, String(obs.length) + ':' + obs.slice(0, 64), 0);
+      }
+    }
+    if (toolName === 'file_write' || toolName === 'file_edit') {
+      iterFilesChanged.push(String(args.path || ''));
+    }
+    if (toolName === 'code_execute') {
+      const exitMatch = obs.match(/^exit=(\d+)/m);
+      iterExitCodes.push(exitMatch ? parseInt(exitMatch[1], 10) : -1);
+    }
+    if (!toolOk) iterErrors.push(obs.slice(0, 300));
+    if (toolName === 'todo_update') iterTaskStateChanged = true;
   };
 
   /**

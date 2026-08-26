@@ -7,6 +7,7 @@
  */
 
 import type OpenAI from 'openai';
+import type { PermissionRule } from './permissions';
 import type { TaskMode } from '../types';
 import { z } from 'zod';
 import { FileTool } from './files';
@@ -87,6 +88,8 @@ export function createToolContext(
   userId: string,
   mode: TaskMode,
   projectPath?: string | null,
+  /** Declarative rules for the owning run (v1.20) — handed to CodeTool. */
+  permissionRules?: readonly PermissionRule[],
 ): ToolContext {
   return {
     taskId,
@@ -94,7 +97,7 @@ export function createToolContext(
     mode,
     projectPath: projectPath ?? null,
     files: new FileTool(taskId, projectPath),
-    code: new CodeTool(taskId, projectPath),
+    code: new CodeTool(taskId, projectPath, permissionRules),
   };
 }
 
