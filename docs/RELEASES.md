@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.19.1
+
+v1.19.1 — **The Answer Keeper** — fixes the worst live-reported defect: chat mode streamed a full 2,405-char answer and then replaced it with a 247-char procedural summary (the build-mode contract leaking into chat). Chat now has its own prompt contract, the verbatim streamed answer is persisted as the message of record, the client no longer appends a contained terse duplicate, Ctrl+K searches sessions as promised, unicode glyph icons became a real inline SVG set, and the empty-state rhythm no longer pushes the composer below the fold. 13 regression tests pin every layer.
+
 ## What changed in v1.19.0
 
 v1.19.0 — **Alive** — the first-open release, and the first with an outside contributor (@malekradwan1300's UI rebuild v2: Hermes-inspired unified workspace, multi-provider catalog, Skill Hub discovery). On top of it: *Watch a governed run — no setup* (a 24-event recorded run replays the full loop through the real components — inspect, plan, approve, build, verify — no API key needed), a provider health probe that tells you honestly when a provider serves Chat but fails Planning/Build (stream+tools), the decision event as a first-class timeline row, and contract tests pinning all of it. 38 files / 744 tests.
