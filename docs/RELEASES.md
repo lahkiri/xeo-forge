@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.20.1
+
+v1.20.1 — **The Honest Hotfix** — born from a radical audit that ran real workloads against the product instead of trusting its own tests. The streamed chat answer now survives failure and cancellation (it used to vanish forever — 6,280 chars of a live reply were the proof). Chat no longer offers work tools, so a simple greeting can no longer be killed as 'failed' for making todo mutations. The cancellation registry became a process-wide singleton after a live test showed cancel reporting 'no live loop' while events flowed another 97 seconds. Provider errors now speak human ('The model provider rejected the API key...') with next steps, not raw internals. And the audit's live capability probes ship as reusable scripts: MCP handshake+tool-call against a real server (output quarantined as untrusted data), browser bridge policy checks, skill file reads with path-escape guards.
+
 ## What changed in v1.20.0
 
 v1.20.0 — **The Governed Loop** — the loop's biggest intellectual upgrade. Progress replaced counters: stagnation detection now asks "did the world change?" instead of "did you repeat yourself?", so a legitimate test-fix loop is never punished and a useless alternating-read loop is always caught. Authority became data: declarative `{action, resource, effect}` rules where every decision cites its rule, with four autonomy levels (read-only / assist / execute / autonomous) as real state — publishing asks even at maximum autonomy, secrets ask at every level, and universal denies survive any override. Lifecycle hooks shipped second: audit trails, guardrails that catch "claimed but vanished" files mid-run, and completion evidence — all deterministic, all in the same seq-ordered stream. 805 tests, +48 contract tests across the three pillars.
