@@ -7,6 +7,20 @@ import { Alert, Button, cx } from '@/components/ui';
 type Notice = { tone: 'ok' | 'error'; text: string } | null;
 type RemoteModel = { id: string; name: string };
 
+/** Well-known OpenAI-compatible endpoints. One click prefills the form;
+ *  every preset also accepts a custom base URL override. */
+const PROVIDER_PRESETS: { label: string; name: string; slug: string; baseUrl: string }[] = [
+  { label: 'OpenAI', name: 'OpenAI', slug: 'openai', baseUrl: 'https://api.openai.com/v1' },
+  { label: 'Anthropic', name: 'Anthropic', slug: 'anthropic', baseUrl: 'https://api.anthropic.com/v1' },
+  { label: 'Google Gemini', name: 'Google Gemini', slug: 'gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai' },
+  { label: 'DeepSeek', name: 'DeepSeek', slug: 'deepseek', baseUrl: 'https://api.deepseek.com/v1' },
+  { label: 'OpenRouter', name: 'OpenRouter', slug: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1' },
+  { label: 'z.ai (GLM)', name: 'z.ai', slug: 'zai', baseUrl: 'https://api.z.ai/api/paas/v4' },
+  { label: 'Groq', name: 'Groq', slug: 'groq', baseUrl: 'https://api.groq.com/openai/v1' },
+  { label: 'Mistral', name: 'Mistral', slug: 'mistral', baseUrl: 'https://api.mistral.ai/v1' },
+  { label: 'Ollama (local)', name: 'Ollama', slug: 'ollama', baseUrl: 'http://localhost:11434/v1' },
+];
+
 const emptyCatalog: ProviderCatalog = { providers: [], active_provider_id: null, active_model_id: null };
 
 async function requestCatalog(init?: RequestInit): Promise<ProviderCatalog> {
@@ -57,6 +71,10 @@ export default function ProvidersManager() {
   const [importModelsBusy, setImportModelsBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [providerForm, setProviderForm] = useState({ name: '', slug: '', baseUrl: 'https://api.openai.com/v1', apiKey: '' });
+  function applyPreset(preset: (typeof PROVIDER_PRESETS)[number]) {
+    setShowProviderForm(true);
+    setProviderForm({ name: preset.name, slug: preset.slug, baseUrl: preset.baseUrl, apiKey: '' });
+  }
   const [modelForm, setModelForm] = useState({ name: '', modelId: '', temperature: '0.7', maxTokens: '4000', contextWindow: '128000' });
 
   const load = useCallback(async () => {
@@ -163,6 +181,19 @@ export default function ProvidersManager() {
     <div className="settings-page">
       <header className="settings-page-header"><div><span className="codex-kicker">01 / Connections</span><h2>Providers</h2><p>Keep connections in one place, then choose the exact model from your composer.</p></div><div className="settings-header-actions"><span className="settings-count"><strong>{catalog.providers.length}</strong> providers · <strong>{enabledModelCount}</strong> ready models</span><Button size="sm" onClick={() => setShowProviderForm((open) => !open)}>+ Add provider</Button></div></header>
       {notice && <div className="settings-notice"><Alert tone={notice.tone === 'error' ? 'error' : 'success'} title={notice.tone === 'error' ? 'Action needed' : 'Saved'}>{notice.text}</Alert></div>}
+            {showProviderForm && (
+        <div className="settings-form-card" style={{ marginBottom: '0.6rem' }}>
+          <span className="codex-kicker">Quick start</span>
+          <div className="flex flex-wrap gap-1.5 pt-1.5">
+            {PROVIDER_PRESETS.map((preset) => (
+              <button key={preset.slug} type="button" onClick={() => applyPreset(preset)}
+                className="rounded-full border border-[rgb(var(--line)/0.35)] px-2.5 py-1 text-meta text-content-secondary hover:border-[rgb(var(--content-primary)/0.6)] hover:text-content-primary">
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {showProviderForm && <form className="settings-form-card" onSubmit={addProvider}><div className="settings-form-heading"><div><span className="codex-kicker">New connection</span><h3>Add provider</h3></div><button type="button" className="settings-close" onClick={() => setShowProviderForm(false)}>×</button></div><div className="settings-form-grid"><label>Name<input className="settings-input" value={providerForm.name} onChange={(event) => setProviderForm({ ...providerForm, name: event.target.value })} placeholder="OpenAI" required /></label><label>Slug<input className="settings-input" value={providerForm.slug} onChange={(event) => setProviderForm({ ...providerForm, slug: event.target.value })} placeholder="openai" required /></label><label className="settings-form-wide">Base URL<input className="settings-input" type="url" value={providerForm.baseUrl} onChange={(event) => setProviderForm({ ...providerForm, baseUrl: event.target.value })} required /></label><label className="settings-form-wide">API key<input className="settings-input" type="password" value={providerForm.apiKey} onChange={(event) => setProviderForm({ ...providerForm, apiKey: event.target.value })} placeholder="Stored securely on this runtime" /></label></div><div className="settings-form-actions"><Button type="button" variant="secondary" onClick={() => setShowProviderForm(false)}>Cancel</Button><Button type="submit" loading={busy}>Create provider</Button></div></form>}
       <div className="provider-studio">
         <aside className="provider-list" aria-label="Providers">

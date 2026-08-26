@@ -175,8 +175,14 @@ export async function getProviderCatalogSafe(userId: string): Promise<ProviderCa
   const providers = await listModelProviders(userId);
   const models = await listProviderModels(userId);
   const safeProviders = providers.map((provider) => providerToSafe(provider, models));
-  const activeProvider = safeProviders.find((provider) => provider.enabled && provider.models.some((model) => model.enabled));
-  const activeModel = activeProvider?.models.find((model) => model.enabled);
+  // The user's persisted pick wins; otherwise first enabled (legacy behavior).
+  const withSelection = providers.some((p) => p.enabled) && models.some((m) => m.selected);
+  let activeProvider = safeProviders.find((provider) => provider.enabled && provider.models.some((model) => model.selected && model.enabled));
+  let activeModel = activeProvider?.models.find((model) => model.selected && model.enabled);
+  if (!withSelection || !activeModel) {
+    activeProvider = safeProviders.find((provider) => provider.enabled && provider.models.some((model) => model.enabled));
+    activeModel = activeProvider?.models.find((model) => model.enabled);
+  }
   return {
     providers: safeProviders,
     active_provider_id: activeProvider?.id ?? null,

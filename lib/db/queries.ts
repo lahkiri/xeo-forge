@@ -1419,6 +1419,19 @@ export async function getSelectedProviderModel(input: {
   ).get(input.providerModelId, input.providerId, input.userId);
 }
 
+/** Mark exactly one (provider, model) as the user's selection; clears the rest. */
+export async function setSelectedProviderModel(input: {
+  userId: string;
+  providerId: string;
+  providerModelId: string;
+}): Promise<void> {
+  await db.transaction(async (tx) => {
+    await tx.prepare(`UPDATE provider_models SET selected = 0 WHERE provider_id IN (SELECT id FROM model_providers WHERE user_id = ?)`).run(input.userId);
+    await tx.prepare(`UPDATE provider_models SET selected = 1 WHERE id = ? AND provider_id = ?`).run(
+      input.providerModelId, input.providerId);
+  });
+}
+
 export async function deleteProvider(id: string, userId: string): Promise<void> {
   await db.transaction(async (tx) => {
     await tx.prepare(`DELETE FROM provider_models WHERE provider_id IN (SELECT id FROM model_providers WHERE id = ? AND user_id = ?)`).run(id, userId);

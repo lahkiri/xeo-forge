@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/guard';
 import { isDesktopLocalMode } from '@/lib/auth/session';
-import { resolveModel } from '@/lib/model/config';
+import { resolveModel, getProviderCatalogSafe } from '@/lib/model/config';
 import { probeProvider } from '@/lib/model/health';
 import { errorResponse } from '../../../_lib/respond';
 
@@ -23,11 +23,12 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(_req: NextRequest) {
   try {
+    let user;
     if (isDesktopLocalMode()) {
-      await requireUser();
+      user = await requireUser();
     } else {
       const { requireAdmin } = await import('@/lib/auth/guard');
-      await requireAdmin();
+      user = await requireAdmin();
     }
 
     const model = await resolveModel();
@@ -38,12 +39,16 @@ export async function POST(_req: NextRequest) {
       );
     }
 
+    // Echo the catalog's active pair so the UI can cache per-model health.
+    const catalog = await getProviderCatalogSafe(user.id);
+
     const result = await probeProvider(model.baseUrl, model.apiKey, model.modelId);
     // Mask everything except what the UI needs to render the verdict card.
     return NextResponse.json({
       verdict: result.verdict,
       detail: result.detail,
-      model_id: result.model_id,
+      provider_id: catalog.active_provider_id,
+      model_id: catalog.active_model_id ?? result.model_id,
       checked_at: result.checked_at,
       latency_ms: result.latency_ms,
     });

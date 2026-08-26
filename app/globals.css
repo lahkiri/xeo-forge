@@ -1994,10 +1994,25 @@ body {
 .settings-section input,
 .settings-section textarea,
 .settings-section select {
-  border-color: rgb(var(--line) / 0.22) !important;
-  border-radius: 0.3rem !important;
-  background: rgb(var(--ink-900)) !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  border: 1px solid rgb(var(--line) / 0.35) !important;
+  border-radius: 0.35rem !important;
+  background:
+    url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23a0adc0' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")
+    no-repeat right 0.6rem center / 0.75rem,
+    rgb(var(--ink-900)) !important;
   color: rgb(var(--content-primary)) !important;
+  font-size: 0.8rem !important;
+  line-height: 1.35 !important;
+  padding: 0.5rem 2rem 0.5rem 0.65rem !important;
+  min-height: 2.15rem;
+  cursor: pointer;
+}
+.settings-section select option {
+  background: rgb(var(--ink-900));
+  color: rgb(var(--content-primary));
+  font-size: 0.8rem;
 }
 .settings-section input:focus,
 .settings-section textarea:focus,
@@ -3057,3 +3072,28 @@ body {
 .browser-profile-head small, .browser-profile-card > small { display: block; margin-top: .25rem; overflow: hidden; color: rgb(var(--content-muted)); font-size: .6rem; text-overflow: ellipsis; white-space: nowrap; }
 .browser-profile-card > p { margin-top: .3rem; overflow: hidden; color: rgb(var(--content-secondary)); font-size: .65rem; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 700px) { .browser-setup-callout, .browser-token-card { align-items: stretch; flex-direction: column; } .browser-setup-steps, .browser-profile-grid { grid-template-columns: 1fr; } }
+
+/* v1.19.2 — model picker polish */
+.codex-model-search {
+  width: 100%;
+  margin-bottom: 0.5rem;
+  border: 1px solid rgb(var(--line) / 0.3);
+  border-radius: 0.3rem;
+  background: rgb(var(--ink-900));
+  color: rgb(var(--content-primary));
+  font-size: 0.72rem;
+  padding: 0.4rem 0.55rem;
+}
+.codex-model-search:focus {
+  outline: none;
+  border-color: rgb(var(--content-primary) / 0.6);
+}
+/* Provider/model health dot: green = verified working, amber = unverified/error-prone, red = known-bad (stream+tools unsupported etc.) */
+.codex-model-dot { width: 0.45rem; height: 0.45rem; border-radius: 9999px; flex-shrink: 0; }
+.codex-model-dot.is-ok { background: #22c55e; box-shadow: 0 0 6px rgb(34 197 94 / 0.7); }
+.codex-model-dot.is-warn { background: #f59e0b; box-shadow: 0 0 6px rgb(245 158 11 / 0.6); }
+.codex-model-dot.is-bad { background: #ef4444; box-shadow: 0 0 6px rgb(239 68 68 / 0.7); }
+
+/* xterm base styles — imported here (not in the component) so test
+ * environments that load Terminal.tsx without CSS handling keep working. */
+@import '@xterm/xterm/css/xterm.css';

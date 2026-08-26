@@ -100,7 +100,39 @@ export default function UnifiedWorkspace({
     }
   }
 
+  /** Cached verdicts: 'ok' | 'warn' | 'bad' keyed by `${providerId}:${modelId}`.
+   *  Populated by the Control Center health probe; unverified renders amber.
+   */
+  function modelHealth(pid: string, mid: string): 'ok' | 'warn' | 'bad' {
+    if (typeof window === 'undefined') return 'warn';
+    try {
+      const raw = window.localStorage.getItem('xeo.modelHealth');
+      if (!raw) return 'warn';
+      const map = JSON.parse(raw) as Record<string, 'ok' | 'warn' | 'bad'>;
+      return map[pid + ':' + mid] ?? 'warn';
+    } catch {
+      return 'warn';
+    }
+  }
   useEffect(() => { setMode(routeMode); }, [routeMode]);
+
+  // Model picker: local filter + persisted selection (survives restarts).
+  const [modelQuery, setModelQuery] = useState('');
+  async function chooseModel(providerId: string, modelId: string) {
+    setProviderId(providerId);
+    setProviderModelId(modelId);
+    setModelPickerOpen(false);
+    setModelQuery('');
+    try {
+      await fetch('/api/providers/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ providerId, providerModelId: modelId }),
+      });
+    } catch {
+      // Selection persistence is best-effort; the in-session choice stands.
+    }
+  }
 
   function changeMode(nextMode: WorkspaceMode) {
     setMode(nextMode);
@@ -260,7 +292,7 @@ export default function UnifiedWorkspace({
             )}
 
             <section className="codex-starters"><div className="codex-section-heading"><span>{mode === 'chat' ? 'Start with a prompt' : 'Common starting points'}</span><span>{mode === 'chat' ? '⌘ ↵' : 'Approval required'}</span></div><div className="codex-starter-list">{starters.map((starter) => <button key={starter.label} type="button" className="codex-starter-row" onClick={() => { setDraft(starter.prompt); composerRef.current?.focus(); }}><span className="codex-starter-glyph">{starter.glyph === 'arrow' ? <IconArrowUpRight size={13} /> : starter.glyph === 'zap' ? <IconZap size={13} /> : starter.glyph === 'diamond' ? <IconDiamond size={13} /> : <IconTerminal size={13} />}</span><span className="min-w-0 flex-1"><strong>{starter.label}</strong><small>{starter.prompt}</small></span><span className="codex-starter-arrow"><IconArrowUpRight size={13} /></span></button>)}</div></section>
-            {mode === 'work' && localMode && (
+            {localMode && (
               <button
                 type="button"
                 onClick={startDemo}
@@ -281,7 +313,7 @@ export default function UnifiedWorkspace({
 
         <footer className="codex-composer-dock">
           {mode === 'chat' && staged.length > 0 && <div className="codex-attachment-row"><span>Context</span>{staged.map((file, index) => <button key={`${file.name}-${index}`} type="button" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>{file.name} ×</button>)}</div>}
-          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const availableModels = provider.models.filter((model) => model.enabled); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => { setProviderId(provider.id); setProviderModelId(model.id); setModelPickerOpen(false); }}><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
+          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model"><input type="search" value={modelQuery} onChange={(e) => setModelQuery(e.target.value)} placeholder="Search models…" aria-label="Search models" className="codex-model-search" />{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const q = modelQuery.trim().toLowerCase(); const availableModels = provider.models.filter((model) => model.enabled && (!q || model.name.toLowerCase().includes(q) || model.model_id.toLowerCase().includes(q))); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => void chooseModel(provider.id, model.id)}><span className={cx('codex-model-dot', 'is-' + modelHealth(provider.id, model.id))} aria-hidden="true" /><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
           <p className="codex-composer-note">{mode === 'chat' ? 'Switch to Work when you want Xeo to inspect files or make changes.' : 'Xeo will never write or run commands before you approve the plan.'}</p>
         </footer>
       </section>

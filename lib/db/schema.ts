@@ -421,6 +421,13 @@ async function migrateColumns(): Promise<void> {
     existing.add(col.name);
   }
 
+  // Selected model marker (one per user) — persists the picker choice across
+  // restarts. v1.19.2: without it the catalog recomputed 'active' as the first
+  // enabled row, which read to users like their model configuration was lost.
+  const pmCols = await columnsOf('provider_models');
+  if (!pmCols.has('selected')) {
+    await db.exec(`ALTER TABLE provider_models ADD COLUMN selected INTEGER NOT NULL DEFAULT 0`);
+  }
   // Skill Hub source metadata on the existing user-owned skill table.
   const skillCols = await columnsOf('agent_skills');
   for (const col of SKILL_HUB_COLUMNS) {
