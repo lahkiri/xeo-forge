@@ -263,13 +263,13 @@ export default function ChatClient({
   }, [messages, isStreaming, currentRunText]);
 
   return (
-    <div className="flex h-screen min-h-0">
+    <div className="flex h-full min-h-0">
       {/* ── Thread list ── */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-line-subtle md:flex">
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-subtle px-3">
-          <span className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted">
-            Conversations
-          </span>
+          <Link href="/chat" className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted hover:text-content-primary">
+            ← Workspace
+          </Link>
           <Link href="/chat">
             <IconButton label="New chat" size="sm">
               <span aria-hidden="true" className="text-ui leading-none">+</span>
@@ -325,7 +325,10 @@ export default function ChatClient({
                 </div>
               </div>
             ) : (
-              <div className="space-y-5">
+              <div className="space-y-5">{isStreaming && liveThinking && (
+                  <ThinkingBlock text={liveThinking} live />
+                )}
+
                 {turns.map((turn) =>
                   turn.role === 'user' ? (
                     <div key={turn.key} className="flex justify-end">
@@ -341,9 +344,6 @@ export default function ChatClient({
                       />
                     </div>
                   ),
-                )}
-                {isStreaming && liveThinking && (
-                  <ThinkingBlock text={liveThinking} live />
                 )}
                 {isStreaming && !currentRunText && (
                   <RuntimeBanner

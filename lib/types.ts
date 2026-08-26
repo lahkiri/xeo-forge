@@ -139,6 +139,8 @@ export interface ProviderModel {
   context_window: number;
   auto_compact_threshold: number;
   enabled: number;
+  /** User's persisted picker choice (one per user). */
+  selected?: number;
   created_at: string;
   updated_at: string;
 }

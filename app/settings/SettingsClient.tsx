@@ -272,6 +272,17 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
         return;
       }
       setRunPathVerdict({ verdict: body.verdict, detail: body.detail });
+      // Feed the composer picker dots: map verdict -> ok/warn/bad for the
+      // currently selected provider/model.
+      try {
+        const raw = window.localStorage.getItem('xeo.modelHealth');
+        const map = raw ? JSON.parse(raw) as Record<string, 'ok' | 'warn' | 'bad'> : {};
+        if (body.provider_id && body.model_id) {
+          map[body.provider_id + ':' + body.model_id] =
+            body.verdict === 'healthy' ? 'ok' : body.verdict === 'stream_tools_unsupported' ? 'bad' : 'warn';
+          window.localStorage.setItem('xeo.modelHealth', JSON.stringify(map));
+        }
+      } catch { /* storage unavailable — dots stay amber */ }
     } catch {
       setNotice({ type: 'error', text: 'Network error during the governed-run probe.' });
     } finally {
