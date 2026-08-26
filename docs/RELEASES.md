@@ -4,6 +4,10 @@ Each release's changes, newest first. Product overview lives in the
 [README](../README.md); the full per-release notes are under
 [`docs/release-notes/`](release-notes/).
 
+## What changed in v1.19.3
+
+v1.19.3 — **Polish & Pulse** — from live user testing: the model picker's popover was literally transparent (undefined `--ink-950` token); health dots now pulse via a real heartbeat endpoint sweeping up to 12 models; upgrades no longer reset the user's model pick (migration backfills from the legacy row); full reasoning-effort ladder (off → ultra) exposed in Control Center and injected into completions only when not 'default'; and the chat-swallows-answers bug was root-caused once more — task_complete was still offered as a chat tool, inviting exactly the behavior the prompt forbade. Sidebar gained collapse/expand + drag-resize (persisted). Work surface got the same viewport fix and an explicit exit link.
+
 ## What changed in v1.19.2
 
 v1.19.2 — **The Listener** — every defect reported after the 1.19.1 update, fixed with evidence: sessions open correctly again (a double-viewport layout bug pushed the whole thread view below the fold), model selection now persists across restarts (the reported 'lost my model' was an unpersisted picker recomputed to first-enabled), the composer's model picker gained search and per-model health dots (green verified / amber unverified / red known-incompatible) fed by the governed-run probe, the terminal got its missing xterm stylesheet (it rendered as overlapping unstyled text), and provider quick-start presets (OpenAI, Anthropic, Gemini, DeepSeek, OpenRouter, z.ai, Groq, Mistral, Ollama) prefill connections while custom endpoints and single-model imports stay first-class.
