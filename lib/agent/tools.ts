@@ -57,7 +57,11 @@ export const WRITE_TOOLS = new Set(['file_write', 'file_edit', 'code_execute', '
 // stop; the streamed answer IS the deliverable (see CHAT_SYSTEM_PROMPT and
 // the loop's chat text-termination path). Offering it invited the model to
 // bury a fine prose answer inside a procedural summary.
-export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op']);
+export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'skill_view']);
+// v1.20.1 (audit A1): todo_update / git_op / http_request removed from chat.
+// A greeting that mutates todos or hits the network is work wearing a chat
+// mask — it made the progress guard kill simple hellos with 'no measurable
+// progress'. Chat reads; Work acts.
 export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op', 'task_complete']);
 
 export interface ToolContext {
