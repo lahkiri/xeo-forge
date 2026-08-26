@@ -119,7 +119,7 @@ export default function UnifiedWorkspace({
           : 'warn';
       }
       setHealthMap(next);
-      try { window.localStorage.setItem('xeo.modelHealth', JSON.stringify(next)); } catch {}
+      try { window.localStorage.setItem('xeo.modelHealth', JSON.stringify(next)); } catch { /* storage unavailable */ }
     } catch {
       // offline / transient — dots keep last known state
     } finally {
@@ -131,7 +131,7 @@ export default function UnifiedWorkspace({
     try {
       const raw = window.localStorage.getItem('xeo.modelHealth');
       if (raw) setHealthMap(JSON.parse(raw));
-    } catch {}
+    } catch { /* corrupt cache — ignore */ }
   }, []);
   useEffect(() => {
     if (!modelPickerOpen || !localMode) return;
@@ -157,7 +157,7 @@ export default function UnifiedWorkspace({
       setSidebarHidden(window.localStorage.getItem('xeo.sidebarHidden') === '1');
       const w = Number(window.localStorage.getItem('xeo.sidebarWidth'));
       if (w >= 180 && w <= 420) setSidebarWidth(w);
-    } catch {}
+    } catch { /* corrupt cache — ignore */ }
   }, []);
   function persistSidebar(hidden: boolean, width: number) {
     setSidebarHidden(hidden);
@@ -165,7 +165,7 @@ export default function UnifiedWorkspace({
     try {
       window.localStorage.setItem('xeo.sidebarHidden', hidden ? '1' : '0');
       window.localStorage.setItem('xeo.sidebarWidth', String(width));
-    } catch {}
+    } catch { /* storage unavailable */ }
   }
   async function chooseModel(providerId: string, modelId: string) {
     setProviderId(providerId);
