@@ -7,6 +7,7 @@ import { tryDebit } from '@/lib/credits/engine';
 import { TASK_CREATE_COST } from '@/lib/credits/pricing';
 import { startAgentRun } from '@/lib/agent/runner';
 import { classifyWorkIntent } from '@/lib/agent/intent';
+import { normalizeAutonomyInput } from '@/lib/agent/permissions';
 import { errorResponse } from '../_lib/respond';
 import { rateLimit, RATE_LIMITS } from '../_lib/ratelimit';
 
@@ -22,6 +23,8 @@ const CreateTaskSchema = z.object({
   skillId: z.string().uuid().nullable().optional(),
   providerId: z.string().uuid().nullable().optional(),
   providerModelId: z.string().uuid().nullable().optional(),
+  /** Validated against the real level set below — not inside Zod, so the error names the valid levels. */
+  autonomyLevel: z.string().max(20).optional(),
 });
 
 export async function GET() {
@@ -58,6 +61,14 @@ export async function POST(req: NextRequest) {
     const parsed = CreateTaskSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: 'A non-empty goal is required.' }, { status: 400 });
+    }
+
+    // Authority is chosen BEFORE the run starts and validated with a human
+    // reason, because an unknown level that silently coerced to a broader one
+    // would be an authority escalation hidden behind a typo.
+    const autonomy = normalizeAutonomyInput(parsed.data.autonomyLevel);
+    if (!autonomy.ok) {
+      return NextResponse.json({ error: autonomy.reason }, { status: 400 });
     }
 
     if (parsed.data.providerId || parsed.data.providerModelId) {
@@ -97,6 +108,7 @@ export async function POST(req: NextRequest) {
       skillId: parsed.data.skillId,
       providerId: parsed.data.providerId,
       providerModelId: parsed.data.providerModelId,
+      autonomyLevel: autonomy.level,
       status: needsDecision ? 'awaiting_decision' : 'pending',
       intentKind: intent.kind,
       decisionState: needsDecision ? 'pending' : null,
@@ -158,6 +170,9 @@ export async function POST(req: NextRequest) {
       goal: parsed.data.goal,
       mode,
       projectPath: task.project_path,
+      // The row is authoritative from here on: this value was just persisted
+      // and every later run (approve/message) re-reads it from the row.
+      autonomyLevel: autonomy.level,
     });
 
     return NextResponse.json({ task }, { status: 201 });

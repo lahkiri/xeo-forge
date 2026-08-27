@@ -77,6 +77,13 @@ export interface Task {
   skill_id: string | null; // reusable workflow selected at task creation
   provider_id: string | null; // provider selected at task creation
   provider_model_id: string | null; // concrete model selected at task creation
+  /**
+   * v1.20 authority level chosen at creation ('read_only'|'assist'|'execute'|'autonomous').
+   * Stored on the row so every later run (approve, follow-up message) executes
+   * under the SAME policy the user saw when they chose it. Column default
+   * 'execute'; the string is validated by normalizeAutonomyInput upstream.
+   */
+  autonomy_level: string;
   result_summary: string | null;
   credits_spent: number;
   error: string | null;
