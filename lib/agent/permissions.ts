@@ -212,8 +212,15 @@ export const AUTONOMY_RULES: Record<AutonomyLevel, PermissionRule[]> = {
     { action: 'subagent', resource: '*', effect: 'allow' },
     { action: 'network', resource: '*', effect: 'allow' },
     // Anything that leaves the machine or rewrites shared state still asks.
+    // Repo-local staging/navigation is ROUTINE work (v1.21): without explicit
+    // allow rules these ops fall through to the silent 'ask' default and would
+    // be refused at dispatch — contradicting "routine work proceeds". They stay
+    // workspace-bounded like every other local act.
     { action: 'git_mutation', resource: 'push*', effect: 'ask', note: 'Leaves the machine' },
-    { action: 'git_mutation', resource: 'commit*', effect: 'allow' },
+    { action: 'git_mutation', resource: 'commit*', effect: 'allow', note: 'Repo-local, recorded' },
+    { action: 'git_mutation', resource: 'add*', effect: 'allow', note: 'Staging is reversible' },
+    { action: 'git_mutation', resource: 'checkout*', effect: 'allow', note: 'Branch navigation' },
+    { action: 'git_mutation', resource: 'revert*', effect: 'allow', note: 'Adds history; discards nothing' },
     { action: 'shell', resource: '*npm publish*', effect: 'ask', note: 'Publishes a package' },
     { action: 'shell', resource: '*docker push*', effect: 'ask', note: 'Publishes an image' },
     ...UNIVERSAL_DENIES,
@@ -245,6 +252,30 @@ export const AUTONOMY_LEVELS: readonly AutonomyLevel[] = [
 
 export function isAutonomyLevel(value: unknown): value is AutonomyLevel {
   return typeof value === 'string' && (AUTONOMY_LEVELS as readonly string[]).includes(value);
+}
+
+/**
+ * Validate an autonomy level arriving from an untrusted caller (API body).
+ * Returns a discriminated result instead of silently defaulting, so a typo
+ * like "autonmous" fails loudly with a list of the valid levels rather than
+ * running at whatever level it happened to coerce to. Silent coercion is how
+ * "user chose read_only" becomes "ran with full execution authority".
+ */
+export type AutonomyInputResult =
+  | { ok: true; level: AutonomyLevel }
+  | { ok: false; reason: string };
+
+export function normalizeAutonomyInput(value: unknown): AutonomyInputResult {
+  if (value === undefined || value === null || value === '') {
+    return { ok: true, level: 'execute' };
+  }
+  if (!isAutonomyLevel(value)) {
+    return {
+      ok: false,
+      reason: `Unknown autonomy level "${String(value).slice(0, 40)}". Valid levels are: ${AUTONOMY_LEVELS.join(', ')}.`,
+    };
+  }
+  return { ok: true, level: value };
 }
 
 /**

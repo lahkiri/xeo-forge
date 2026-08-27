@@ -113,20 +113,24 @@ The same principle applies to memory. Xeo Forge does not silently treat every co
 
 Xeo Forge is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
 
-### Known gap, disclosed on discovery (v1.20.0 → being fixed in v1.21.0)
+### Wired end-to-end in v1.21.0 (was: disclosed on discovery)
 
-**Autonomy levels are not yet reachable from the UI.** v1.20.0 shipped the four
-levels (`read_only` / `assist` / `execute` / `autonomous`) as enforced policy
-data with 22 contract tests, and `runAgent` accepts an `autonomyLevel`. But
-`startAgentRun` never forwards one and the task-creation API never accepts one,
-so **every run currently uses the default level**. The release notes described
-this feature as shipped; that was wrong, and this line exists because we found
-it during a UI review rather than waiting for a user to find it.
+The gap disclosed above is closed. Autonomy levels are now reachable and
+enforced across every layer: a `tasks.autonomy_level` column with an idempotent
+ALTER for existing databases, an `autonomyLevel` field on the task-creation
+API validated against the real level set, `startAgentRun`/`runAgent` forwarding,
+and a central authority gate at tool dispatch (`authorizeToolCall`) evaluated
+in the same chokepoint as the planning/chat hard-lock. The run's rule set is
+built BEFORE its tool context exists, so the level you choose is the policy
+that actually executes.
 
-A security-relevant feature that a user cannot select is, from the user's
-perspective, not present. It is being wired end-to-end (schema column, API
-contract, Work setup control, live governance display) as the first item of
-v1.21.0 — ahead of every cosmetic fix.
+One boundary remains honest: an unresolved `ask` rule currently **fails
+closed** — the action is refused with a citation of the deciding rule — rather
+than pausing mid-run for an interactive per-action approval conversation.
+Silently proceeding would make `ask` read as `allow`, which is the authority
+escalation this layer exists to prevent; a true interactive approval queue is
+tracked as follow-up work, and raising the level or adding an explicit
+per-resource override are the supported ways to grant these actions today.
 
 The next product layers are intentionally separate from the current core and are tracked in the [1.x roadmap](docs/roadmap-1x.md):
 

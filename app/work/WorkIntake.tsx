@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { AgentProfile, AgentSkill } from '@/lib/types';
+import { AUTONOMY_LEVELS, describeAutonomy, type AutonomyLevel } from '@/lib/agent/permissions';
 import {
   Alert,
   Button,
@@ -52,6 +53,9 @@ export default function WorkIntake({
   const [projectPath, setProjectPath] = useState<string | null>(null);
   const [profileId, setProfileId] = useState('');
   const [skillId, setSkillId] = useState('');
+  // v1.21: the authority level selected BEFORE the run exists — the whole point
+  // of this intake surface. execute remains the default.
+  const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('execute');
   const [staged, setStaged] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -120,6 +124,7 @@ export default function WorkIntake({
           projectPath,
           profileId: profileId || null,
           skillId: skillId || null,
+          autonomyLevel,
         }),
       });
       const data = await res.json();
@@ -282,6 +287,22 @@ export default function WorkIntake({
                 <span className="text-content-muted">Browser actions — separately gated by your safety policy</span>
               </li>
             </ul>
+
+            {/* v1.21 wiring: level picker. What you choose here is stored on
+                the task row and enforced at dispatch by the run's rule set —
+                not shown as a label while execution does something else. */}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Select
+                label="Execution authority"
+                hint={describeAutonomy(autonomyLevel).detail}
+                value={autonomyLevel}
+                onChange={(e) => setAutonomyLevel(e.target.value as AutonomyLevel)}
+              >
+                {AUTONOMY_LEVELS.map((level) => (
+                  <option key={level} value={level}>{describeAutonomy(level).title}</option>
+                ))}
+              </Select>
+            </div>
 
             <div className="mt-4 border-t border-line-subtle pt-3">
               <div className="flex flex-wrap items-center justify-between gap-2">

@@ -854,10 +854,12 @@ export default function WorkClient({
             <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
               Authority
             </p>
-            {/* Mirrors what executeTool enforces at dispatch. Each row carries a
+            {/* Mirrors what executeTool + authorizeToolCall enforce at dispatch.
+                The stored autonomy level shapes these rows live, so the panel
+                shows the same policy the executor applies. Each row carries a
                 "why" in its title attribute rather than a separate help page. */}
             <div className="space-y-0.5">
-              {authorityForMode(task.mode).map((row) => (
+              {authorityForMode(task.mode, task.autonomy_level).map((row) => (
                 <AuthorityRow key={row.label} label={row.label} state={row.state} reason={row.reason} />
               ))}
               <AuthorityRow

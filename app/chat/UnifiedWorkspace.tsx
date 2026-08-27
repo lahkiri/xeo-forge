@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AgentProfile, AgentSkill, ProviderCatalog } from '@/lib/types';
+import { AUTONOMY_LEVELS, describeAutonomy, type AutonomyLevel } from '@/lib/agent/permissions';
 import { Alert, Button, KeyHint, Select, StatusBadge, cx, useModKey } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
 import { ThemeToggle } from '@/components/Theme';
@@ -68,6 +69,9 @@ export default function UnifiedWorkspace({
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [providerId, setProviderId] = useState(providerCatalog.active_provider_id ?? '');
   const [providerModelId, setProviderModelId] = useState(providerCatalog.active_model_id ?? '');
+  // v1.21: authority chosen at Work setup. chat never carries it (chat is read-only).
+  const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('execute');
+  const autonomyCopy = describeAutonomy(autonomyLevel);
 
   const selectedProvider = providerCatalog.providers.find((provider) => provider.id === providerId && provider.enabled);
   const selectedModel = selectedProvider?.models.find((model) => model.id === providerModelId && model.enabled);
@@ -224,7 +228,7 @@ export default function UnifiedWorkspace({
           goal: text,
           mode: isWork ? 'planning' : 'chat',
           surface: isWork ? 'work' : 'chat',
-          ...(isWork ? { projectPath, profileId: profileId || null, skillId: skillId || null } : {}),
+          ...(isWork ? { projectPath, profileId: profileId || null, skillId: skillId || null, autonomyLevel } : {}),
           ...(providerId && providerModelId ? { providerId, providerModelId } : {}),
         }),
       });
@@ -374,8 +378,9 @@ export default function UnifiedWorkspace({
                   <div className={cx('codex-context-field', workNeedsProject && 'is-warn')}><span className="codex-field-index">01</span><span className="min-w-0 flex-1"><small>Project</small><strong>{projectPath || (localMode ? 'Choose a folder' : 'Managed workspace')}</strong></span>{localMode && <Button variant="secondary" size="sm" onClick={chooseProject} loading={choosingProject}>{projectPath ? 'Change' : 'Choose'}</Button>}</div>
                   <div className="codex-context-field"><span className="codex-field-index">02</span><Select label="Role" value={profileId} onChange={(event) => setProfileId(event.target.value)}><option value="">Default agent</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</Select></div>
                   <div className="codex-context-field"><span className="codex-field-index">03</span><Select label="Workflow" value={skillId} onChange={(event) => setSkillId(event.target.value)}><option value="">No workflow</option>{skills.map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}</Select></div>
+                  <div className="codex-context-field" title={autonomyCopy.detail}><span className="codex-field-index">04</span><span className="min-w-0 flex-1"><Select label="Authority" value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as AutonomyLevel)}>{AUTONOMY_LEVELS.map((level) => { const copy = describeAutonomy(level); return <option key={level} value={level}>{copy.title}</option>; })}</Select></span></div>
                 </div>
-                <div className="codex-context-footer"><span>Read first · plan second · execute only after approval</span><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach context" /></div>
+                <div className="codex-context-footer"><span>{autonomyCopy.detail} It will still never write or run before you approve the plan{autonomyLevel === 'execute' ? ' — and git push or publishing stops for you.' : '.'}</span><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach context" /></div>
                 {staged.length > 0 && <div className="codex-context-files">{staged.map((file, index) => <span key={`${file.name}-${index}`}>{file.name}<button type="button" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>×</button></span>)}</div>}
               </section>
             )}

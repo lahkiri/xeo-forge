@@ -10,6 +10,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { db } from './index';
+import { isAutonomyLevel } from '../agent/permissions';
 import type {
   User,
   Task,
@@ -158,6 +159,8 @@ export async function createTask(input: {
   skillId?: string | null;
   providerId?: string | null;
   providerModelId?: string | null;
+  /** Validated upstream; re-checked here so no internal caller can store an arbitrary string. */
+  autonomyLevel?: string | null;
   status?: TaskStatus;
   intentKind?: TaskIntentKind | null;
   decisionState?: DecisionState;
@@ -183,8 +186,8 @@ export async function createTask(input: {
   }
   await db
     .prepare(
-      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, intent_kind, decision_state, decision_expires_at, plan_version, profile_id, skill_id, provider_id, provider_model_id, credits_spent, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?)`,
+      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, intent_kind, decision_state, decision_expires_at, plan_version, profile_id, skill_id, provider_id, provider_model_id, autonomy_level, credits_spent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?, ?)`,
     )
     .run(
       id,
@@ -200,6 +203,7 @@ export async function createTask(input: {
       skillId,
       input.providerId ?? null,
       input.providerModelId ?? null,
+      isAutonomyLevel(input.autonomyLevel) ? input.autonomyLevel : 'execute',
       ts,
       ts,
     );

@@ -8,6 +8,7 @@
 
 import type OpenAI from 'openai';
 import type { PermissionRule } from './permissions';
+import { authorizeToolCall } from './authority';
 import type { TaskMode } from '../types';
 import { z } from 'zod';
 import { FileTool } from './files';
@@ -75,6 +76,13 @@ export interface ToolContext {
   userId: string;
   mode: TaskMode;
   projectPath: string | null;
+  /**
+   * v1.21 wiring: the owning run's declarative rule set, built from the task's
+   * autonomy level. Consulted centrally by authorizeToolAction before ANY tool
+   * dispatch, and handed to CodeTool for command-string fidelity.
+   * Optional so legacy internal callers stay functional on their own floors.
+   */
+  permissionRules?: readonly PermissionRule[];
   files: FileTool;
   code: CodeTool;
   /**
@@ -92,7 +100,7 @@ export function createToolContext(
   userId: string,
   mode: TaskMode,
   projectPath?: string | null,
-  /** Declarative rules for the owning run (v1.20) — handed to CodeTool. */
+  /** Declarative rules for the owning run (v1.20) — handed to CodeTool AND the central gate. */
   permissionRules?: readonly PermissionRule[],
 ): ToolContext {
   return {
@@ -100,6 +108,7 @@ export function createToolContext(
     userId,
     mode,
     projectPath: projectPath ?? null,
+    permissionRules,
     files: new FileTool(taskId, projectPath),
     code: new CodeTool(taskId, projectPath, permissionRules),
   };
@@ -742,6 +751,15 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
     throw new Error(
       `Tool "${name}" is locked in ${ctx.mode} mode. This surface is read-only; the user must explicitly enter Work and accept an execution decision before any build (write/execute) can run.`,
     );
+  }
+
+  // v1.21 authority gate: the run's autonomy level decides next, at the same
+  // chokepoint. Deny rules refuse outright; unresolved ask rules FAIL CLOSED
+  // with a rule citation (see SEMANTICS OF 'ask' above). Unmapped tools pass
+  // through to their own governing layers unchanged.
+  const verdict = authorizeToolCall(name, args, ctx.permissionRules);
+  if (verdict.decision === 'deny') {
+    throw new Error(verdict.message);
   }
 
   // MCP tools route through THIS function, not around it. An external tool is

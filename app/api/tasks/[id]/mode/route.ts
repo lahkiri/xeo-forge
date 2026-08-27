@@ -62,6 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         userId: task.user_id,
         goal: updated.goal,
         mode: 'planning',
+        autonomyLevel: updated.autonomy_level,
       });
     }
 

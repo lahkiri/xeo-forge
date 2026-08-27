@@ -67,6 +67,7 @@ export async function POST(
       mode: resolvedTask.mode,
       projectPath: resolvedTask.project_path,
       approvedPlan: resolvedTask.approved_plan,
+      autonomyLevel: resolvedTask.autonomy_level,
     });
 
     return NextResponse.json({ task: resolvedTask, decision: { choice } });
