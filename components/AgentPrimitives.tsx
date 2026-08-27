@@ -51,39 +51,98 @@ export function AuthorityRow({
 }
 
 /**
- * Derive the capability view from task mode.
- *
- * This mirrors what `executeTool` enforces: planning mode hard-locks write
- * tools at dispatch. Browser interaction is separately policy-gated, so it is
- * reported as `gated` rather than allowed even in build mode.
+ * Human titles for the run's stored autonomy level, so the live panel can name
+ * what is governing this task without re-declaring policy copy.
  */
-export function authorityForMode(mode: string): { label: string; state: AuthorityState; reason: string }[] {
+const AUTONOMY_LEVEL_LABELS: Record<string, string> = {
+  read_only: 'Read-only autonomy',
+  assist: 'Assist',
+  execute: 'Execute',
+  autonomous: 'Autonomous',
+};
+
+/**
+ * Derive the capability view from task mode AND (v1.21) the run's stored
+ * autonomy level.
+ *
+ * This mirrors what executeTool + authorizeToolCall enforce at dispatch:
+ * planning/chat hard-lock write tools; inside build, the level's rule set
+ * decides. Calls without a level keep the historical mode-only view — old
+ * callers and tests stay stable — while any task carrying an
+ * `autonomy_level` column value renders its real effects.
+ */
+export function authorityForMode(
+  mode: string,
+  autonomyLevel?: string | null,
+): { label: string; state: AuthorityState; reason: string }[] {
   const build = mode === 'build';
+  const level = autonomyLevel ?? 'execute';
+
+  if (!build || level === 'execute') {
+    // Historical rows built from mode alone; unchanged behavior.
+    return [
+      {
+        label: 'Read files',
+        state: 'allowed',
+        reason: 'Read access is available in every mode, confined to the task workspace.',
+      },
+      {
+        label: 'Write files',
+        state: build ? 'allowed' : 'locked',
+        reason: build
+          ? 'Build mode executes an approved plan, so write tools are available.'
+          : 'Write tools are hard-locked at dispatch until you approve a plan.',
+      },
+      {
+        label: 'Run commands',
+        state: build ? 'allowed' : 'locked',
+        reason: build
+          ? 'Restricted host execution inside the task workspace: env whitelist, path boundaries, command blocklist.'
+          : 'Command execution is hard-locked at dispatch until you approve a plan.',
+      },
+      {
+        label: 'Push / publish',
+        state: build ? 'gated' : 'locked',
+        reason: build
+          ? 'git push, npm publish and docker push ask for you even in build mode — they leave your machine.'
+          : 'Nothing leaves the machine until you approve a plan.',
+      },
+      {
+        label: 'Browser actions',
+        state: 'gated',
+        reason: 'Browser inspection is read-only by default. Interaction requires an explicit policy grant.',
+      },
+    ];
+  }
+
+  const levelName = AUTONOMY_LEVEL_LABELS[level] ?? AUTONOMY_LEVEL_LABELS.execute;
+  if (level === 'read_only') {
+    return [
+      { label: 'Read files', state: 'allowed', reason: `${levelName}: inspection and planning are permitted everywhere within the workspace.` },
+      { label: 'Write files', state: 'locked', reason: `${levelName}: edit tools are denied by the rule set at dispatch.` },
+      { label: 'Run commands', state: 'locked', reason: `${levelName}: every shell/git mutation is denied by the rule set at dispatch.` },
+      { label: 'Network & MCP', state: 'gated', reason: `${levelName}: network access and third-party MCP tools ask before use.` },
+      { label: 'Browser actions', state: 'gated', reason: 'Browser inspection is read-only by default. Interaction requires an explicit policy grant.' },
+    ];
+  }
+
+  if (level === 'assist') {
+    return [
+      { label: 'Read files', state: 'allowed', reason: `${levelName}: reading never waits for approval (except secret files).` },
+      { label: 'Write files', state: 'gated', reason: `${levelName}: every edit requires your approval and fail-closed blocks until granted.` },
+      { label: 'Run commands', state: 'gated', reason: `${levelName}: every command requires your approval and fail-closed blocks until granted.` },
+      { label: 'Push / publish', state: 'gated', reason: `${levelName}: anything leaving the machine requires your approval.` },
+      { label: 'Browser actions', state: 'gated', reason: 'Browser inspection is read-only by default. Interaction requires an explicit policy grant.' },
+    ];
+  }
+
+  // autonomous — long unattended runs, still not a blank cheque.
   return [
-    {
-      label: 'Read files',
-      state: 'allowed',
-      reason: 'Read access is available in every mode, confined to the task workspace.',
-    },
-    {
-      label: 'Write files',
-      state: build ? 'allowed' : 'locked',
-      reason: build
-        ? 'Build mode executes an approved plan, so write tools are available.'
-        : 'Write tools are hard-locked at dispatch until you approve a plan.',
-    },
-    {
-      label: 'Run commands',
-      state: build ? 'allowed' : 'locked',
-      reason: build
-        ? 'Restricted host execution inside the task workspace: env whitelist, path boundaries, command blocklist.'
-        : 'Command execution is hard-locked at dispatch until you approve a plan.',
-    },
-    {
-      label: 'Browser actions',
-      state: 'gated',
-      reason: 'Browser inspection is read-only by default. Interaction requires an explicit policy grant.',
-    },
+    { label: 'Read files', state: 'allowed', reason: `${levelName}: routine reads proceed unattended, recorded as always.` },
+    { label: 'Write files', state: 'allowed', reason: `${levelName}: edits proceed unattended inside the governed boundary; everything is recorded.` },
+    { label: 'Run commands', state: 'allowed', reason: `${levelName}: commands proceed unattended; unrecoverable ones stay denied outright.` },
+    { label: 'Push / publish', state: 'gated', reason: `${levelName}: publishing still asks; force-push remains denied outright.` },
+    { label: 'Browser actions', state: 'gated', reason: 'Browser inspection is read-only by default. Interaction requires an explicit policy grant.' },
   ];
 }
 
