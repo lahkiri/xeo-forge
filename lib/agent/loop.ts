@@ -1065,6 +1065,38 @@ export async function runAgent({
         if (choice.finish_reason) finishReason = choice.finish_reason;
       }
 
+      // Some OpenAI-compatible gateways deliver reasoning as inline
+      // <think>…</think> tags inside content deltas (DeepSeek-R1 style
+      // through proxy providers) instead of the reasoning_content field.
+      // Left in place they pollute the answer text the user reads and the
+      // prose persisted to the DB. Extract them into the reasoning buffer so
+      // the ThinkingBlock surfaces them and the answer stays clean. The
+      // client mirrors this for the live stream (timeline.separateThinkTags)
+      // because these deltas were already emitted as text events.
+      const closedThink = textBuf.match(/<think>[\s\S]*?<\/think>/g);
+      if (closedThink) {
+        for (const block of closedThink) {
+          const inner = block.slice(7, -8);
+          if (inner.trim()) {
+            reasoningBuf += (reasoningBuf ? '\n' : '') + inner;
+            await emitTaskEvent(taskId, 'reasoning', { delta: inner, source: 'inline_think_tag' });
+          }
+        }
+        textBuf = textBuf.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+      }
+      const openThinkIdx = textBuf.indexOf('<think>');
+      if (openThinkIdx !== -1 && !textBuf.includes('</think>', openThinkIdx)) {
+        // Unterminated <think>: everything from the tag on is reasoning that
+        // happened to be the last thing the stream delivered. Never let
+        // partial thinking leak into the answer.
+        const inner = textBuf.slice(openThinkIdx + 7);
+        if (inner.trim()) {
+          reasoningBuf += (reasoningBuf ? '\n' : '') + inner;
+          await emitTaskEvent(taskId, 'reasoning', { delta: inner, source: 'inline_think_tag_unclosed' });
+        }
+        textBuf = textBuf.slice(0, openThinkIdx);
+      }
+
       // The provider produced a stream (even one that yielded only an error
       // shape is handled below); any iteration that reaches past stream
       // consumption with text, reasoning, or tool calls counts as a live
@@ -1310,6 +1342,21 @@ export async function runAgent({
 
         // Planning mode: text termination is acceptable — plans end in text.
         if (mode === 'planning') {
+          await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer, undefined, chatTextBuffer);
+          return;
+        }
+
+        // Chat mode: the streamed prose IS the deliverable — that contract is
+        // the entire point of the surface (v1.19.1). The build-mode detectors
+        // below assume a work surface where text without tool evidence is a
+        // fake completion. In chat, EVERY answer is text-only, so those
+        // detectors nudged pure conversation into an endless self-repeating
+        // loop: model answers → NO_WORK_PERFORMED_NUDGE (chat rarely executes
+        // tools) → model answers again → nudge again — the "reply repeats and
+        // writes forever" regression (v1.23 diagnosis). A chat answer that
+        // ends in a question is conversation, not an autonomy violation.
+        // Finalize on first text termination, verbatim.
+        if (mode === 'chat') {
           await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer, undefined, chatTextBuffer);
           return;
         }

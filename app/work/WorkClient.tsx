@@ -11,6 +11,7 @@ import {
   latestEventOfType,
   parseEvents,
   splitRuns,
+  separateThinkTags,
   type ParsedEvent,
 } from '@/lib/agent/timeline';
 import { renderMarkdown } from '@/lib/markdown';
@@ -157,7 +158,16 @@ export default function WorkClient({
   const decisionExpired = status === 'awaiting_decision' && decisionSeconds <= 0;
 
   const { currentRunEvents, currentRunText } = useMemo(() => splitRuns(events), [events]);
-  const liveThinking = useMemo(() => reasoningTextOf(currentRunEvents), [currentRunEvents]);
+  // Same two-channel thinking merge as the chat surface: native reasoning
+  // events + inline <think> tags from proxy gateways, one collapsible block.
+  const { reasoning: taggedThinking, answer: runAnswer } = useMemo(
+    () => separateThinkTags(currentRunText),
+    [currentRunText],
+  );
+  const liveThinking = useMemo(
+    () => [reasoningTextOf(currentRunEvents), taggedThinking].filter(Boolean).join('\n'),
+    [currentRunEvents, taggedThinking],
+  );
   const timeline = useMemo(
     () => buildTimeline({ events, messages, status, goal: task.goal }),
     [events, messages, status, task.goal],
@@ -697,7 +707,7 @@ export default function WorkClient({
                       {isRunning && liveThinking && (
                         <ThinkingBlock text={liveThinking} live />
                       )}
-                      {isRunning && liveTools.length === 0 && !currentRunText && (
+                      {isRunning && liveTools.length === 0 && !runAnswer && (
                         <RuntimeBanner
                           label={runtime.label}
                           detail={runtime.detail}
