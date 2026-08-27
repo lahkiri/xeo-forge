@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { cx } from './ui';
+import { IconDiamond, IconChevronDown } from './icons';
 
 /* ------------------------------------------------------------------ */
 /*  ThinkingBlock — the reasoning-model surface.                       */
@@ -31,16 +32,21 @@ export function ThinkingBlock({ text, live }: { text: string; live?: boolean }) 
       >
         <span
           aria-hidden="true"
-          className={cx('text-micro', live ? 'animate-live-pulse text-signal-run' : 'text-content-faint')}
+          className={cx('inline-flex text-micro', live ? 'animate-live-pulse text-signal-run' : 'text-content-faint')}
         >
-          {live ? '◆' : '◇'}
+          <IconDiamond size={12} />
         </span>
         <span className={cx('text-micro font-medium uppercase tracking-[0.14em]', live ? 'text-signal-run' : 'text-content-muted')}>
           {live ? 'Thinking' : 'Thought process'}
         </span>
         <span className="text-micro tabular-nums text-content-faint">{words} words</span>
         <span className="flex-1" />
-        <span aria-hidden="true" className="text-micro text-content-faint">{open ? '▲' : '▼'}</span>
+        <span
+          aria-hidden="true"
+          className={cx('inline-flex text-micro text-content-faint transition-transform', open && 'rotate-180')}
+        >
+          <IconChevronDown size={12} />
+        </span>
       </button>
       {open ? (
         <div className="border-t border-line-subtle px-3 py-2.5">

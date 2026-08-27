@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Message, Task, TaskEvent, TaskStatus } from '@/lib/types';
 import { parseEvents, splitRuns, type ParsedEvent } from '@/lib/agent/timeline';
-import { deriveChatRuntime, formatElapsed } from '@/lib/agent/runtime-state';
+import { deriveChatRuntime, formatElapsed, isTerminalTaskStatus } from '@/lib/agent/runtime-state';
 import { eventTypesFor } from '@/lib/agent/events';
 import { RuntimeBanner } from '@/components/AgentPrimitives';
 import {
@@ -20,6 +20,13 @@ import {
 } from '@/components/ui';
 import { renderMarkdown } from '@/lib/markdown';
 import { ThinkingBlock, reasoningTextOf } from '@/components/ThinkingBlock';
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconPlus,
+  IconSparkles,
+  IconSquare,
+} from '@/components/icons';
 
 /* ------------------------------------------------------------------ */
 /*  CHAT SURFACE                                                       */
@@ -76,6 +83,17 @@ export default function ChatClient({
   // a collapsible block so the capability is visible without hijacking the chat.
   const liveThinking = useMemo(() => reasoningTextOf(currentRunEvents), [currentRunEvents]);
 
+  // v1.22 hang fix: the composer used to lock forever when a `done` event was
+  // never delivered (dead EventSource, provider crash without an error event,
+  // server restart mid-run). The stream is now treated as one input among two:
+  // a reconciliation poll re-reads the task row, and the SERVER's status always
+  // wins. If the server reached a terminal state we never saw streamed, the
+  // persisted answer is already in the DB — a refresh surfaces it.
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
+  const [streamLost, setStreamLost] = useState(false);
+  const sawDoneRef = useRef(false);
+
   // Tick while streaming so the elapsed timer and the provider-stall threshold
   // are live rather than frozen at the last event.
   const [tick, setTick] = useState(() => Date.now());
@@ -116,12 +134,15 @@ export default function ChatClient({
     setEvents((prev) => [...prev, event].sort((a, b) => a.seq - b.seq));
 
     if (event.type === 'done') {
+      sawDoneRef.current = true;
       const summary = typeof event.data.summary === 'string' ? event.data.summary : '';
       // The server persists the verbatim streamed answer in chat mode (loop.ts
       // chatTextBuffer). If that streamed text is present and already CONTAINS
       // the terse task_complete summary, appending it would duplicate a subset
       // of what the user just read. Skip; reload shows the persisted prose.
-      const streamedNow = splitRuns(events).currentRunText;
+      // (Read through the ref mirror — the memoized closure would otherwise
+      // dedupe against a stale snapshot.)
+      const streamedNow = splitRuns(eventsRef.current).currentRunText;
       if (summary && streamedNow && streamedNow.includes(summary)) {
         setStatus(typeof event.data.status === 'string' ? (event.data.status as TaskStatus) : status);
         return;
@@ -147,10 +168,13 @@ export default function ChatClient({
     } else if (event.type === 'error') {
       setError(typeof event.data.message === 'string' ? event.data.message : 'Something went wrong.');
     }
-  }, [activeTask?.id]);
+  }, [activeTask?.id, status]);
 
   useEffect(() => {
-    if (!activeTask || status === 'completed' || status === 'failed') return;
+    // Terminal per the SERVER's vocabulary: completed / failed / cancelled and
+    // the work-surface 'planned' (a promote can flip mode mid-thread). Without
+    // 'cancelled' here the composer stayed locked after a stop.
+    if (!activeTask || isTerminalTaskStatus(status)) return;
     const source = new EventSource(`/api/tasks/${activeTask.id}/stream`);
     // Subscriptions come from the shared registry, never a local literal.
     const types = eventTypesFor('chat');
@@ -159,14 +183,70 @@ export default function ChatClient({
       if (!Number.isFinite(seq)) return;
       let data: Record<string, unknown> = {};
       try { data = JSON.parse(e.data); } catch { data = { raw: e.data }; }
+      setStreamLost(false);
       addEvent({ seq, type: e.type, data, ts: Date.now() });
     };
     types.forEach((t) => source.addEventListener(t, handler as EventListener));
+    source.onopen = () => setStreamLost(false);
+    // EventSource auto-reconnects, but if the run already ended server-side
+    // the replay may carry nothing new. The reconciliation poll below is the
+    // authoritative healer; this handler only keeps the banner honest.
+    source.onerror = () => setStreamLost(true);
     return () => {
       types.forEach((t) => source.removeEventListener(t, handler as EventListener));
+      source.onopen = null;
+      source.onerror = null;
       source.close();
     };
   }, [activeTask, status, addEvent]);
+
+  /* ── Server reconciliation poll (v1.22 hang fix) ──
+     While a turn is in flight, re-read the task row every few seconds and
+     adopt the server's status when it reaches a terminal state. This heals
+     every variant of the "thinking forever" hang: SSE dropped mid-run, a run
+     that crashed without emitting `done`, an Electron reload that orphaned
+     the stream, or a provider stall the server already failed. If the server
+     finished but we never streamed the answer, the persisted messages are
+     already in the DB — refresh surfaces them verbatim. */
+  useEffect(() => {
+    if (!activeTask || !isStreaming) return;
+    let cancelled = false;
+    const reconcile = async () => {
+      try {
+        const res = await fetch(`/api/tasks/${activeTask.id}`, { cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const serverStatus: string | undefined = body?.task?.status;
+        if (!serverStatus || cancelled) return;
+        if (isTerminalTaskStatus(serverStatus) && serverStatus !== status) {
+          sawDoneRef.current = true;
+          setStatus(serverStatus as TaskStatus);
+          // We never received the streamed answer — load the persisted one.
+          if (!splitRuns(eventsRef.current).currentRunText.trim()) router.refresh();
+        }
+      } catch {
+        // Offline / transient: keep the stream and the last known state.
+      }
+    };
+    const id = setInterval(() => void reconcile(), 4_000);
+    void reconcile();
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [activeTask, isStreaming, status, router]);
+
+  /* ── Stop: the escape hatch must always exist while a turn is live ── */
+  const stopRun = useCallback(async () => {
+    if (!activeTask) return;
+    try {
+      await fetch(`/api/tasks/${activeTask.id}/cancel`, { method: 'POST' });
+      // The cancel route flips the row to 'cancelled' and emits done; the
+      // reconciliation poll adopts it even if the stream never delivers.
+    } catch {
+      setError('Could not reach the server to stop this run. Try again.');
+    }
+  }, [activeTask]);
 
   /* ── Send ── */
   const send = async () => {
@@ -267,12 +347,12 @@ export default function ChatClient({
       {/* ── Thread list ── */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-line-subtle md:flex">
         <div className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line-subtle px-3">
-          <Link href="/chat" className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted hover:text-content-primary">
-            ← Workspace
+          <Link href="/chat" className="inline-flex items-center gap-1.5 text-micro font-semibold uppercase tracking-[0.16em] text-content-muted hover:text-content-primary">
+            <IconArrowLeft size={12} /> Workspace
           </Link>
           <Link href="/chat">
             <IconButton label="New chat" size="sm">
-              <span aria-hidden="true" className="text-ui leading-none">+</span>
+              <span aria-hidden="true" className="inline-flex leading-none"><IconPlus size={13} /></span>
             </IconButton>
           </Link>
         </div>
@@ -307,7 +387,7 @@ export default function ChatClient({
             {turns.length === 0 ? (
               <div className="pt-[12vh]">
                 <EmptyState
-                  icon={<span aria-hidden="true" className="text-title">✦</span>}
+                  icon={<span aria-hidden="true" className="inline-flex text-title text-signal-run"><IconSparkles size={22} /></span>}
                   title="Ask anything"
                   description="Chat is read-only conversation. It never writes files, runs commands, or creates a plan. Switch a thread to Work when you want the agent to act."
                 />
@@ -365,6 +445,12 @@ export default function ChatClient({
                 <Alert tone="error" title="Chat could not continue">{error}</Alert>
               </div>
             )}
+
+            {isStreaming && streamLost && (
+              <p role="status" className="mt-4 text-micro text-content-muted">
+                Live connection interrupted — still reconciling with the saved task state. The answer is not lost.
+              </p>
+            )}
           </div>
         </div>
 
@@ -391,8 +477,13 @@ export default function ChatClient({
                 </span>
                 <div className="flex items-center gap-2">
                   {activeTask && !isStreaming && (
-                    <Button variant="ghost" size="sm" onClick={promoteToWork}>
-                      Switch to Work →
+                    <Button variant="ghost" size="sm" onClick={promoteToWork} className="inline-flex items-center gap-1.5">
+                      Switch to Work <IconArrowRight size={13} />
+                    </Button>
+                  )}
+                  {activeTask && isStreaming && (
+                    <Button variant="ghost" size="sm" onClick={() => void stopRun()} className="inline-flex items-center gap-1.5">
+                      <IconSquare size={11} /> Stop
                     </Button>
                   )}
                   <Button

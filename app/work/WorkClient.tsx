@@ -45,6 +45,7 @@ import {
 } from '@/components/ui';
 import { DecisionGate, PlanReview, ToolRow, pairToolEvents } from '@/components/WorkPrimitives';
 import { useHotkeys } from '@/components/CommandPalette';
+import { IconArrowLeft, IconPlus, IconX } from '@/components/icons';
 import { ContextInspector } from '@/components/ContextInspector';
 import { MemoryReview } from '@/components/MemoryReview';
 import { WorkspaceViewer } from '@/components/WorkspaceViewer';
@@ -387,6 +388,44 @@ export default function WorkClient({
     };
   }, [task.id, isTerminal, demoMode, addEvent]);
 
+  /* ── Server reconciliation poll (v1.22 hang fix) ──
+     Same contract as the chat surface: the SSE stream is one input, the task
+     row is the truth. If the stream dies mid-run (window reload, network
+     drop, provider crash without a terminal event), the run used to look
+     "running" forever with the composer locked. While the status is live we
+     re-read the row every few seconds and adopt the server's terminal state;
+     a refresh then rebuilds the timeline from persisted events so nothing
+     the run actually did is missing from the log. */
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
+  useEffect(() => {
+    if (demoMode || !isRunning) return;
+    let cancelled = false;
+    const reconcile = async () => {
+      try {
+        const res = await fetch(`/api/tasks/${task.id}`, { cache: 'no-store' });
+        if (!res.ok || cancelled) return;
+        const body = await res.json();
+        const serverStatus: string | undefined = body?.task?.status;
+        if (!serverStatus || cancelled) return;
+        if (isTerminalStatus(serverStatus) && serverStatus !== status) {
+          setStatus(serverStatus as Task['status']);
+          const sawLiveOutput =
+            splitRuns(eventsRef.current).currentRunText.trim().length > 0 ||
+            pairToolEvents(splitRuns(eventsRef.current).currentRunEvents).length > 0;
+          if (!sawLiveOutput) router.refresh();
+        }
+      } catch {
+        // Offline / transient: keep the stream and the last known state.
+      }
+    };
+    const id = setInterval(() => void reconcile(), 4_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [task.id, demoMode, isRunning, status, router]);
+
   /* ── Recorded-demo pacer ── */
   // When opened with ?demo=1 the seeded task already contains every event;
   // instead of dumping them we reveal them on the recorded cadence through
@@ -541,14 +580,14 @@ export default function WorkClient({
       {/* ── Run list ── */}
       <aside className="hidden w-56 shrink-0 flex-col border-r border-line-subtle 2xl:flex">
         <div className="flex items-center justify-between px-3 pt-3">
-          <Link href="/chat" className="text-micro font-semibold uppercase tracking-[0.16em] text-content-muted hover:text-content-primary">
-            ← Workspace
+          <Link href="/chat" className="inline-flex items-center gap-1.5 text-micro font-semibold uppercase tracking-[0.16em] text-content-muted hover:text-content-primary">
+            <IconArrowLeft size={12} /> Workspace
           </Link>
         </div>
         <PanelHeader title="Work">
           <Link href="/work">
             <IconButton label="New work" size="sm">
-              <span aria-hidden="true" className="text-ui leading-none">+</span>
+              <span aria-hidden="true" className="inline-flex leading-none"><IconPlus size={13} /></span>
             </IconButton>
           </Link>
         </PanelHeader>
@@ -676,7 +715,7 @@ export default function WorkClient({
                   {status === 'failed' && errorMessage && (
                     <div className="run-failure mt-6 rounded-panel border border-signal-fail/25 bg-signal-fail/[0.05] p-5">
                       <div className="flex items-center gap-2.5">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control bg-signal-fail/15 text-ui text-signal-fail" aria-hidden="true">✕</span>
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control bg-signal-fail/15 text-ui text-signal-fail" aria-hidden="true"><IconX size={14} /></span>
                         <p className="text-ui font-semibold text-content-primary">Run failed</p>
                       </div>
                       <p className="mt-2.5 max-w-2xl text-body leading-6 text-content-secondary">{errorMessage}</p>

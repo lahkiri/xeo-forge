@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import { Button, Card, Eyebrow } from '@/components/ui';
+import { IconCheck, IconArrowRight } from '@/components/icons';
 import type { AgentInstruction, AgentMemory, AuthUser, ModelSettingsSafe } from '@/lib/types';
 import ProfileStudio from './ProfileStudio';
 import SkillStudio from './SkillStudio';
@@ -412,7 +413,7 @@ export default function SettingsClient({ user, localMode }: { user: AuthUser; lo
               <button key={step.id} type="button" className={`settings-setup-step ${step.done ? 'is-done' : ''}`} onClick={() => scrollToSection(step.id)}>
                 <span className="settings-setup-index">0{index + 1}</span>
                 <span className="min-w-0 text-left"><strong>{step.label}</strong><small>{step.detail}</small></span>
-                <span className="settings-setup-state" aria-hidden="true">{step.done ? '✓' : '→'}</span>
+                <span className="settings-setup-state inline-flex" aria-hidden="true">{step.done ? <IconCheck size={12} /> : <IconArrowRight size={12} />}</span>
               </button>
             ))}
           </div>

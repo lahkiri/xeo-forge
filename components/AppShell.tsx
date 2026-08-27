@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import type { ReactNode } from 'react';
 import type { AuthUser } from '@/lib/types';
 import { Badge, Button, KeyHint, ToastProvider, cx, useModKey } from './ui';
+import { IconSearch } from './icons';
 import { ThemeToggle } from './Theme';
 import { CommandPalette, useBaseCommands, useHotkeys, type Command } from './CommandPalette';
 
@@ -157,7 +158,7 @@ export default function AppShell({
             onClick={() => setPaletteOpen(true)}
             className="sidebar-command group flex w-full items-center gap-2 rounded-control border border-line-subtle bg-ink-700/50 px-2.5 py-2 text-meta text-content-muted transition hover:border-line-strong hover:text-content-secondary"
           >
-            <span aria-hidden="true" className="text-ui">⌕</span>
+            <span aria-hidden="true" className="inline-flex text-ui"><IconSearch size={14} /></span>
             <span className="flex-1 text-left">Commands</span>
             <KeyHint keys={[mod, 'K']} />
           </button>

@@ -184,3 +184,22 @@ export function formatElapsed(ms: number): string {
   const seconds = total % 60;
   return `${minutes}:${String(seconds).padStart(2, '0')}`;
 }
+
+/**
+ * Terminal statuses per the SERVER's vocabulary (v1.22 hang fix).
+ *
+ * 'cancelled' is terminal for the user even though some older client code
+ * treated only completed/failed as terminal — that gap is what left the
+ * composer locked after a stop. 'planned' is the work-surface terminal state;
+ * a thread promoted to Work mid-chat can land there, and the chat surface
+ * must release the composer rather than show "thinking" forever.
+ *
+ * The DB row is the single source of truth (AGENTS.md §16): whatever the
+ * event stream showed, once the row is terminal the UI is terminal.
+ */
+const TERMINAL_TASK_STATUSES = new Set(['completed', 'failed', 'cancelled', 'planned']);
+
+export function isTerminalTaskStatus(status: string): boolean {
+  return TERMINAL_TASK_STATUSES.has(status);
+}
+

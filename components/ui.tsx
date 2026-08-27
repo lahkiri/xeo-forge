@@ -13,6 +13,7 @@ import {
   useId,
   useState,
 } from 'react';
+import { IconX } from './icons';
 
 /* ------------------------------------------------------------------ */
 /*  Primitives. Everything visual lives here so the surfaces stay      */
@@ -248,7 +249,7 @@ export function Badge({
   );
 }
 
-/** Task status → tone. One mapping, used by every surface. */
+/** Task status to tone mapping. One mapping, used by every surface. */
 export const STATUS_TONE: Record<string, BadgeTone> = {
   pending: 'gray',
   running: 'cyan',
@@ -609,7 +610,7 @@ export function Dialog({
             {description && <p className="mt-1 text-ui leading-5 text-content-muted">{description}</p>}
           </div>
           <IconButton label="Close" onClick={onClose}>
-            <span aria-hidden="true" className="text-base leading-none">×</span>
+            <span aria-hidden="true" className="inline-flex leading-none"><IconX size={14} /></span>
           </IconButton>
         </div>
         {children && <div className="px-5 py-4">{children}</div>}

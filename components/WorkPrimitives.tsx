@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Badge, Button, cx } from './ui';
+import { IconChevronRight } from './icons';
 import type { ParsedEvent } from '@/lib/agent/timeline';
 
 /* ------------------------------------------------------------------ */
@@ -72,7 +73,7 @@ export function ToolRow({ call, result }: { call: ParsedEvent; result?: ParsedEv
         <span className="ml-auto shrink-0 text-micro tabular-nums text-content-faint">{formatClock(call.ts)}</span>
         {expandable && (
           <span aria-hidden="true" className={cx('shrink-0 text-micro text-content-muted transition', open && 'rotate-90')}>
-            ▶
+            <IconChevronRight size={11} />
           </span>
         )}
       </button>

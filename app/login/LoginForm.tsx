@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button, Card, Eyebrow } from '@/components/ui';
+import { IconDiamond, IconArrowRight } from '@/components/icons';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,7 +44,7 @@ export default function LoginPage() {
       <div className="relative grid w-full max-w-5xl gap-8 lg:grid-cols-[1.1fr_420px] lg:items-center">
         <section className="hidden px-4 lg:block">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-modal border border-signal-run/25 bg-signal-run/08 text-display text-signal-run shadow-[0_0_32px_rgba(103,232,249,0.12)]">◇</div>
+            <div className="flex h-11 w-11 items-center justify-center rounded-modal border border-signal-run/25 bg-signal-run/08 text-signal-run shadow-[0_0_32px_rgba(103,232,249,0.12)]"><IconDiamond size={22} /></div>
             <div>
               <p className="text-ui font-semibold tracking-tight text-content-primary">Xeo Forge</p>
               <p className="text-micro uppercase tracking-[0.22em] text-content-muted">Agentic control plane</p>
@@ -70,7 +71,7 @@ export default function LoginPage() {
         <Card className="border-signal-run/10 bg-white/[0.045] p-6 shadow-2xl shadow-black/30 sm:p-8">
           <div className="mb-7 lg:hidden">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-modal border border-signal-run/25 bg-signal-run/08 text-title text-signal-run">◇</div>
+              <div className="flex h-10 w-10 items-center justify-center rounded-modal border border-signal-run/25 bg-signal-run/08 text-signal-run"><IconDiamond size={20} /></div>
               <div>
                 <p className="text-ui font-semibold text-content-primary">Xeo Forge</p>
                 <p className="text-micro uppercase tracking-[0.2em] text-content-muted">Agentic control plane</p>
@@ -90,7 +91,7 @@ export default function LoginPage() {
               <input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-panel border border-line bg-[#070b12]/80 px-3.5 py-3 text-ui text-content-primary outline-none transition placeholder:text-content-muted focus:border-signal-run/50 focus:ring-4 focus:ring-cyan-300/[0.08]" />
             </label>
             {error && <p role="alert" className="rounded-panel border border-red-300/15 bg-signal-fail/08 px-3 py-2 text-ui text-signal-fail">{error}</p>}
-            <Button type="submit" size="lg" disabled={loading} className="w-full justify-center">{loading ? 'Opening Workbench…' : 'Enter Workbench'}<span aria-hidden="true">→</span></Button>
+            <Button type="submit" size="lg" disabled={loading} className="w-full justify-center">{loading ? 'Opening Workbench…' : 'Enter Workbench'}<span aria-hidden="true" className="inline-flex"><IconArrowRight size={15} /></span></Button>
           </form>
           <p className="mt-6 text-center text-ui text-content-muted">Need an account? <Link href="/register" className="font-medium text-cyan-300 hover:text-signal-run">Create one</Link></p>
         </Card>

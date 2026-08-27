@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge, Meter, cx, type BadgeTone } from './ui';
+import { IconCheck, IconX, IconCircle, IconHelpCircle } from './icons';
 
 /* ------------------------------------------------------------------ */
 /*  SEMANTIC DOMAIN PRIMITIVES                                         */
@@ -362,7 +363,13 @@ export function CurrentTruth({ headline, signals }: { headline: string; signals:
     unknown: 'bg-signal-gate/70',
     bad: 'bg-signal-fail/80',
   };
-  const mark = { ok: '✓', off: '○', unknown: '?', bad: '✕' };
+  const mark = { ok: IconCheck, off: IconCircle, unknown: IconHelpCircle, bad: IconX };
+  const markTone = {
+    ok: 'text-signal-pass/80',
+    off: 'text-content-faint',
+    unknown: 'text-content-muted',
+    bad: 'text-signal-fail/80',
+  } as const;
 
   return (
     <div>
@@ -374,13 +381,11 @@ export function CurrentTruth({ headline, signals }: { headline: string; signals:
             <span className="min-w-0 flex-1 truncate text-content-muted">{signal.label}</span>
             <span
               className={cx(
-                'shrink-0 font-mono text-micro',
-                signal.state === 'ok' ? 'text-signal-pass/80'
-                  : signal.state === 'bad' ? 'text-signal-fail/80'
-                  : 'text-content-muted',
+                'inline-flex shrink-0 text-micro',
+                markTone[signal.state],
               )}
             >
-              {mark[signal.state]}
+              {(() => { const Mark = mark[signal.state]; return <Mark size={12} />; })()}
             </span>
           </li>
         ))}

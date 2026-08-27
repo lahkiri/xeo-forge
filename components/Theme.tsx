@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { cx } from './ui';
+import { IconSun, IconMoon, IconMonitor } from './icons';
 
 /* ------------------------------------------------------------------ */
 /*  THEME                                                              */
@@ -63,11 +64,17 @@ export function useTheme() {
   return { theme, setTheme: set, resolved: resolve(theme) };
 }
 
-const OPTIONS: { id: Theme; label: string; glyph: string }[] = [
-  { id: 'light', label: 'Light', glyph: '☀' },
-  { id: 'dark', label: 'Dark', glyph: '☾' },
-  { id: 'system', label: 'Match system', glyph: '⌗' },
+const OPTIONS: { id: Theme; label: string }[] = [
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'system', label: 'Match system' },
 ];
+
+const OPTION_ICONS: Record<Theme, (props: { size?: number }) => React.ReactNode> = {
+  light: IconSun,
+  dark: IconMoon,
+  system: IconMonitor,
+};
 
 /** Three-state segmented control. Explicit beats a toggle whose state is a guess. */
 export function ThemeToggle({ className = '' }: { className?: string }) {
@@ -97,7 +104,7 @@ export function ThemeToggle({ className = '' }: { className?: string }) {
                 : 'text-content-muted hover:text-content-secondary',
             )}
           >
-            <span aria-hidden="true">{option.glyph}</span>
+            <span aria-hidden="true" className="inline-flex">{(() => { const Glyph = OPTION_ICONS[option.id]; return <Glyph size={13} />; })()}</span>
           </button>
         );
       })}

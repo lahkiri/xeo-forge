@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Badge, KeyHint, cx, useModKey } from './ui';
+import { IconSearch } from './icons';
 
 /* ------------------------------------------------------------------ */
 /*  Keyboard layer. The reason a user can close the terminal: every    */
@@ -158,7 +159,7 @@ export function CommandPalette({
         className="relative w-full max-w-xl overflow-hidden rounded-modal border border-line bg-ink-600 shadow-modal"
       >
         <div className="flex items-center gap-3 border-b border-line-subtle px-4">
-          <span aria-hidden="true" className="text-content-muted">⌕</span>
+          <span aria-hidden="true" className="inline-flex text-content-muted"><IconSearch size={13} /></span>
           <input
             ref={inputRef}
             value={query}
