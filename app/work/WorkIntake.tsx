@@ -18,6 +18,7 @@ import {
   useModKey,
 } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
+import { IconArrowRight, IconX, IconCheck, IconCircle } from '@/components/icons';
 
 /* ------------------------------------------------------------------ */
 /*  WORK INTAKE                                                        */
@@ -217,8 +218,8 @@ export default function WorkIntake({
                 <UploadButton taskId={null} onStaged={(file) => setStaged((p) => [...p, file])} label="Attach files" />
                 <span className="flex items-center gap-2">
                   <KeyHint keys={[mod, 'Enter']} />
-                  <Button onClick={start} loading={submitting} disabled={!goal.trim()}>
-                    Start planning →
+                  <Button onClick={start} loading={submitting} disabled={!goal.trim()} className="inline-flex items-center gap-1.5">
+                    Start planning <IconArrowRight size={13} />
                   </Button>
                 </span>
               </div>
@@ -255,9 +256,9 @@ export default function WorkIntake({
                     type="button"
                     onClick={() => setStaged((p) => p.filter((_, i) => i !== index))}
                     aria-label={`Remove ${file.name}`}
-                    className="text-content-muted hover:text-content-primary"
+                    className="inline-flex text-content-muted hover:text-content-primary"
                   >
-                    ×
+                    <IconX size={12} />
                   </button>
                 </span>
               ))}
@@ -273,17 +274,17 @@ export default function WorkIntake({
             </p>
             <ul className="mt-3 space-y-2 text-ui leading-5">
               <li className="flex items-start gap-2.5">
-                <span aria-hidden="true" className="mt-0.5 text-signal-pass/80">✓</span>
+                <span aria-hidden="true" className="mt-0.5 inline-flex text-signal-pass/80"><IconCheck size={13} /></span>
                 <span className="text-content-secondary">Read and analyze files inside the project boundary</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <span aria-hidden="true" className="mt-0.5 text-content-muted">○</span>
+                <span aria-hidden="true" className="mt-0.5 inline-flex text-content-muted"><IconCircle size={13} /></span>
                 <span className="text-content-muted">
                   Write files and run commands — <span className="text-content-secondary">only after you approve the plan</span>
                 </span>
               </li>
               <li className="flex items-start gap-2.5">
-                <span aria-hidden="true" className="mt-0.5 text-content-muted">○</span>
+                <span aria-hidden="true" className="mt-0.5 inline-flex text-content-muted"><IconCircle size={13} /></span>
                 <span className="text-content-muted">Browser actions — separately gated by your safety policy</span>
               </li>
             </ul>

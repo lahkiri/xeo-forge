@@ -1,6 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { IconCheck, IconX } from './icons';
+
+function StepMark({ ok }: { ok: boolean }) {
+  return <span aria-hidden="true" className="mr-1 inline-flex align-middle">{ok ? <IconCheck size={11} /> : <IconX size={11} />}</span>;
+}
 
 interface ReadinessResult {
   ok: boolean;
@@ -166,10 +171,10 @@ export function PreviewPanel({ taskId, isTerminal }: { taskId: string; isTermina
         {browserTypeSelector.trim() && <label className="space-y-1 md:col-span-2"><span className="text-micro uppercase tracking-[0.12em] text-content-muted">Text to type</span><input value={browserText} onChange={(event) => setBrowserText(event.target.value)} className="w-full rounded-md border border-line bg-black/10 px-3 py-2 text-meta text-content-primary outline-none focus:border-signal-run/40" /></label>}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-3">
-        <button onClick={runBrowserTest} disabled={browserTesting || !browserUrl.trim() || (!!(browserClickSelector.trim() || browserTypeSelector.trim()) && !confirmSensitive)} className="rounded-control bg-cyan-400/15 px-3 py-1.5 text-meta font-medium text-signal-run transition hover:bg-cyan-400/25 disabled:cursor-not-allowed disabled:opacity-40">{browserTesting ? 'running navigate → read → interaction…' : 'run browser check'}</button>
+        <button onClick={runBrowserTest} disabled={browserTesting || !browserUrl.trim() || (!!(browserClickSelector.trim() || browserTypeSelector.trim()) && !confirmSensitive)} className="rounded-control bg-cyan-400/15 px-3 py-1.5 text-meta font-medium text-signal-run transition hover:bg-cyan-400/25 disabled:cursor-not-allowed disabled:opacity-40">{browserTesting ? 'running: navigate, read, interact…' : 'run browser check'}</button>
         <span className="text-micro text-content-muted">Requires extension connected, selected profile, interaction policy, and allowlisted domain.</span>
       </div>
-      {browserTest && <div className={`mt-3 rounded-control border px-3 py-2 text-meta ${browserTest.ok ? 'border-emerald-400/15 bg-emerald-400/[0.05] text-signal-pass' : 'border-signal-fail/15 bg-signal-fail/05 text-signal-fail'}`}><p>{browserTest.ok ? browserTest.message : browserTest.error}</p>{browserTest.steps && <div className="mt-2 flex flex-wrap gap-2">{browserTest.steps.map((step) => <span key={step.action} className={step.ok ? 'text-signal-pass' : 'text-signal-fail'}>{step.ok ? '✓' : '✗'} {step.action}</span>)}</div>}</div>}
+      {browserTest && <div className={`mt-3 rounded-control border px-3 py-2 text-meta ${browserTest.ok ? 'border-emerald-400/15 bg-emerald-400/[0.05] text-signal-pass' : 'border-signal-fail/15 bg-signal-fail/05 text-signal-fail'}`}><p>{browserTest.ok ? browserTest.message : browserTest.error}</p>{browserTest.steps && <div className="mt-2 flex flex-wrap gap-2">{browserTest.steps.map((step) => <span key={step.action} className={step.ok ? 'text-signal-pass' : 'text-signal-fail'}><StepMark ok={step.ok} /> {step.action}</span>)}</div>}</div>}
     </section>
   );
 

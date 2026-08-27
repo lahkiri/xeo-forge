@@ -105,7 +105,7 @@ export function ExecutionTimeline({ events }: { events: ParsedEvent[] }) {
   const list = useVirtualList({
     count: allRows.length,
     estimateRowHeight: estimate,
-    // The timeline reads chronologically oldest→newest, and the interesting
+    // The timeline reads chronologically from oldest to newest, and the interesting
     // end is the newest, so the list opens at the bottom and follows while
     // the user stays there — the same contract the run log has.
     startAtBottom: true,

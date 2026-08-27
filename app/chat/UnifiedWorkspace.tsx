@@ -16,6 +16,18 @@ import {
   IconChevronDown,
   IconCheck,
   IconTerminal,
+  IconPlus,
+  IconSearch,
+  IconPanelLeftClose,
+  IconPanelLeftOpen,
+  IconMessageCircle,
+  IconFolder,
+  IconSettings,
+  IconUserRound,
+  IconPlug,
+  IconCommand,
+  IconMoreHorizontal,
+  IconX,
 } from '@/components/icons';
 
 type WorkspaceMode = 'chat' | 'work';
@@ -30,8 +42,8 @@ const CHAT_STARTERS = [
 
 const WORK_STARTERS = [
   { label: 'Fix a failing test', prompt: 'The auth session test is failing. Find the cause and fix it.', glyph: 'terminal' },
-  { label: 'Add a feature', prompt: 'Add pagination to the users list endpoint, with tests.', glyph: '+' },
-  { label: 'Audit the code', prompt: 'Review error handling across the API routes and report every silent failure.', glyph: '✓' },
+  { label: 'Add a feature', prompt: 'Add pagination to the users list endpoint, with tests.', glyph: 'plus' },
+  { label: 'Audit the code', prompt: 'Review error handling across the API routes and report every silent failure.', glyph: 'check' },
 ];
 
 export default function UnifiedWorkspace({
@@ -268,7 +280,7 @@ export default function UnifiedWorkspace({
         <div className="codex-sidebar-top">
           <button type="button" aria-label="Hide sidebar" title="Hide sidebar"
             className="codex-action-icon"
-            onClick={() => persistSidebar(true, sidebarWidth)}>‹</button>
+            onClick={() => persistSidebar(true, sidebarWidth)}><IconPanelLeftClose size={14} /></button>
           <Link href="/chat" className="codex-brand" aria-label="Xeo Forge home">
             <span className="brand-mark h-7 w-7" aria-hidden="true"><span /></span>
             <span className="min-w-0"><strong>Xeo Forge</strong><small>Agent workspace</small></span>
@@ -279,8 +291,8 @@ export default function UnifiedWorkspace({
         </div>
 
         <div className="codex-sidebar-actions">
-          <Link href="/chat?mode=chat" className="codex-new-chat"><span className="codex-action-icon">+</span><span>New chat</span><KeyHint keys={[mod, 'N']} /></Link>
-          <button type="button" className="codex-search-button" onClick={() => window.dispatchEvent(new CustomEvent('xeo:open-command-palette'))}><span aria-hidden="true">⌕</span><span>Search sessions</span><KeyHint keys={[mod, 'K']} /></button>
+          <Link href="/chat?mode=chat" className="codex-new-chat"><span className="codex-action-icon"><IconPlus size={14} /></span><span>New chat</span><KeyHint keys={[mod, 'N']} /></Link>
+          <button type="button" className="codex-search-button" onClick={() => window.dispatchEvent(new CustomEvent('xeo:open-command-palette'))}><span aria-hidden="true"><IconSearch size={14} /></span><span>Search sessions</span><KeyHint keys={[mod, 'K']} /></button>
         </div>
 
         <div className="codex-sidebar-scroll min-h-0 flex-1 overflow-y-auto">
@@ -290,25 +302,25 @@ export default function UnifiedWorkspace({
               <p className="codex-empty-sidebar">Your sessions will appear here.</p>
             ) : recentItems.map((item) => (
               <Link key={`${item.kind}-${item.id}`} href={item.kind === 'work' ? `/work/${item.id}` : `/chat/${item.id}`} className="codex-session-row">
-                <span className={cx('codex-session-glyph', item.kind === 'work' && 'is-work')}>{item.kind === 'work' ? '⌘' : '◌'}</span>
+                <span className={cx('codex-session-glyph', item.kind === 'work' && 'is-work')}>{item.kind === 'work' ? <IconFolder size={13} /> : <IconMessageCircle size={13} />}</span>
                 <span className="min-w-0 flex-1"><strong>{item.goal}</strong><small>{item.kind === 'work' ? 'Work session' : 'Chat session'}</small></span>
                 {item.kind === 'work' && <StatusBadge status={item.status} />}
               </Link>
             ))}
           </div>
 
-          <div className="codex-nav-heading codex-capabilities-heading"><span>Capabilities</span><span>⌘</span></div>
+          <div className="codex-nav-heading codex-capabilities-heading"><span>Capabilities</span><span aria-hidden="true"><IconCommand size={12} /></span></div>
           <nav className="codex-capability-list" aria-label="Capabilities">
-            <Link href="/settings" className="codex-capability-row"><span>◈</span><span>Settings</span></Link>
-            <Link href="/settings/profiles" className="codex-capability-row"><span>◎</span><span>Profiles</span></Link>
+            <Link href="/settings" className="codex-capability-row"><span><IconSettings size={13} /></span><span>Settings</span></Link>
+            <Link href="/settings/profiles" className="codex-capability-row"><span><IconUserRound size={13} /></span><span>Profiles</span></Link>
             <Link href="/settings/skills" className="codex-capability-row"><span><IconDiamond size={13} /></span><span>Skills</span></Link>
-            <Link href="/settings/mcp" className="codex-capability-row"><span>⊕</span><span>MCP tools</span></Link>
+            <Link href="/settings/mcp" className="codex-capability-row"><span><IconPlug size={13} /></span><span>MCP tools</span></Link>
           </nav>
         </div>
 
         <div className="codex-sidebar-footer">
           <div className="codex-runtime-row"><span><i className="codex-status-dot" />{localMode ? 'Local runtime' : 'Gateway connected'}</span><ThemeToggle /></div>
-          <div className="codex-account-row"><span className="codex-avatar">{localMode ? 'L' : 'X'}</span><span className="min-w-0 flex-1"><strong>{localMode ? 'Local operator' : 'Xeo account'}</strong><small>{typeof balance === 'number' ? `${balance.toLocaleString()} credits` : 'Offline-first'}</small></span><span className="codex-account-menu">•••</span></div>
+          <div className="codex-account-row"><span className="codex-avatar">{localMode ? 'L' : 'X'}</span><span className="min-w-0 flex-1"><strong>{localMode ? 'Local operator' : 'Xeo account'}</strong><small>{typeof balance === 'number' ? `${balance.toLocaleString()} credits` : 'Offline-first'}</small></span><span className="codex-account-menu"><IconMoreHorizontal size={14} /></span></div>
         </div>
       </aside>
       )}
@@ -344,7 +356,7 @@ export default function UnifiedWorkspace({
       <section className="codex-main min-w-0 flex-1">
         <header className="codex-topbar">
           <div className="codex-breadcrumb"><span className="codex-breadcrumb-muted">Xeo Forge</span><span>/</span><strong>{mode === 'chat' ? 'Chat' : 'Work'}</strong><span className="codex-live-pill"><i className="codex-status-dot" />Ready</span></div>
-          <div className="codex-topbar-actions"><button type="button" className="codex-quiet-action" aria-label="Open command menu" onClick={() => window.dispatchEvent(new CustomEvent('xeo:open-command-palette'))}>⌘K</button><button type="button" className="codex-quiet-action" aria-label="Open settings" onClick={() => router.push('/settings')}>⚙</button></div>
+          <div className="codex-topbar-actions"><button type="button" className="codex-quiet-action" aria-label="Open command menu" title="Command menu" onClick={() => window.dispatchEvent(new CustomEvent('xeo:open-command-palette'))}><IconCommand size={14} /></button><button type="button" className="codex-quiet-action" aria-label="Open settings" title="Settings" onClick={() => router.push('/settings')}><IconSettings size={14} /></button></div>
         </header>
 
         <div className="codex-sessionbar">
@@ -358,8 +370,8 @@ export default function UnifiedWorkspace({
         {sidebarHidden && (
         <button type="button" aria-label="Show sidebar" title="Show sidebar"
           onClick={() => persistSidebar(false, sidebarWidth)}
-          className="self-start m-1.5 rounded-control border border-[rgb(var(--line)/0.35)] px-2 py-1 text-meta text-content-muted hover:text-content-primary hover:border-[rgb(var(--content-primary)/0.6)]">
-          › Show sidebar
+          className="self-start m-1.5 inline-flex items-center gap-1.5 rounded-control border border-[rgb(var(--line)/0.35)] px-2 py-1 text-meta text-content-muted hover:text-content-primary hover:border-[rgb(var(--content-primary)/0.6)]">
+          <IconPanelLeftOpen size={13} /> Show sidebar
         </button>
       )}
 <div className="codex-body min-h-0 flex-1 overflow-y-auto">
@@ -381,11 +393,11 @@ export default function UnifiedWorkspace({
                   <div className="codex-context-field" title={autonomyCopy.detail}><span className="codex-field-index">04</span><span className="min-w-0 flex-1"><Select label="Authority" value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as AutonomyLevel)}>{AUTONOMY_LEVELS.map((level) => { const copy = describeAutonomy(level); return <option key={level} value={level}>{copy.title}</option>; })}</Select></span></div>
                 </div>
                 <div className="codex-context-footer"><span>{autonomyCopy.detail} It will still never write or run before you approve the plan{autonomyLevel === 'execute' ? ' — and git push or publishing stops for you.' : '.'}</span><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach context" /></div>
-                {staged.length > 0 && <div className="codex-context-files">{staged.map((file, index) => <span key={`${file.name}-${index}`}>{file.name}<button type="button" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>×</button></span>)}</div>}
+                {staged.length > 0 && <div className="codex-context-files">{staged.map((file, index) => <span key={`${file.name}-${index}`}>{file.name}<button type="button" aria-label={`Remove ${file.name}`} onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}><IconX size={11} /></button></span>)}</div>}
               </section>
             )}
 
-            <section className="codex-starters"><div className="codex-section-heading"><span>{mode === 'chat' ? 'Start with a prompt' : 'Common starting points'}</span><span>{mode === 'chat' ? '⌘ ↵' : 'Approval required'}</span></div><div className="codex-starter-list">{starters.map((starter) => <button key={starter.label} type="button" className="codex-starter-row" onClick={() => { setDraft(starter.prompt); composerRef.current?.focus(); }}><span className="codex-starter-glyph">{starter.glyph === 'arrow' ? <IconArrowUpRight size={13} /> : starter.glyph === 'zap' ? <IconZap size={13} /> : starter.glyph === 'diamond' ? <IconDiamond size={13} /> : <IconTerminal size={13} />}</span><span className="min-w-0 flex-1"><strong>{starter.label}</strong><small>{starter.prompt}</small></span><span className="codex-starter-arrow"><IconArrowUpRight size={13} /></span></button>)}</div></section>
+            <section className="codex-starters"><div className="codex-section-heading"><span>{mode === 'chat' ? 'Start with a prompt' : 'Common starting points'}</span><span className="inline-flex items-center gap-1">{mode === 'chat' ? <><KeyHint keys={[mod, 'Enter']} /> to send</> : 'Approval required'}</span></div><div className="codex-starter-list">{starters.map((starter) => <button key={starter.label} type="button" className="codex-starter-row" onClick={() => { setDraft(starter.prompt); composerRef.current?.focus(); }}><span className="codex-starter-glyph">{starter.glyph === 'arrow' ? <IconArrowUpRight size={13} /> : starter.glyph === 'zap' ? <IconZap size={13} /> : starter.glyph === 'diamond' ? <IconDiamond size={13} /> : starter.glyph === 'plus' ? <IconPlus size={13} /> : starter.glyph === 'check' ? <IconCheck size={13} /> : <IconTerminal size={13} />}</span><span className="min-w-0 flex-1"><strong>{starter.label}</strong><small>{starter.prompt}</small></span><span className="codex-starter-arrow"><IconArrowUpRight size={13} /></span></button>)}</div></section>
             {localMode && (
               <button
                 type="button"
@@ -406,7 +418,7 @@ export default function UnifiedWorkspace({
         </div>
 
         <footer className="codex-composer-dock">
-          {mode === 'chat' && staged.length > 0 && <div className="codex-attachment-row"><span>Context</span>{staged.map((file, index) => <button key={`${file.name}-${index}`} type="button" onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>{file.name} ×</button>)}</div>}
+          {mode === 'chat' && staged.length > 0 && <div className="codex-attachment-row"><span>Context</span>{staged.map((file, index) => <button key={`${file.name}-${index}`} type="button" aria-label={`Remove ${file.name}`} onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>{file.name} <IconX size={11} /></button>)}</div>}
           <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{sweeping && <span className="codex-model-sweep"><span className={cx('codex-model-dot', 'is-warn')} />checking models…</span>}<input type="search" value={modelQuery} onChange={(e) => setModelQuery(e.target.value)} placeholder="Search models…" aria-label="Search models" className="codex-model-search" />{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const q = modelQuery.trim().toLowerCase(); const availableModels = provider.models.filter((model) => model.enabled && (!q || model.name.toLowerCase().includes(q) || model.model_id.toLowerCase().includes(q))); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => void chooseModel(provider.id, model.id)}><span className={cx('codex-model-dot', 'is-' + modelHealth(provider.id, model.id))} aria-hidden="true" /><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
           <p className="codex-composer-note">{mode === 'chat' ? 'Switch to Work when you want Xeo to inspect files or make changes.' : 'Xeo will never write or run commands before you approve the plan.'}</p>
         </footer>

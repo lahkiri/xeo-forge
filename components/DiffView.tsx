@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 import { cx, EmptyState } from '@/components/ui';
+import { IconArrowRight } from '@/components/icons';
 import type { DiffLine, DiffHunk } from '@/lib/diff';
 import { parseUnifiedDiff } from '@/lib/diff';
 
@@ -54,7 +55,7 @@ function DiffFile({ file, showHeader }: { file: DiffFileBase; showHeader: boolea
       <div className="border-b border-line-subtle py-2 px-3">
         {showHeader && (
           <p className="text-content-muted text-micro">
-            {file.oldPath} → {file.newPath}
+            {file.oldPath} <span className="inline-flex align-middle"><IconArrowRight size={11} /></span> {file.newPath}
           </p>
         )}
         <p className="text-content-muted">{file.binary ? 'Binary files differ' : 'No changes'}</p>
@@ -67,7 +68,7 @@ function DiffFile({ file, showHeader }: { file: DiffFileBase; showHeader: boolea
       {showHeader && (
         <div className="flex items-center gap-2 border-b border-line-subtle bg-ink-700/40 px-3 py-1.5">
           <span className="text-content-secondary">{file.oldPath}</span>
-          <span className="text-content-muted">→</span>
+          <span className="inline-flex text-content-muted"><IconArrowRight size={11} /></span>
           <span className="text-content-secondary">{file.newPath}</span>
           <span className="ml-auto text-micro tabular-nums">
             <span className="text-[rgb(var(--diff-add))]">+{file.additions}</span>

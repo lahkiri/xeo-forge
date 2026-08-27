@@ -6,6 +6,7 @@ import type { AuthUser } from '@/lib/types';
 import AppShell from '@/components/AppShell';
 import { ThemeToggle } from '@/components/Theme';
 import { cx } from '@/components/ui';
+import { IconArrowLeft, IconChevronRight } from '@/components/icons';
 
 const SECTIONS = [
   { href: '/settings/providers', label: 'Providers', detail: 'Connections & models', marker: '01' },
@@ -23,13 +24,13 @@ export default function SettingsLayout({ user, localMode, children }: { user: Au
       <div className="settings-shell">
         <aside className="settings-sidebar">
           <div className="settings-sidebar-head">
-            <Link href="/chat" className="settings-back">← <span>Workspace</span></Link>
+            <Link href="/chat" className="settings-back"><IconArrowLeft size={12} /> <span>Workspace</span></Link>
             <div className="settings-title-block"><span className="codex-kicker">Xeo Forge</span><h1>Settings</h1><p>Shape how your workspace runs.</p></div>
           </div>
           <nav className="settings-nav" aria-label="Settings sections">
             {SECTIONS.map((section) => {
               const active = pathname === section.href || pathname.startsWith(`${section.href}/`);
-              return <Link key={section.href} href={section.href} className={cx('settings-nav-row', active && 'is-active')}><span className="settings-nav-marker">{section.marker}</span><span><strong>{section.label}</strong><small>{section.detail}</small></span><span className="settings-nav-arrow">→</span></Link>;
+              return <Link key={section.href} href={section.href} className={cx('settings-nav-row', active && 'is-active')}><span className="settings-nav-marker">{section.marker}</span><span><strong>{section.label}</strong><small>{section.detail}</small></span><span className="settings-nav-arrow"><IconChevronRight size={12} /></span></Link>;
             })}
           </nav>
           <div className="settings-sidebar-foot"><span>{localMode ? 'Local runtime' : 'Gateway connected'}</span><ThemeToggle /></div>

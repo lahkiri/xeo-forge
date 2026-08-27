@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui';
+import { IconChevronRight, IconPlus, IconCheck } from '@/components/icons';
 
 interface McpServerConfigView {
   id: string;
@@ -141,11 +142,11 @@ export default function McpStudio() {
               <button key={server.id} type="button" onClick={() => { setSelectedId(server.id); setShowAdd(false); }} className={`mcp-server-row ${selectedId === server.id && !showAdd ? 'is-active' : ''}`}>
                 <span className={`mcp-server-dot ${server.enabled ? 'is-on' : ''}`} aria-hidden="true" />
                 <span className="min-w-0 flex-1 text-left"><strong>{server.name}</strong><small>{server.command}</small></span>
-                <span className="mcp-server-arrow" aria-hidden="true">›</span>
+                <span className="mcp-server-arrow" aria-hidden="true"><IconChevronRight size={12} /></span>
               </button>
             ))}
           </div>
-          <button type="button" className={`mcp-add-row ${showAdd ? 'is-active' : ''}`} onClick={() => { setShowAdd(true); setSelectedId(''); }}><span aria-hidden="true">+</span> Add server</button>
+          <button type="button" className={`mcp-add-row ${showAdd ? 'is-active' : ''}`} onClick={() => { setShowAdd(true); setSelectedId(''); }}><span aria-hidden="true" className="inline-flex"><IconPlus size={12} /></span> Add server</button>
         </aside>
 
         <section className="mcp-detail-pane">
@@ -167,7 +168,7 @@ export default function McpStudio() {
               <p className="mt-2 text-meta text-content-muted">Tools surface as <span className="font-mono">mcp__{selected.slug}__*</span> in Work mode.</p>
               <div className="mcp-detail-block mt-6"><p className="mcp-block-label">Process</p><code>{selected.command} {selected.args.join(' ')}</code></div>
               <div className="mcp-detail-block mt-3"><p className="mcp-block-label">Environment keys</p><p className="text-meta text-content-secondary">{Object.keys(selected.env).length ? Object.keys(selected.env).join(' · ') : 'No environment variables exposed'}</p></div>
-              <div className="mcp-approval-note mt-5"><span className="mcp-approval-mark">✓</span><span><strong>Approval protected</strong><small>Every MCP call remains behind the Work approval gate.</small></span></div>
+              <div className="mcp-approval-note mt-5"><span className="mcp-approval-mark inline-flex"><IconCheck size={12} /></span><span><strong>Approval protected</strong><small>Every MCP call remains behind the Work approval gate.</small></span></div>
               <div className="mcp-detail-actions"><Button variant="secondary" disabled={busy} onClick={() => void toggle(selected)}>{selected.enabled ? 'Disable server' : 'Enable server'}</Button><Button variant="ghost" disabled={busy} onClick={() => void remove(selected)}>Delete</Button></div>
             </div>
           ) : (

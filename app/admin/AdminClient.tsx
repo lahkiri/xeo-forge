@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button, Card, StatusBadge } from '@/components/ui';
+import { IconArrowLeft } from '@/components/icons';
 import type { AuthUser, AdminAction, ModelSettingsSafe, Task } from '@/lib/types';
 
 /** User row as delivered by the admin API (password_hash stripped, stats joined). */
@@ -220,8 +221,8 @@ export default function AdminClient({ currentUser, initialUsers, initialModel, i
     <div className="mx-auto max-w-5xl px-4 py-6">
       <header className="mb-6 flex items-center justify-between">
         <h1 className="text-display font-semibold">Admin</h1>
-        <Link href="/chat" className="text-ui text-indigo-300 hover:underline">
-          ← Back to dashboard
+        <Link href="/chat" className="inline-flex items-center gap-1.5 text-ui text-indigo-300 hover:underline">
+          <IconArrowLeft size={13} /> Back to dashboard
         </Link>
       </header>
 
