@@ -113,6 +113,21 @@ The same principle applies to memory. Xeo Forge does not silently treat every co
 
 Xeo Forge is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
 
+### Known gap, disclosed on discovery (v1.20.0 → being fixed in v1.21.0)
+
+**Autonomy levels are not yet reachable from the UI.** v1.20.0 shipped the four
+levels (`read_only` / `assist` / `execute` / `autonomous`) as enforced policy
+data with 22 contract tests, and `runAgent` accepts an `autonomyLevel`. But
+`startAgentRun` never forwards one and the task-creation API never accepts one,
+so **every run currently uses the default level**. The release notes described
+this feature as shipped; that was wrong, and this line exists because we found
+it during a UI review rather than waiting for a user to find it.
+
+A security-relevant feature that a user cannot select is, from the user's
+perspective, not present. It is being wired end-to-end (schema column, API
+contract, Work setup control, live governance display) as the first item of
+v1.21.0 — ahead of every cosmetic fix.
+
 The next product layers are intentionally separate from the current core and are tracked in the [1.x roadmap](docs/roadmap-1x.md):
 
 1. Persistent Workspaces with members, files, policies, and workspace-level context.
