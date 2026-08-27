@@ -333,15 +333,20 @@ export async function runAgent({
   const unregisterRun = registerRun(taskId, runAbort);
 
   const client = new OpenAI({ apiKey: model.apiKey, baseURL: model.baseUrl, timeout: OPENAI_TIMEOUT_MS, maxRetries: 0 });
-  const ctx = createToolContext(taskId, userId, mode, projectPath);
   /*
-   * v1.20 authority: the run's declarative rule set comes from the task's
-   * autonomy level (default 'execute'), plus any per-task overrides recorded
-   * on the row. CodeTool consults it before every command, so what the UI
-   * displays as the level is the same policy the executor enforces.
+   * v1.21 wiring fix: authority resolves BEFORE the tool context exists.
+   * The previous order built ctx first and computed the rule set after it,
+   * which meant createToolContext ran without any rules even on the day an
+   * autonomyLevel finally arrived — the enforcement plumbing was inert until
+   * this line moved above it.
+   *
+   * Precedence: an explicitly passed level wins (routes pass the value just
+   * read from the row); otherwise the level stored on the task row governs;
+   * direct callers that omit both run under the default 'execute'.
    */
-  const autonomyLevel = normalizeAutonomyLevel(taskAutonomyLevel);
+  const autonomyLevel = normalizeAutonomyLevel(taskAutonomyLevel ?? task?.autonomy_level);
   const permissionRules = effectiveRules(autonomyLevel, taskPermissionOverrides);
+  const ctx = createToolContext(taskId, userId, mode, projectPath, permissionRules);
   // Structured domain events (git_status / git_commit) ride the same persisted
   // seq-ordered path as every other task event. The sink is an observation
   // channel: capability modules may report, never decide.

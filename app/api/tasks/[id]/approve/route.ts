@@ -45,6 +45,7 @@ export async function POST(_req: NextRequest, { params }: { params: { id: string
       mode: 'build',
       projectPath: updated.project_path,
       approvedPlan: updated.approved_plan,
+      autonomyLevel: updated.autonomy_level,
     });
 
     return NextResponse.json({ task: updated }, { status: 200 });

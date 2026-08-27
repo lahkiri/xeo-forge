@@ -90,6 +90,9 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       mode: claimed.mode,
       projectPath: claimed.project_path,
       approvedPlan: claimed.mode === 'build' ? claimed.approved_plan : undefined,
+      // Same authority as when the user created this task — a follow-up
+      // message must not be able to smuggle in broader authority.
+      autonomyLevel: claimed.autonomy_level,
     });
 
     return NextResponse.json({ ok: true }, { status: 200 });

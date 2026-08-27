@@ -27,6 +27,12 @@ export function startAgentRun(args: {
   mode: TaskMode;
   projectPath?: string | null;
   approvedPlan?: string | null;
+  /**
+   * v1.21 wiring: the authority level the run executes under. Routes pass the
+   * value stored on the task row; loop.ts normalizes and falls back to
+   * 'execute' for direct callers that omit it.
+   */
+  autonomyLevel?: string | null;
 }): void {
   runAgent(args).catch(async (err) => {
     console.error(`[runner] unhandled agent error task=${args.taskId}:`, err);
