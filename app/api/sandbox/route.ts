@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth/guard';
-import { detectDocker, dockerInstallGuidance, SANDBOX_MODES } from '@/lib/agent/sandbox';
+import { SANDBOX_MODES } from '@/lib/agent/sandbox';
+import { detectDocker, dockerInstallGuidance } from '@/lib/agent/sandbox-node';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';

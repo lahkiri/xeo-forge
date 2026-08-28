@@ -44,7 +44,8 @@ import {
 import { createToolContext, executeTool, schemasForRun } from './tools';
 import { authorizeToolCall } from './authority';
 import { runDelegatedResearch, normalizeDelegation } from './subagents';
-import { normalizeSandboxMode, strictSandboxRules, detectDocker } from './sandbox';
+import { normalizeSandboxMode, strictSandboxRules } from './sandbox';
+import { detectDocker } from './sandbox-node';
 import { normalizeThinkingEffort, thinkingLevel, thinkingDirective } from '../model/thinking';
 import { killSessionsForTask } from './terminal';
 import { registerRun } from './cancellation';
