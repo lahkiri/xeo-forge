@@ -20,6 +20,8 @@ import {
 } from '@/components/ui';
 import { renderMarkdown } from '@/lib/markdown';
 import { ThinkingBlock, reasoningTextOf } from '@/components/ThinkingBlock';
+import { ThinkingEffortSelect, ThinkingAbsenceNote } from '@/components/ThinkingEffortSelect';
+import { thinkingLevel, type ThinkingEffort } from '@/lib/model/thinking';
 import {
   IconArrowLeft,
   IconArrowRight,
@@ -71,6 +73,10 @@ export default function ChatClient({
   const [events, setEvents] = useState<ParsedEvent[]>(() => parseEvents(initialEvents));
   const [status, setStatus] = useState(activeTask?.status ?? 'completed');
   const [error, setError] = useState('');
+  // v1.23 thinking effort: initialized from the task row, changeable per turn.
+  const [effort, setEffort] = useState<ThinkingEffort>(
+    thinkingLevel(activeTask?.thinking_effort).id,
+  );
 
   const seenSeq = useRef<Set<number>>(new Set(initialEvents.map((e) => e.seq)));
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -291,7 +297,7 @@ export default function ChatClient({
         const res = await fetch('/api/tasks', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ goal: text, mode: 'chat', surface: 'chat' }),
+          body: JSON.stringify({ goal: text, mode: 'chat', surface: 'chat', thinkingEffort: effort }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -306,7 +312,7 @@ export default function ChatClient({
       const res = await fetch(`/api/tasks/${activeTask.id}/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, thinkingEffort: effort }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -372,6 +378,12 @@ export default function ChatClient({
     return rows;
   }, [messages, isStreaming, runAnswer]);
 
+  const effortSpec = thinkingLevel(effort);
+  // Honest absence: a level above minimal promises VISIBLE reasoning. When a
+  // completed run delivered none, say so instead of implying it was hidden.
+  const showAbsenceNote =
+    !isStreaming && effortSpec.id !== 'minimal' && turns.length > 0 && !shownThinking;
+
   return (
     <div className="flex h-full min-h-0">
       {/* ── Thread list ── */}
@@ -436,7 +448,8 @@ export default function ChatClient({
               </div>
             ) : (
               <div className="space-y-5">
-                {shownThinking && <ThinkingBlock text={shownThinking} live={isStreaming} />}
+                {shownThinking && <ThinkingBlock text={shownThinking} live={isStreaming} levelLabel={effortSpec.label} />}
+                {showAbsenceNote && <ThinkingAbsenceNote levelLabel={effortSpec.label} />}
 
                 {turns.map((turn) =>
                   turn.role === 'user' ? (
@@ -500,11 +513,14 @@ export default function ChatClient({
                 className="block max-h-[200px] w-full resize-none bg-transparent px-3.5 py-3 text-body leading-6 text-content-primary outline-none placeholder:text-content-muted"
               />
               <div className="flex items-center justify-between gap-3 px-3 pb-2.5">
-                <span className="inline-flex items-center gap-1.5 text-micro text-content-muted">
-                  <KeyHint keys={['Enter']} /> send
-                  <span className="mx-0.5 text-content-faint">·</span>
-                  <KeyHint keys={['Shift', 'Enter']} /> newline
-                </span>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 text-micro text-content-muted">
+                    <KeyHint keys={['Enter']} /> send
+                    <span className="mx-0.5 text-content-faint">·</span>
+                    <KeyHint keys={['Shift', 'Enter']} /> newline
+                  </span>
+                  <ThinkingEffortSelect value={effort} onChange={setEffort} compact />
+                </div>
                 <div className="flex items-center gap-2">
                   {activeTask && !isStreaming && (
                     <Button variant="ghost" size="sm" onClick={promoteToWork} className="inline-flex items-center gap-1.5">

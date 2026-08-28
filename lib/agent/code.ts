@@ -243,13 +243,15 @@ export class CodeTool {
     // launcher ships with python.org installs) then `python` — the bare
     // `python3` name resolves to the Microsoft Store stub there.
     const runner = process.platform === 'win32' ? 'py -3 || python' : 'python3';
+    // v1.23 fix (audit #9): the second chained command (`del`) ran OUTSIDE
+    // the rules gate — the snippet path never passed assertBoundaries — and
+    // `del` does not exist on POSIX, so temp files lingered forever. The
+    // interpreter runs through the SAME gated run(); cleanup is unconditional
+    // and in-process, so no shell command can escape the policy.
     try {
-      return await run(`${runner} ${file} & del ${file}`, this.workDir);
-    } catch (err) {
-      // Ensure cleanup even when the command itself is rejected upstream
-      // (denylist match happens inside run(); the temp file must not linger).
+      return await run(`${runner} ${file}`, this.workDir, this.rules);
+    } finally {
       try { fs.unlinkSync(abs); } catch { /* best effort */ }
-      throw err;
     }
   }
 }

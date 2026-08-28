@@ -42,6 +42,7 @@ import {
   buildModePreamble,
 } from './prompts';
 import { createToolContext, executeTool, schemasForRun } from './tools';
+import { authorizeToolCall } from './authority';
 import { normalizeThinkingEffort, thinkingLevel, thinkingDirective } from '../model/thinking';
 import { killSessionsForTask } from './terminal';
 import { registerRun } from './cancellation';
@@ -890,7 +891,15 @@ export async function runAgent({
   /** Fire lifecycle hooks for a point and persist their results. */
   const fireHooks = async (
     point: HookPoint,
-    extra: { toolName?: string; args?: Record<string, unknown>; observation?: string },
+    extra: {
+      toolName?: string;
+      args?: Record<string, unknown>;
+      observation?: string;
+      /** v1.23 (audit #2): the authority verdict for THIS call, so audit
+          hooks cite the rule that governed it instead of persisting null. */
+      permissionRuleIndex?: number;
+      permissionEffect?: string;
+    },
   ): Promise<void> => {
     const hookCtx: HookContext = {
       taskId,
@@ -1206,7 +1215,11 @@ export async function runAgent({
           await failRun(taskId, 'Out of credits during execution.');
           return;
         }
-        await fireHooks('pre_tool', { toolName: action.tool, args: action.args as Record<string, unknown> });
+        await fireHooks('pre_tool', {
+          toolName: action.tool,
+          args: action.args as Record<string, unknown>,
+          ...verdictCitation(action.tool, action.args as Record<string, unknown>, permissionRules),
+        });
         const obs = await safeExecute(taskId, action.tool, action.args, ctx);
         messages.push({ role: 'user', content: `Observation:\n${obs}` });
 
@@ -1336,7 +1349,11 @@ export async function runAgent({
             await failRun(taskId, 'Out of credits during execution.');
             return;
           }
-          await fireHooks('pre_tool', { toolName: call.name, args: args as Record<string, unknown> });
+          await fireHooks('pre_tool', {
+            toolName: call.name,
+            args: args as Record<string, unknown>,
+            ...verdictCitation(call.name, args as Record<string, unknown>, permissionRules),
+          });
         const obs = await safeExecute(taskId, call.name, args, ctx);
           messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
           iterationObservations.push(obs);
@@ -1534,6 +1551,30 @@ async function executeReadSilently(
       .slice(0, 500);
     console.error(`[agent] tool ${name} failed task=${taskId}:`, err);
     return `Error: ${message}`;
+  }
+}
+
+/**
+ * Recompute the authority verdict for a tool call so audit hooks can cite
+ * the exact rule that governed it (v1.23, audit #2 — the verdict already
+ * existed inside executeTool but never reached the hook context, so every
+ * persisted audit event carried null citations). authorizeToolCall is pure,
+ * so recomputing here is side-effect-free and cannot diverge from the gate
+ * that actually dispatched the call.
+ */
+function verdictCitation(
+  name: string,
+  args: Record<string, unknown>,
+  rules: readonly PermissionRule[],
+): { permissionRuleIndex?: number; permissionEffect?: string } {
+  try {
+    const verdict = authorizeToolCall(name, args, rules);
+    return {
+      permissionRuleIndex: verdict.ruleIndex,
+      permissionEffect: verdict.effect ?? verdict.decision,
+    };
+  } catch {
+    return {};
   }
 }
 
