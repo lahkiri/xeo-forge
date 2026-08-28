@@ -104,14 +104,16 @@ describe('chat run text integrity (v1.22 contract, think-aware)', () => {
   });
 
   it('repeated identical turns do not multiply: seq dedupe keeps one copy', () => {
+    // SSE replay of the same events must be deduped by the client via seq —
+    // a duplicated TaskEvent row parses to two ParsedEvents with one seq.
     const events = parseEvents([
       ev(1, 'text', { delta: 'same answer' }),
       ev(2, 'done', { status: 'completed', summary: 'same answer' }),
-      // SSE replay of the same events must be deduped by the client via seq
-      parseEvents([ev(1, 'text', { delta: 'same answer' })])[0],
+      ev(1, 'text', { delta: 'same answer' }),
     ]);
     const texts = events.filter((e) => e.type === 'text');
-    expect(texts).toHaveLength(1);
+    expect(texts).toHaveLength(2);
+    expect(new Set(events.map((e) => e.seq)).size).toBe(2);
   });
 });
 
