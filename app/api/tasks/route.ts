@@ -8,6 +8,7 @@ import { TASK_CREATE_COST } from '@/lib/credits/pricing';
 import { startAgentRun } from '@/lib/agent/runner';
 import { classifyWorkIntent } from '@/lib/agent/intent';
 import { normalizeAutonomyInput } from '@/lib/agent/permissions';
+import { THINKING_LEVELS, isThinkingEffort } from '@/lib/model/thinking';
 import { errorResponse } from '../_lib/respond';
 import { rateLimit, RATE_LIMITS } from '../_lib/ratelimit';
 
@@ -25,6 +26,8 @@ const CreateTaskSchema = z.object({
   providerModelId: z.string().uuid().nullable().optional(),
   /** Validated against the real level set below — not inside Zod, so the error names the valid levels. */
   autonomyLevel: z.string().max(20).optional(),
+  /** v1.23 thinking-effort level — validated against lib/model/thinking. */
+  thinkingEffort: z.string().max(20).optional(),
 });
 
 export async function GET() {
@@ -70,6 +73,12 @@ export async function POST(req: NextRequest) {
     if (!autonomy.ok) {
       return NextResponse.json({ error: autonomy.reason }, { status: 400 });
     }
+    if (parsed.data.thinkingEffort !== undefined && !isThinkingEffort(parsed.data.thinkingEffort)) {
+      return NextResponse.json(
+        { error: `Unknown thinking effort "${parsed.data.thinkingEffort}". Valid levels: ${THINKING_LEVELS.map((l) => l.id).join(', ')}.` },
+        { status: 400 },
+      );
+    }
 
     if (parsed.data.providerId || parsed.data.providerModelId) {
       if (!parsed.data.providerId || !parsed.data.providerModelId) {
@@ -109,6 +118,7 @@ export async function POST(req: NextRequest) {
       providerId: parsed.data.providerId,
       providerModelId: parsed.data.providerModelId,
       autonomyLevel: autonomy.level,
+      thinkingEffort: parsed.data.thinkingEffort ?? null,
       status: needsDecision ? 'awaiting_decision' : 'pending',
       intentKind: intent.kind,
       decisionState: needsDecision ? 'pending' : null,
@@ -173,6 +183,7 @@ export async function POST(req: NextRequest) {
       // The row is authoritative from here on: this value was just persisted
       // and every later run (approve/message) re-reads it from the row.
       autonomyLevel: autonomy.level,
+      thinkingEffort: parsed.data.thinkingEffort ?? null,
     });
 
     return NextResponse.json({ task }, { status: 201 });

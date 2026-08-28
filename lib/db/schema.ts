@@ -88,6 +88,7 @@ function ddl(kind: 'sqlite' | 'pg'): string[] {
       provider_id TEXT,
       provider_model_id TEXT,
       autonomy_level TEXT NOT NULL DEFAULT 'execute',
+      thinking_effort TEXT NOT NULL DEFAULT 'high',
       result_summary TEXT,
       credits_spent INTEGER NOT NULL DEFAULT 0,
       error TEXT,
@@ -344,6 +345,10 @@ const TASK_MODE_COLUMNS: Array<{ name: string; ddl: string }> = [
   {
     name: 'autonomy_level',
     ddl: `ADD COLUMN autonomy_level TEXT NOT NULL DEFAULT 'execute'`,
+  },
+  {
+    name: 'thinking_effort',
+    ddl: `ADD COLUMN thinking_effort TEXT NOT NULL DEFAULT 'high'`,
   },
 ];
 

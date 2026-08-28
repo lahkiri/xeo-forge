@@ -42,6 +42,7 @@ import {
   buildModePreamble,
 } from './prompts';
 import { createToolContext, executeTool, schemasForRun } from './tools';
+import { normalizeThinkingEffort, thinkingLevel, thinkingDirective } from '../model/thinking';
 import { killSessionsForTask } from './terminal';
 import { registerRun } from './cancellation';
 import { isArchive } from './uploads';
@@ -281,6 +282,12 @@ export interface RunAgentArgs {
   autonomyLevel?: string | null;
   /** Extra per-task permission rules layered on top of the level's set. */
   permissionOverrides?: readonly PermissionRule[];
+  /**
+   * v1.23 thinking-effort level ('minimal'…'ultra'). Routes pass the value
+   * stored on the task row; loop.ts normalizes. Governs the native
+   * reasoning_effort parameter AND the simulated discipline directive.
+   */
+  thinkingEffort?: string | null;
 }
 
 
@@ -293,6 +300,7 @@ export async function runAgent({
   approvedPlan,
   autonomyLevel: taskAutonomyLevel,
   permissionOverrides: taskPermissionOverrides,
+  thinkingEffort: taskThinkingEffort,
 }: RunAgentArgs): Promise<void> {
   const task = await getTaskById(taskId);
   const model = await resolveModel({
@@ -345,6 +353,10 @@ export async function runAgent({
    * direct callers that omit both run under the default 'execute'.
    */
   const autonomyLevel = normalizeAutonomyLevel(taskAutonomyLevel ?? task?.autonomy_level);
+  // v1.23 thinking effort: the task ROW is the truth (same contract as
+  // autonomy) — a follow-up run executes at the level the user saw.
+  const thinkingEffort = normalizeThinkingEffort(task?.thinking_effort ?? taskThinkingEffort);
+  const effortSpec = thinkingLevel(thinkingEffort);
   const permissionRules = effectiveRules(autonomyLevel, taskPermissionOverrides);
   const ctx = createToolContext(taskId, userId, mode, projectPath, permissionRules);
   // Structured domain events (git_status / git_commit) ride the same persisted
@@ -411,6 +423,20 @@ export async function runAgent({
 
   // Inject runtime context: detected language + engineering memory instructions.
   // This is ephemeral — appended to the in-memory prompt, not persisted.
+  // v1.23: the simulated half of the thinking-effort contract is injected the
+  // same way — a per-run system directive, visible in the thinking_level event.
+  const effortDirective = thinkingDirective(thinkingEffort);
+  if (effortDirective) {
+    systemPrompt += `\n\n${effortDirective}`;
+  }
+  await emitTaskEvent(taskId, 'thinking_level', {
+    level: effortSpec.id,
+    label: effortSpec.label,
+    kind: effortSpec.kind,
+    native_param: effortSpec.native,
+    simulated_passes: effortSpec.simulatePasses,
+    model: model.modelId,
+  });
   systemPrompt += `\n\nRUNTIME CONTEXT (this run only)
 - Detected user language: ${detectedLanguage}. ALL your explanatory text (plans, reports, summaries, verification results, final summary) MUST be in this language. Code, identifiers, filenames stay English.
 - During execution, RECORD in your memory (you will include these in your final summary):
@@ -984,11 +1010,15 @@ export async function runAgent({
         await runCompaction(usage.percentage);
       }
 
-      // Reasoning-effort control (v1.20): 'default' sends nothing — the
-      // provider uses its own default. Levels pass through for models that
-      // support the parameter; others ignore it server-side.
-      const reasoningEffortParam =
-        model.reasoningEffort && model.reasoningEffort !== 'default'
+      // Reasoning-effort control (v1.23): the TASK's thinking-effort level
+      // governs — its native value maps straight to the provider parameter
+      // (probed live 2026-08-28: accepted by every working model on the
+      // reference proxy). Levels with native:null send nothing, by contract.
+      // The model-level config remains a fallback only for legacy rows that
+      // somehow predate the column default.
+      const reasoningEffortParam = effortSpec.native
+        ? { reasoning_effort: effortSpec.native }
+        : model.reasoningEffort && model.reasoningEffort !== 'default'
           ? { reasoning_effort: model.reasoningEffort }
           : {};
       const baseParams = {
@@ -999,12 +1029,6 @@ export async function runAgent({
         max_tokens: model.maxTokens,
         stream: true as const,
       };
-      // Reasoning-effort control (v1.20): 'default' sends nothing — the
-      // provider uses its own default. Levels map straight through for
-      // models that support the parameter; others ignore it.
-      if (model.reasoningEffort && model.reasoningEffort !== 'default') {
-        baseParams.reasoning_effort = model.reasoningEffort;
-      }
       const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = useFallback
         ? baseParams
         : { ...baseParams, tools: toolSchemas, tool_choice: 'auto' };

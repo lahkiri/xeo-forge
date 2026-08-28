@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { requireUser, assertOwnerOrAdmin } from '@/lib/auth/guard';
-import { getTaskById, appendMessage, claimTaskForFollowUp, updateTaskStatus } from '@/lib/db/queries';
+import { getTaskById, appendMessage, claimTaskForFollowUp, updateTaskStatus, updateTaskThinkingEffort } from '@/lib/db/queries';
 import { startAgentRun } from '@/lib/agent/runner';
+import { THINKING_LEVELS, isThinkingEffort } from '@/lib/model/thinking';
 import { errorResponse } from '../../../_lib/respond';
 import { rateLimit, RATE_LIMITS } from '../../../_lib/ratelimit';
 
@@ -11,6 +12,8 @@ export const dynamic = 'force-dynamic';
 
 const MessageSchema = z.object({
   content: z.string().min(1).max(20000),
+  /** v1.23: optional thinking-effort change applied BEFORE the next run. */
+  thinkingEffort: z.string().max(20).optional(),
 });
 
 /**
@@ -59,6 +62,17 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     if (!parsed.success) {
       return NextResponse.json({ error: 'Message content is required.' }, { status: 400 });
     }
+    // v1.23: the level change is persisted BEFORE the claim so the claimed row
+    // (which the loop reads as the truth) already carries the chosen effort.
+    if (parsed.data.thinkingEffort !== undefined) {
+      if (!isThinkingEffort(parsed.data.thinkingEffort)) {
+        return NextResponse.json(
+          { error: `Unknown thinking effort "${parsed.data.thinkingEffort}". Valid levels: ${THINKING_LEVELS.map((l) => l.id).join(', ')}.` },
+          { status: 400 },
+        );
+      }
+      await updateTaskThinkingEffort(params.id, user.id, parsed.data.thinkingEffort);
+    }
 
     // Claim the task before appending the message. The conditional UPDATE is
     // the concurrency gate: exactly one request can transition a terminal or
@@ -93,6 +107,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       // Same authority as when the user created this task — a follow-up
       // message must not be able to smuggle in broader authority.
       autonomyLevel: claimed.autonomy_level,
+      thinkingEffort: claimed.thinking_effort,
     });
 
     return NextResponse.json({ ok: true }, { status: 200 });

@@ -184,6 +184,10 @@ export const AUTONOMY_RULES: Record<AutonomyLevel, PermissionRule[]> = {
     { action: 'edit', resource: '*', effect: 'deny', note: 'Read-only autonomy' },
     { action: 'shell', resource: '*', effect: 'deny', note: 'Read-only autonomy' },
     { action: 'git_mutation', resource: '*', effect: 'deny', note: 'Read-only autonomy' },
+    // web_search is a GET-shaped read of public pages — it mutates nothing,
+    // so unlike the network wildcard it is ROUTINE at every level. Listed
+    // before the wildcard so the specific rule wins (first-match).
+    { action: 'network', resource: 'web_search:*', effect: 'allow', note: 'Reads public pages; mutates nothing' },
     { action: 'network', resource: '*', effect: 'ask' },
     { action: 'subagent', resource: '*', effect: 'deny' },
     ...UNIVERSAL_DENIES,
@@ -194,6 +198,7 @@ export const AUTONOMY_RULES: Record<AutonomyLevel, PermissionRule[]> = {
     { action: 'edit', resource: '*', effect: 'ask' },
     { action: 'shell', resource: '*', effect: 'ask' },
     { action: 'git_mutation', resource: '*', effect: 'ask' },
+    { action: 'network', resource: 'web_search:*', effect: 'allow', note: 'Reads public pages; mutates nothing' },
     { action: 'network', resource: '*', effect: 'ask' },
     { action: 'subagent', resource: '*', effect: 'ask' },
     { action: 'skill', resource: '*', effect: 'allow' },

@@ -9,6 +9,7 @@
 import type OpenAI from 'openai';
 import type { PermissionRule } from './permissions';
 import { authorizeToolCall } from './authority';
+import { runWebSearch } from './web-search';
 import type { TaskMode } from '../types';
 import { z } from 'zod';
 import { FileTool } from './files';
@@ -58,12 +59,17 @@ export const WRITE_TOOLS = new Set(['file_write', 'file_edit', 'code_execute', '
 // stop; the streamed answer IS the deliverable (see CHAT_SYSTEM_PROMPT and
 // the loop's chat text-termination path). Offering it invited the model to
 // bury a fine prose answer inside a procedural summary.
-export const CHAT_TOOLS = new Set(['file_read', 'file_list', 'skill_view']);
+// v1.23 REDEFINITION: Chat is plain smart conversation (the ChatGPT/Claude
+// contract, per the owner's explicit directive) — it cannot touch the local
+// machine at all. Its only tool is web_search, so it stays USEFUL (current
+// info, docs lookups) while provably unable to read, write, or execute
+// anything local. Difference from Work is AUTHORITY, not intelligence.
+export const CHAT_TOOLS = new Set(['web_search']);
 // v1.20.1 (audit A1): todo_update / git_op / http_request removed from chat.
 // A greeting that mutates todos or hits the network is work wearing a chat
 // mask — it made the progress guard kill simple hellos with 'no measurable
 // progress'. Chat reads; Work acts.
-export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'todo_update', 'git_op', 'task_complete']);
+export const PLANNING_TOOLS = new Set(['file_read', 'file_list', 'skill_view', 'http_request', 'web_search', 'todo_update', 'git_op', 'task_complete']);
 
 export interface ToolContext {
   taskId: string;
@@ -250,6 +256,20 @@ export const TOOL_SCHEMAS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
+      name: 'web_search',
+      description: 'Search the public web and return the top results (title, URL, snippet). Use when the answer needs current information, external documentation, or facts you are not certain of. Read-only: it never posts, logs in, or mutates anything.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'The search query. Be specific; include the language of the expected results if it matters.' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'http_request',
       description: 'Make an HTTP request and return status + body (truncated).',
       parameters: {
@@ -405,6 +425,7 @@ const toolArgSchemas: Record<string, z.ZodTypeAny> = {
   file_edit: z.object({ path: z.string().min(1), old_string: z.string().min(1), new_string: z.string() }),
   file_list: z.object({ path: z.string().optional() }),
   skill_view: z.object({ path: z.string().min(1).max(500) }),
+  web_search: z.object({ query: z.string().min(1).max(400) }),
   code_execute: z.object({ language: z.enum(['bash', 'python']), code: z.string().min(1) }),
   http_request: z.object({
     method: z.string().min(1),
@@ -809,6 +830,8 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
     }
     case 'http_request':
       return clamp(await httpRequest(args, ctx.taskId));
+    case 'web_search':
+      return clamp(await runWebSearch(String(args.query)));
     case 'browser': {
       const action = String(args.action) as Parameters<typeof browserRequest>[0];
       const browserArgs = { url: args.url, selector: args.selector, text: args.text, confirmSensitive: args.confirmSensitive === true };

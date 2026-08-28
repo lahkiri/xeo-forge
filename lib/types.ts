@@ -84,6 +84,13 @@ export interface Task {
    * 'execute'; the string is validated by normalizeAutonomyInput upstream.
    */
   autonomy_level: string;
+  /**
+   * v1.23 thinking-effort level chosen per task ('minimal'…'ultra').
+   * Governs BOTH the native reasoning_effort parameter and the simulated
+   * discipline directive — see lib/model/thinking.ts for the honest
+   * native-vs-simulated classification. Column default 'high'.
+   */
+  thinking_effort: string;
   result_summary: string | null;
   credits_spent: number;
   error: string | null;

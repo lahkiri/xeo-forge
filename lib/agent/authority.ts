@@ -64,6 +64,12 @@ function classifyToolCall(name: string, args: Record<string, any>): { action: Pe
       return { action: 'shell', resource: `preview ${String(args?.action ?? '')}` };
     case 'http_request':
       return { action: 'network', resource: String(args?.url ?? '') };
+    case 'web_search':
+      // Keyed under the network action with a dedicated resource prefix so a
+      // per-level allow rule (`web_search:*`) can grant exactly this — a
+      // GET-shaped read of public pages — without opening the network
+      // wildcard (http_request stays gated).
+      return { action: 'network', resource: `web_search:${String(args?.query ?? '')}` };
     case 'git_op': {
       const op = String((args ?? {})?.op ?? '');
       if (!GIT_MUTATION_OPS.has(op)) return { action: 'read', resource: `git:${op}` };
