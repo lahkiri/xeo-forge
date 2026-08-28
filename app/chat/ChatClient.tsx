@@ -144,6 +144,93 @@ export default function ChatClient({
     [status, currentRunEvents, tick],
   );
 
+  /* ── Terminal transition: the answer must survive it ──
+     The streaming row only renders while isStreaming. When the run ends, the
+     streamed answer would vanish unless something pins it into `messages`.
+     The server already persisted the same prose (loop.ts chatTextBuffer →
+     appendMessage BEFORE the done event), so promoting the streamed text
+     locally keeps the UI identical to DB truth — no reload needed, no
+     duplicates (content-checked against the tail).
+
+     v1.23.1 live-probe note (p3): the streamed text changes SEGMENT when the
+     `done` event lands — splitRuns then reports it under the completed run,
+     not currentRunText. So the promotion reconstructs the just-ended run's
+     text the same way finalRunThinking does: (prevDone, lastDone] when the
+     run closed with a done event, otherwise the still-open current run (the
+     reconciliation poll adopted a terminal state without a done event).
+     promotedThroughSeq makes the effect idempotent per run. */
+  const promotedThroughSeqRef = useRef(0);
+  useEffect(() => {
+    if (isStreaming) return;
+    const evts = eventsRef.current;
+    if (evts.length === 0) return;
+    const endSeq = evts[evts.length - 1].seq;
+    if (endSeq <= promotedThroughSeqRef.current) return;
+    const last = evts[evts.length - 1];
+    let rawText = '';
+    if (last.type === 'done') {
+      const dones = evts.filter((e) => e.type === 'done').map((e) => e.seq);
+      const end = dones[dones.length - 1];
+      const start = dones.length > 1 ? dones[dones.length - 2] : 0;
+      rawText = evts
+        .filter((e) => e.seq > start && e.seq <= end && e.type === 'text')
+        .map((e) => (typeof e.data.delta === 'string' ? e.data.delta : ''))
+        .join('');
+    } else {
+      rawText = splitRuns(evts).currentRunText;
+    }
+    const streamed = separateThinkTags(rawText).answer.trim();
+    promotedThroughSeqRef.current = endSeq;
+    if (!streamed) return;
+    setMessages((prev) => {
+      const tail = prev[prev.length - 1];
+      if (tail && tail.role === 'assistant' && tail.content.trim() === streamed) return prev;
+      return [
+        ...prev,
+        {
+          id: Date.now(),
+          task_id: activeTask?.id ?? '',
+          role: 'assistant' as const,
+          content: streamed,
+          active: 1,
+          created_at: new Date().toISOString(),
+        },
+      ];
+    });
+    // Deliberately narrow: re-running on every events change would re-append
+    // mid-run text; this fires only on the streaming → terminal edge.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStreaming, activeTask?.id]);
+
+  /* ── Server truth sync ──
+     router.refresh() re-renders the server page and hands us fresh
+     initialMessages — but useState ignores new props, so the v1.22 comment
+     "refresh surfaces the persisted answer" was a false promise (live-probe
+     r1: SSE delivered done, status went terminal, refresh never re-initialized
+     state, the conversation stayed empty). Adopt server rows whenever they
+     are LONGER than local state — only-grow, so optimistic rows and promoted
+     answers can never be rewound by an in-flight refresh. */
+  useEffect(() => {
+    setMessages((prev) => (initialMessages.length > prev.length ? initialMessages : prev));
+  }, [initialMessages]);
+
+  /* ── First-message catch-up ──
+     The loop persists the opening goal row shortly AFTER the task is created,
+     so the very first navigation into a brand-new thread can render with an
+     empty message list (the race is seconds wide with reasoning models). One
+     bounded refresh picks up the goal row; the sync effect above adopts it. */
+  const didCatchUpRef = useRef(false);
+  useEffect(() => {
+    if (didCatchUpRef.current) return;
+    didCatchUpRef.current = true;
+    if (!activeTask || initialMessages.length > 0) return;
+    if (isTerminalTaskStatus(activeTask.status)) return;
+    const t = setTimeout(() => router.refresh(), 1500);
+    return () => clearTimeout(t);
+    // Mount-only by design: this heals the create→navigate race exactly once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /* ── Autoscroll, but never fight the user ── */
   const onScroll = () => {
     const el = scrollRef.current;
@@ -172,18 +259,20 @@ export default function ChatClient({
     if (event.type === 'done') {
       sawDoneRef.current = true;
       const summary = typeof event.data.summary === 'string' ? event.data.summary : '';
-      // The server persists the verbatim streamed answer in chat mode (loop.ts
-      // chatTextBuffer). If that streamed text is present and already CONTAINS
-      // the terse task_complete summary, appending it would duplicate a subset
-      // of what the user just read. Skip; reload shows the persisted prose.
-      // (Read through the ref mirror — the memoized closure would otherwise
-      // dedupe against a stale snapshot.)
-      const streamedNow = separateThinkTags(splitRuns(eventsRef.current).currentRunText).answer;
-      if (summary && streamedNow && streamedNow.includes(summary)) {
-        setStatus(typeof event.data.status === 'string' ? (event.data.status as TaskStatus) : status);
-        return;
-      }
-      if (summary) {
+      // v1.23.1 regression fix (live-probe r1/p1, 2026-08-28): the previous
+      // dedupe skipped appending whenever the summary was covered by the
+      // streamed text and relied on "reload shows the persisted prose" — but
+      // nothing ever scheduled that reload, and the streaming row is removed
+      // the moment the status turns terminal. The user watched the answer
+      // flash for half a second and vanish (reasoning models stream 20s+ of
+      // silent reasoning, then the answer in ~0.5s — exactly the reported
+      // symptom). Contract now: when THIS run streamed text, the promotion
+      // effect below owns visibility (it pins the same prose the DB holds);
+      // the summary is appended only when nothing streamed, in which case it
+      // IS what finalizeComplete persisted (persistedText falls back to the
+      // summary when no richer prose exists).
+      const streamedNow = separateThinkTags(splitRuns(eventsRef.current).currentRunText).answer.trim();
+      if (summary && !streamedNow) {
         setMessages((prev) => {
           const last = prev[prev.length - 1];
           if (last && last.role === 'assistant' && last.content === summary) return prev;
