@@ -174,7 +174,7 @@ export function separateThinkTags(raw: string): { reasoning: string; answer: str
     // the answer — a trailing blank line after extraction reads as a glitch.
     answer = answer.slice(0, openIdx).replace(/\s+$/, '');
   }
-  return { reasoning: reasoningParts.join('\n'), answer: answer.replace(/^\s+/, '') };
+  return { reasoning: reasoningParts.join('\n'), answer: answer.replace(/^\s+/, '').replace(/\s+$/, '') };
 }
 
 export interface BuildTimelineArgs {

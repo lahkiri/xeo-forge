@@ -289,8 +289,9 @@ describe('the read-only loop guard is reachable from both loop paths', () => {
 
   it('calls each shared helper from the fallback, native, and parallel paths', () => {
     const count = (needle: string) => loopSource.split(needle).length - 1;
-    // recordToolEvidence: fallback + native sequential + native parallel batch.
-    expect(count('await recordToolEvidence(')).toBe(3);
+    // recordToolEvidence: fallback + native sequential + native parallel batch
+    // + the v1.23 delegate_research interception.
+    expect(count('await recordToolEvidence(')).toBe(4);
     // checkReadOnlyLoop runs once per iteration for BOTH native paths
     // (sequential and parallel share the post-loop call) plus the fallback.
     expect(count('await checkReadOnlyLoop()')).toBe(2);
@@ -652,7 +653,7 @@ describe('the repetition defect (first real Opus-5 run)', () => {
     // The loop has always emitted reasoning events; no component rendered
     // them. Both surfaces must mount ThinkingBlock from the live run events.
     expect(fs.readFileSync(path.resolve(__dirname, '../components/ThinkingBlock.tsx'), 'utf8')).toContain('reasoningTextOf');
-    expect(chatSource).toMatch(/<ThinkingBlock text=\{liveThinking\} live/);
+    expect(chatSource).toMatch(/<ThinkingBlock text=\{shownThinking\} live/);
     expect(workSource).toMatch(/<ThinkingBlock text=\{liveThinking\} live/);
   });
 });
