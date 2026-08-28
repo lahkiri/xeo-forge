@@ -19,6 +19,7 @@ import type { TaskEvent } from '../lib/types';
 
 function ev(seq: number, type: string, data: Record<string, unknown>): TaskEvent {
   return {
+    id: seq,
     seq,
     type,
     content: JSON.stringify(data),

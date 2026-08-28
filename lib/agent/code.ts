@@ -214,6 +214,8 @@ export class CodeTool {
    * when present, a shell decision here is the SAME decision the UI showed.
    */
   private rules?: readonly PermissionRule[];
+  /** v1.23 sandbox tier: docker wraps execution commands; standard/strict pass through. */
+  private sandbox: { mode: SandboxMode; dockerAvailable: boolean };
 
   constructor(
     taskId: string,

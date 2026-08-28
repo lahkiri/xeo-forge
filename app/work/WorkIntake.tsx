@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { AgentProfile, AgentSkill } from '@/lib/types';
 import { AUTONOMY_LEVELS, describeAutonomy, type AutonomyLevel } from '@/lib/agent/permissions';
+import { ThinkingEffortSelect } from '@/components/ThinkingEffortSelect';
+import { SANDBOX_MODES as SANDBOX_SPECS, type SandboxMode } from '@/lib/agent/sandbox';
+import type { ThinkingEffort } from '@/lib/model/thinking';
 import {
   Alert,
   Button,
