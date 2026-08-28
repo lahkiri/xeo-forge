@@ -7,6 +7,7 @@ import type { AgentProfile, AgentSkill, ProviderCatalog } from '@/lib/types';
 import { AUTONOMY_LEVELS, describeAutonomy, type AutonomyLevel } from '@/lib/agent/permissions';
 import { ThinkingEffortSelect } from '@/components/ThinkingEffortSelect';
 import type { ThinkingEffort } from '@/lib/model/thinking';
+import { SANDBOX_MODES as SANDBOX_SPECS, type SandboxMode } from '@/lib/agent/sandbox';
 import { Alert, Button, KeyHint, Select, StatusBadge, cx, useModKey } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
 import { ThemeToggle } from '@/components/Theme';
@@ -87,7 +88,23 @@ export default function UnifiedWorkspace({
   // v1.23: thinking effort is available on BOTH surfaces from the shell —
   // chat tasks get it in the create body; work tasks set it in the context grid.
   const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort>('high');
+  // v1.23 sandbox tier (Work only — chat has no execution tools to isolate).
+  const [sandboxMode, setSandboxMode] = useState<SandboxMode>('standard');
+  const [dockerStatus, setDockerStatus] = useState<{ available: boolean; detail: string; version?: string } | null>(null);
   const autonomyCopy = describeAutonomy(autonomyLevel);
+  useEffect(() => {
+    if (mode !== 'work' || dockerStatus) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/sandbox', { cache: 'no-store' });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!cancelled && body?.docker) setDockerStatus(body.docker);
+      } catch { /* offline: tier stays selectable, docker checked again at run time */ }
+    })();
+    return () => { cancelled = true; };
+  }, [mode, dockerStatus]);
 
   const selectedProvider = providerCatalog.providers.find((provider) => provider.id === providerId && provider.enabled);
   const selectedModel = selectedProvider?.models.find((model) => model.id === providerModelId && model.enabled);
@@ -244,7 +261,7 @@ export default function UnifiedWorkspace({
           goal: text,
           mode: isWork ? 'planning' : 'chat',
           surface: isWork ? 'work' : 'chat',
-          ...(isWork ? { projectPath, profileId: profileId || null, skillId: skillId || null, autonomyLevel, thinkingEffort } : { thinkingEffort }),
+          ...(isWork ? { projectPath, profileId: profileId || null, skillId: skillId || null, autonomyLevel, thinkingEffort, sandboxMode } : { thinkingEffort }),
           ...(providerId && providerModelId ? { providerId, providerModelId } : {}),
         }),
       });
@@ -409,6 +426,7 @@ export default function UnifiedWorkspace({
                   <div className="codex-context-field"><span className="codex-field-index">03</span><Select label="Workflow" value={skillId} onChange={(event) => setSkillId(event.target.value)}><option value="">No workflow</option>{skills.map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}</Select></div>
                   <div className="codex-context-field" title={autonomyCopy.detail}><span className="codex-field-index">04</span><span className="min-w-0 flex-1"><Select label="Authority" value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as AutonomyLevel)}>{AUTONOMY_LEVELS.map((level) => { const copy = describeAutonomy(level); return <option key={level} value={level}>{copy.title}</option>; })}</Select></span></div>
                   <div className="codex-context-field"><span className="codex-field-index">05</span><span className="min-w-0 flex-1"><ThinkingEffortSelect value={thinkingEffort} onChange={setThinkingEffort} label="Thinking" /></span></div>
+                  <div className="codex-context-field" title={SANDBOX_SPECS.find((s) => s.id === sandboxMode)?.describe}><span className="codex-field-index">06</span><span className="min-w-0 flex-1"><Select label="Sandbox" value={sandboxMode} onChange={(event) => setSandboxMode(event.target.value as SandboxMode)}>{SANDBOX_SPECS.map((spec) => <option key={spec.id} value={spec.id}>{spec.label}</option>)}</Select></span>{sandboxMode === 'docker' && <span className={cx('codex-model-dot', dockerStatus ? (dockerStatus.available ? 'is-ok' : 'is-warn') : 'is-warn')} title={dockerStatus?.detail ?? 'Checking Docker…'} aria-hidden="true" />}</div>
                 </div>
                 <div className="codex-context-footer"><span>{autonomyCopy.detail} It will still never write or run before you approve the plan{autonomyLevel === 'execute' ? ' — and git push or publishing stops for you.' : '.'}</span><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach context" /></div>
                 {staged.length > 0 && <div className="codex-context-files">{staged.map((file, index) => <span key={`${file.name}-${index}`}>{file.name}<button type="button" aria-label={`Remove ${file.name}`} onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}><IconX size={11} /></button></span>)}</div>}

@@ -59,6 +59,8 @@ export default function WorkIntake({
   const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('execute');
   // v1.23 thinking effort — chosen beside authority, stored on the task row.
   const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort>('high');
+  // v1.23 sandbox tier — honest isolation choice, stored on the task row.
+  const [sandboxMode, setSandboxMode] = useState<SandboxMode>('standard');
   const [staged, setStaged] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -129,6 +131,7 @@ export default function WorkIntake({
           skillId: skillId || null,
           autonomyLevel,
           thinkingEffort,
+          sandboxMode,
         }),
       });
       const data = await res.json();
@@ -321,6 +324,16 @@ export default function WorkIntake({
                 ))}
               </Select>
               <ThinkingEffortSelect value={thinkingEffort} onChange={setThinkingEffort} id="work-thinking-effort" />
+              <Select
+                label="Sandbox"
+                hint={SANDBOX_SPECS.find((s) => s.id === sandboxMode)?.describe}
+                value={sandboxMode}
+                onChange={(e) => setSandboxMode(e.target.value as SandboxMode)}
+              >
+                {SANDBOX_SPECS.map((spec) => (
+                  <option key={spec.id} value={spec.id}>{spec.label}</option>
+                ))}
+              </Select>
             </div>
 
             <div className="mt-4 border-t border-line-subtle pt-3">

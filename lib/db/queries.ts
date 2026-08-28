@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { db } from './index';
 import { isAutonomyLevel } from '../agent/permissions';
 import { DEFAULT_THINKING_EFFORT, isThinkingEffort } from '../model/thinking';
+import { DEFAULT_SANDBOX_MODE, isSandboxMode } from '../agent/sandbox';
 import type {
   User,
   Task,
@@ -164,6 +165,8 @@ export async function createTask(input: {
   autonomyLevel?: string | null;
   /** Validated upstream via normalizeThinkingEffort; stored verbatim when valid. */
   thinkingEffort?: string | null;
+  /** Validated upstream via normalizeSandboxMode; stored verbatim when valid. */
+  sandboxMode?: string | null;
   status?: TaskStatus;
   intentKind?: TaskIntentKind | null;
   decisionState?: DecisionState;
@@ -189,8 +192,8 @@ export async function createTask(input: {
   }
   await db
     .prepare(
-      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, intent_kind, decision_state, decision_expires_at, plan_version, profile_id, skill_id, provider_id, provider_model_id, autonomy_level, thinking_effort, credits_spent, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, intent_kind, decision_state, decision_expires_at, plan_version, profile_id, skill_id, provider_id, provider_model_id, autonomy_level, thinking_effort, sandbox_mode, credits_spent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     )
     .run(
       id,
@@ -208,6 +211,7 @@ export async function createTask(input: {
       input.providerModelId ?? null,
       isAutonomyLevel(input.autonomyLevel) ? input.autonomyLevel : 'execute',
       isThinkingEffort(input.thinkingEffort) ? input.thinkingEffort : DEFAULT_THINKING_EFFORT,
+      isSandboxMode(input.sandboxMode) ? input.sandboxMode : DEFAULT_SANDBOX_MODE,
       ts,
       ts,
     );

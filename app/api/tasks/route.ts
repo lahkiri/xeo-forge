@@ -9,6 +9,7 @@ import { startAgentRun } from '@/lib/agent/runner';
 import { classifyWorkIntent } from '@/lib/agent/intent';
 import { normalizeAutonomyInput } from '@/lib/agent/permissions';
 import { THINKING_LEVELS, isThinkingEffort } from '@/lib/model/thinking';
+import { SANDBOX_MODES, isSandboxMode } from '@/lib/agent/sandbox';
 import { errorResponse } from '../_lib/respond';
 import { rateLimit, RATE_LIMITS } from '../_lib/ratelimit';
 
@@ -28,6 +29,8 @@ const CreateTaskSchema = z.object({
   autonomyLevel: z.string().max(20).optional(),
   /** v1.23 thinking-effort level — validated against lib/model/thinking. */
   thinkingEffort: z.string().max(20).optional(),
+  /** v1.23 sandbox tier — validated against lib/agent/sandbox. */
+  sandboxMode: z.string().max(20).optional(),
 });
 
 export async function GET() {
@@ -79,6 +82,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    if (parsed.data.sandboxMode !== undefined && !isSandboxMode(parsed.data.sandboxMode)) {
+      return NextResponse.json(
+        { error: `Unknown sandbox mode "${parsed.data.sandboxMode}". Valid modes: ${SANDBOX_MODES.map((m) => m.id).join(', ')}.` },
+        { status: 400 },
+      );
+    }
 
     if (parsed.data.providerId || parsed.data.providerModelId) {
       if (!parsed.data.providerId || !parsed.data.providerModelId) {
@@ -119,6 +128,7 @@ export async function POST(req: NextRequest) {
       providerModelId: parsed.data.providerModelId,
       autonomyLevel: autonomy.level,
       thinkingEffort: parsed.data.thinkingEffort ?? null,
+      sandboxMode: parsed.data.sandboxMode ?? null,
       status: needsDecision ? 'awaiting_decision' : 'pending',
       intentKind: intent.kind,
       decisionState: needsDecision ? 'pending' : null,

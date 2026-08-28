@@ -91,6 +91,13 @@ export interface Task {
    * native-vs-simulated classification. Column default 'high'.
    */
   thinking_effort: string;
+  /**
+   * v1.23 sandbox tier ('standard'|'strict'|'docker'). Honest isolation
+   * labeling lives in lib/agent/sandbox.ts; docker wraps execution commands
+   * in a real container, strict adds deny-rule data, standard states plainly
+   * that there is no OS-level isolation.
+   */
+  sandbox_mode: string;
   result_summary: string | null;
   credits_spent: number;
   error: string | null;

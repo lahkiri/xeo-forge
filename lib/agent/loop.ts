@@ -43,6 +43,8 @@ import {
 } from './prompts';
 import { createToolContext, executeTool, schemasForRun } from './tools';
 import { authorizeToolCall } from './authority';
+import { runDelegatedResearch, normalizeDelegation } from './subagents';
+import { normalizeSandboxMode, strictSandboxRules, detectDocker } from './sandbox';
 import { normalizeThinkingEffort, thinkingLevel, thinkingDirective } from '../model/thinking';
 import { killSessionsForTask } from './terminal';
 import { registerRun } from './cancellation';
@@ -358,8 +360,18 @@ export async function runAgent({
   // autonomy) — a follow-up run executes at the level the user saw.
   const thinkingEffort = normalizeThinkingEffort(task?.thinking_effort ?? taskThinkingEffort);
   const effortSpec = thinkingLevel(thinkingEffort);
-  const permissionRules = effectiveRules(autonomyLevel, taskPermissionOverrides);
-  const ctx = createToolContext(taskId, userId, mode, projectPath, permissionRules);
+  // v1.23 sandbox tier: row-first, same contract. STRICT appends its deny
+  // rules as DATA in front of the level's set (first-match wins), so a
+  // strict task denies network/process tools even at execute authority —
+  // governance inheritance, not a parallel policy path.
+  const sandboxMode = normalizeSandboxMode(task?.sandbox_mode);
+  const permissionRules =
+    sandboxMode === 'strict'
+      ? [...strictSandboxRules(), ...effectiveRules(autonomyLevel, taskPermissionOverrides)]
+      : effectiveRules(autonomyLevel, taskPermissionOverrides);
+  // Docker tier needs ONE real detection per run — never an assumption.
+  const dockerAvailable = sandboxMode === 'docker' ? (await detectDocker()).available : false;
+  const ctx = createToolContext(taskId, userId, mode, projectPath, permissionRules, { mode: sandboxMode, dockerAvailable });
   // Structured domain events (git_status / git_commit) ride the same persisted
   // seq-ordered path as every other task event. The sink is an observation
   // channel: capability modules may report, never decide.
@@ -1341,6 +1353,56 @@ export async function runAgent({
             const obs = await handleTodoUpdate(items);
             messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
             iterationObservations.push(obs);
+            continue;
+          }
+          if (call.name === 'delegate_research') {
+            // v1.23 subagent delegation — intercepted here (not in
+            // executeTool) because it needs the model client. The authority
+            // gate runs HERE, explicitly, against the parent's rule set: the
+            // per-level `subagent` rules decide (denied at read_only, asked
+            // at assist, allowed from execute up). Deny/ask fails closed
+            // with the rule citation, exactly like any other tool.
+            const verdict = authorizeToolCall(call.name, args, permissionRules);
+            await emitTaskEvent(taskId, 'tool_call', { name: call.name, args });
+            if (verdict.decision === 'deny') {
+              const obs = `Error: ${verdict.message}`;
+              await emitTaskEvent(taskId, 'tool_result', { name: call.name, ok: false, error: verdict.message });
+              messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
+              iterationObservations.push(obs);
+              continue;
+            }
+            const ok = await debitForTool();
+            if (!ok) {
+              await failRun(taskId, 'Out of credits during execution.');
+              return;
+            }
+            await fireHooks('pre_tool', {
+              toolName: call.name,
+              args: args as Record<string, unknown>,
+              ...verdictCitation(call.name, args as Record<string, unknown>, permissionRules),
+            });
+            let obs: string;
+            try {
+              const delegation = normalizeDelegation(args);
+              obs = await runDelegatedResearch({
+                client,
+                modelId: model.modelId,
+                objective: delegation.objective,
+                prompts: delegation.prompts,
+                ctx,
+                abortSignal: runAbort.signal,
+              });
+            } catch (err: any) {
+              obs = `Error: ${String(err?.message ?? err).slice(0, 400)}`;
+            }
+            await emitTaskEvent(taskId, 'tool_result', {
+              name: call.name,
+              ok: !obs.startsWith('Error:'),
+              result: obs.slice(0, 400),
+            });
+            messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
+            iterationObservations.push(obs);
+            await recordToolEvidence(call.name, args, obs);
             continue;
           }
           await emitTaskEvent(taskId, 'tool_call', { name: call.name, args });

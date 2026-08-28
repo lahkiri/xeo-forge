@@ -70,6 +70,11 @@ function classifyToolCall(name: string, args: Record<string, any>): { action: Pe
       // GET-shaped read of public pages — without opening the network
       // wildcard (http_request stays gated).
       return { action: 'network', resource: `web_search:${String(args?.query ?? '')}` };
+    case 'delegate_research':
+      // Subagent delegation answers to the per-level `subagent` rules that
+      // already exist in AUTONOMY_RULES (denied at read_only, asked at
+      // assist, allowed from execute up) — no parallel policy path.
+      return { action: 'subagent', resource: String(args?.objective ?? '') };
     case 'git_op': {
       const op = String((args ?? {})?.op ?? '');
       if (!GIT_MUTATION_OPS.has(op)) return { action: 'read', resource: `git:${op}` };
