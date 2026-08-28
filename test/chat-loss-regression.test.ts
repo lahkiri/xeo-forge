@@ -11,8 +11,10 @@
  *   L1 loop.ts     — chatTextBuffer accumulates chat deltas and is passed to
  *                    finalizeComplete as chatProse on EVERY termination path.
  *   L2 prompts.ts  — chat has its own CHAT_SYSTEM_PROMPT (no task_complete theater).
- *   L3 ChatClient  — done handler skips appending a summary that is contained
- *                    in the text the user just watched stream.
+ *   L3 ChatClient  — the streamed answer survives the terminal transition:
+ *                    summary appended only when nothing streamed; a promotion
+ *                    effect pins streamed prose into messages; server truth
+ *                    sync adopts longer initialMessages after refresh.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -61,18 +63,47 @@ describe('L2 prompts: chat speaks its own contract', () => {
   });
 });
 
-describe('L3 client: no duplicate terse bubble after streamed prose', () => {
-  it('done handler skips a summary contained in the just-streamed text', () => {
-    const client = readSrc('app/chat/ChatClient.tsx');
-    expect(client).toMatch(/streamedNow\.includes\(summary\)/);
+describe('L3 client: the streamed answer survives the terminal transition', () => {
+  // v1.23.1 regression (live-probe r1/p1, 2026-08-28): the old L3 pinned a
+  // dedupe that SKIPPED appending whenever the done-summary was contained in
+  // the streamed text, relying on a reload that nothing ever scheduled. With
+  // v1.23's chat finalize (summary == full prose) this deleted the answer from
+  // the UI the instant the status went terminal: the user saw the reply flash
+  // for ~0.5s and vanish. The contract below pins the corrected behavior.
+  const client = readSrc('app/chat/ChatClient.tsx');
+
+  it('done handler appends the summary ONLY when the run streamed no text', () => {
+    // Nothing streamed → the summary IS what finalizeComplete persisted.
+    expect(client).toMatch(/if \(summary && !streamedNow\) \{/);
   });
 
-  it('still appends summaries for normal cases (guard is containment-only)', () => {
-    const client = readSrc('app/chat/ChatClient.tsx');
-    // The original append path must remain after the guard.
-    const iGuard = client.indexOf("streamedNow.includes(summary)");
-    const iAppend = client.indexOf("setMessages((prev) => {", iGuard);
-    expect(iGuard).toBeGreaterThan(-1);
-    expect(iAppend).toBeGreaterThan(iGuard);
+  it('the old containment-skip that vanished the answer is gone', () => {
+    expect(client).not.toMatch(/streamedNow\.includes\(summary\)/);
+  });
+
+  it('a promotion effect pins the streamed answer into messages on the streaming→terminal edge', () => {
+    expect(client).toMatch(/Terminal transition: the answer must survive it/);
+    // Reconstructs the just-ended run's segment (done-closed or poll-adopted),
+    // because splitRuns moves the streamed text out of currentRunText the
+    // moment the done event lands in the events state.
+    expect(client).toMatch(
+      /if \(last\.type === 'done'\) \{[\s\S]*?rawText = evts[\s\S]*?\.join\(''\);/,
+    );
+    expect(client).toMatch(/promotedThroughSeqRef\.current = endSeq;/);
+    // Idempotent: content-checked against the tail, never double-appended.
+    expect(client).toMatch(/tail\.content\.trim\(\) === streamed\) return prev;/);
+  });
+
+  it('server truth sync adopts longer initialMessages after router.refresh()', () => {
+    // useState ignores new props — without this effect the v1.22 comment
+    // "refresh surfaces the persisted answer" was a false promise.
+    expect(client).toMatch(
+      /initialMessages\.length > prev\.length \? initialMessages : prev/,
+    );
+  });
+
+  it('a brand-new thread mounts with one bounded catch-up refresh for the goal row', () => {
+    expect(client).toMatch(/didCatchUpRef/);
+    expect(client).toMatch(/setTimeout\(\(\) => router\.refresh\(\), 1500\)/);
   });
 });
