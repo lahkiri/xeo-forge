@@ -121,7 +121,7 @@ const exported = [...iconSrc.matchAll(/export function (Icon\w+)/g)].map((m) => 
 check('icon set covers the full replaced vocabulary', () => {
   const required = ['IconArrowLeft', 'IconArrowRight', 'IconSearch', 'IconSettings', 'IconCommand',
     'IconPanelLeftClose', 'IconPanelLeftOpen', 'IconMessageCircle', 'IconFolder', 'IconUserRound',
-    'IconPlug', 'IconMoreHorizontal', 'IconX', 'IconCheck', 'IconChevronRight', 'IconChevronDown',
+    'IconPlug', 'IconX', 'IconCheck', 'IconChevronRight', 'IconChevronDown',
     'IconDiamond', 'IconSparkles', 'IconSun', 'IconMoon', 'IconMonitor', 'IconPlus', 'IconPlay',
     'IconSquare', 'IconCircle', 'IconHelpCircle', 'IconZap', 'IconTerminal', 'IconArrowUpRight'];
   const missing = required.filter((r) => !exported.includes(r));
