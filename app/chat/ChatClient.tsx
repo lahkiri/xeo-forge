@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { Message, Task, TaskEvent, TaskStatus } from '@/lib/types';
-import { parseEvents, splitRuns, type ParsedEvent } from '@/lib/agent/timeline';
+import { parseEvents, splitRuns, separateThinkTags, type ParsedEvent } from '@/lib/agent/timeline';
 import { deriveChatRuntime, formatElapsed, isTerminalTaskStatus } from '@/lib/agent/runtime-state';
 import { eventTypesFor } from '@/lib/agent/events';
 import { RuntimeBanner } from '@/components/AgentPrimitives';
@@ -20,6 +20,8 @@ import {
 } from '@/components/ui';
 import { renderMarkdown } from '@/lib/markdown';
 import { ThinkingBlock, reasoningTextOf } from '@/components/ThinkingBlock';
+import { ThinkingEffortSelect, ThinkingAbsenceNote } from '@/components/ThinkingEffortSelect';
+import { thinkingLevel, type ThinkingEffort } from '@/lib/model/thinking';
 import {
   IconArrowLeft,
   IconArrowRight,
@@ -71,6 +73,10 @@ export default function ChatClient({
   const [events, setEvents] = useState<ParsedEvent[]>(() => parseEvents(initialEvents));
   const [status, setStatus] = useState(activeTask?.status ?? 'completed');
   const [error, setError] = useState('');
+  // v1.23 thinking effort: initialized from the task row, changeable per turn.
+  const [effort, setEffort] = useState<ThinkingEffort>(
+    thinkingLevel(activeTask?.thinking_effort).id,
+  );
 
   const seenSeq = useRef<Set<number>>(new Set(initialEvents.map((e) => e.seq)));
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -79,9 +85,39 @@ export default function ChatClient({
 
   const isStreaming = status === 'running' || status === 'pending';
   const { currentRunEvents, currentRunText } = useMemo(() => splitRuns(events), [events]);
-  // Reasoning models stream thinking tokens before the answer; show them as
-  // a collapsible block so the capability is visible without hijacking the chat.
-  const liveThinking = useMemo(() => reasoningTextOf(currentRunEvents), [currentRunEvents]);
+  // Reasoning reaches the UI through TWO channels: `reasoning` events (models
+  // with a native reasoning_content stream) and inline <think>…</think> tags
+  // inside text deltas (DeepSeek-R1-style gateways — the server strips them
+  // from the persisted answer, the client mirrors that here for the live
+  // view). Both merge into one collapsible thinking surface; the answer text
+  // stays clean either way.
+  const { reasoning: taggedThinking, answer: runAnswer } = useMemo(
+    () => separateThinkTags(currentRunText),
+    [currentRunText],
+  );
+  const liveThinking = useMemo(
+    () => [reasoningTextOf(currentRunEvents), taggedThinking].filter(Boolean).join('\n'),
+    [currentRunEvents, taggedThinking],
+  );
+  // After a run completes, the thinking must not vanish — reconstruct the
+  // last completed run's reasoning from persisted events so the user can
+  // still open "Thought process" above the final answer.
+  const finalRunThinking = useMemo(() => {
+    if (isStreaming) return '';
+    const dones = events.filter((e) => e.type === 'done').map((e) => e.seq);
+    if (dones.length === 0) return '';
+    const end = dones[dones.length - 1];
+    const start = dones.length > 1 ? dones[dones.length - 2] : 0;
+    const runEvents = events.filter((e) => e.seq > start && e.seq <= end);
+    const rawText = runEvents
+      .filter((e) => e.type === 'text')
+      .map((e) => (typeof e.data.delta === 'string' ? e.data.delta : ''))
+      .join('');
+    return [reasoningTextOf(runEvents), separateThinkTags(rawText).reasoning]
+      .filter(Boolean)
+      .join('\n');
+  }, [events, isStreaming]);
+  const shownThinking = isStreaming ? liveThinking : finalRunThinking;
 
   // v1.22 hang fix: the composer used to lock forever when a `done` event was
   // never delivered (dead EventSource, provider crash without an error event,
@@ -117,7 +153,7 @@ export default function ChatClient({
 
   useEffect(() => {
     if (pinnedRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, currentRunText]);
+  }, [messages, runAnswer]);
 
   /* ── Composer autosize ── */
   useEffect(() => {
@@ -142,7 +178,7 @@ export default function ChatClient({
       // of what the user just read. Skip; reload shows the persisted prose.
       // (Read through the ref mirror — the memoized closure would otherwise
       // dedupe against a stale snapshot.)
-      const streamedNow = splitRuns(eventsRef.current).currentRunText;
+      const streamedNow = separateThinkTags(splitRuns(eventsRef.current).currentRunText).answer;
       if (summary && streamedNow && streamedNow.includes(summary)) {
         setStatus(typeof event.data.status === 'string' ? (event.data.status as TaskStatus) : status);
         return;
@@ -261,7 +297,7 @@ export default function ChatClient({
         const res = await fetch('/api/tasks', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ goal: text, mode: 'chat', surface: 'chat' }),
+          body: JSON.stringify({ goal: text, mode: 'chat', surface: 'chat', thinkingEffort: effort }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -276,7 +312,7 @@ export default function ChatClient({
       const res = await fetch(`/api/tasks/${activeTask.id}/messages`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ content: text }),
+        body: JSON.stringify({ content: text, thinkingEffort: effort }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -336,11 +372,17 @@ export default function ChatClient({
       role: m.role,
       content: m.content.replace(/^<user_task>\n?/, '').replace(/\n?<\/user_task>$/, '').replace(/^Task:\n/, ''),
     }));
-    if (isStreaming && currentRunText) {
-      rows.push({ key: 'streaming', role: 'assistant' as const, content: currentRunText });
+    if (isStreaming && runAnswer) {
+      rows.push({ key: 'streaming', role: 'assistant' as const, content: runAnswer });
     }
     return rows;
-  }, [messages, isStreaming, currentRunText]);
+  }, [messages, isStreaming, runAnswer]);
+
+  const effortSpec = thinkingLevel(effort);
+  // Honest absence: a level above minimal promises VISIBLE reasoning. When a
+  // completed run delivered none, say so instead of implying it was hidden.
+  const showAbsenceNote =
+    !isStreaming && effortSpec.id !== 'minimal' && turns.length > 0 && !shownThinking;
 
   return (
     <div className="flex h-full min-h-0">
@@ -405,27 +447,28 @@ export default function ChatClient({
                 </div>
               </div>
             ) : (
-              <div className="space-y-5">{isStreaming && liveThinking && (
-                  <ThinkingBlock text={liveThinking} live />
-                )}
+              <div className="space-y-5">
+                {shownThinking && <ThinkingBlock text={shownThinking} live={isStreaming} levelLabel={effortSpec.label} />}
+                {showAbsenceNote && <ThinkingAbsenceNote levelLabel={effortSpec.label} />}
 
                 {turns.map((turn) =>
                   turn.role === 'user' ? (
                     <div key={turn.key} className="flex justify-end">
-                      <div className="max-w-[85%] rounded-modal rounded-br-md bg-signal-run/1 px-3.5 py-2.5 text-body leading-6 text-cyan-50">
+                      <div dir="auto" className="max-w-[85%] rounded-modal rounded-br-md bg-signal-run/1 px-3.5 py-2.5 text-body leading-6 text-cyan-50">
                         <p className="whitespace-pre-wrap">{turn.content}</p>
                       </div>
                     </div>
                   ) : (
                     <div key={turn.key} className="flex justify-start">
                       <div
+                        dir="auto"
                         className="markdown-content max-w-[92%] text-body leading-6 text-content-secondary"
                         dangerouslySetInnerHTML={{ __html: renderMarkdown(turn.content) }}
                       />
                     </div>
                   ),
                 )}
-                {isStreaming && !currentRunText && (
+                {isStreaming && !runAnswer && (
                   <RuntimeBanner
                     label={runtime.label}
                     detail={runtime.detail}
@@ -470,11 +513,14 @@ export default function ChatClient({
                 className="block max-h-[200px] w-full resize-none bg-transparent px-3.5 py-3 text-body leading-6 text-content-primary outline-none placeholder:text-content-muted"
               />
               <div className="flex items-center justify-between gap-3 px-3 pb-2.5">
-                <span className="inline-flex items-center gap-1.5 text-micro text-content-muted">
-                  <KeyHint keys={['Enter']} /> send
-                  <span className="mx-0.5 text-content-faint">·</span>
-                  <KeyHint keys={['Shift', 'Enter']} /> newline
-                </span>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex items-center gap-1.5 text-micro text-content-muted">
+                    <KeyHint keys={['Enter']} /> send
+                    <span className="mx-0.5 text-content-faint">·</span>
+                    <KeyHint keys={['Shift', 'Enter']} /> newline
+                  </span>
+                  <ThinkingEffortSelect value={effort} onChange={setEffort} compact />
+                </div>
                 <div className="flex items-center gap-2">
                   {activeTask && !isStreaming && (
                     <Button variant="ghost" size="sm" onClick={promoteToWork} className="inline-flex items-center gap-1.5">

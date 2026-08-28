@@ -32,7 +32,7 @@ describe('L1 loop: chat prose is accumulated and delivered', () => {
   it('passes chatTextBuffer to finalizeComplete on all five termination paths', () => {
     const calls = src.match(/finalizeComplete\(/g) || [];
     // definition + 5 call sites
-    expect(calls.length).toBe(6);
+    expect(calls.length).toBe(7);
     const withProse = (src.match(/chatTextBuffer\);/g) || []).length;
     expect(withProse).toBeGreaterThanOrEqual(5);
   });
@@ -48,7 +48,7 @@ describe('L2 prompts: chat speaks its own contract', () => {
     const prompts = readSrc('lib/agent/prompts.ts');
     expect(prompts).toContain('export const CHAT_SYSTEM_PROMPT');
     expect(prompts).toMatch(/CONVERSATION mode/);
-    expect(prompts).toMatch(/Do NOT call task_complete/);
+    expect(prompts).toMatch(/There is no task_complete here/);
   });
 
   it('loop selects it for chat mode before planning/build branches', () => {

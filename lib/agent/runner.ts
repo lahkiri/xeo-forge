@@ -33,6 +33,11 @@ export function startAgentRun(args: {
    * 'execute' for direct callers that omit it.
    */
   autonomyLevel?: string | null;
+  /**
+   * v1.23 thinking-effort level ('minimal'…'ultra'). Routes pass the value
+   * stored on the task row; loop.ts normalizes and honors the row first.
+   */
+  thinkingEffort?: string | null;
 }): void {
   runAgent(args).catch(async (err) => {
     console.error(`[runner] unhandled agent error task=${args.taskId}:`, err);

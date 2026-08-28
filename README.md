@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.22.0-blue.svg" alt="Xeo Forge v1.22.0">
+  <img src="https://img.shields.io/badge/release-v1.23.0-blue.svg" alt="Xeo Forge v1.23.0">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
@@ -111,26 +111,38 @@ The same principle applies to memory. Xeo Forge does not silently treat every co
 
 ## Current scope and honest boundaries
 
-Xeo Forge is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, or OpenCode. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
+Xeo Forge is a strong local-first foundation, not yet a full replacement for every capability in Manus, Claude Code, Codex, OpenCode, Hermes Agent, or OpenHands. The current release is strongest at controlled software-building workflows, operator visibility, local persistence, governed Browser Bridge actions, and reviewable memory.
 
-### Wired end-to-end in v1.21.0 (was: disclosed on discovery)
+### Wired end-to-end (connectivity-audited)
 
-The gap disclosed above is closed. Autonomy levels are now reachable and
-enforced across every layer: a `tasks.autonomy_level` column with an idempotent
-ALTER for existing databases, an `autonomyLevel` field on the task-creation
-API validated against the real level set, `startAgentRun`/`runAgent` forwarding,
-and a central authority gate at tool dispatch (`authorizeToolCall`) evaluated
-in the same chokepoint as the planning/chat hard-lock. The run's rule set is
-built BEFORE its tool context exists, so the level you choose is the policy
-that actually executes.
+- **Autonomy levels** (v1.21): rule-set data evaluated at the single dispatch chokepoint; the level you choose is the policy that executes. An unresolved `ask` still **fails closed** with a rule citation rather than pausing for an interactive approval conversation (interactive queue is tracked follow-up; silently proceeding would read as `allow`, the escalation this layer exists to prevent).
+- **Thinking-effort levels** (v1.23): Minimal → Ultra, each classified **native vs hybrid** honestly in the UI (`(+sim)` marks prompt-simulated passes); a `thinking_level` audit event records what the run actually used, and a completed run that streamed no reasoning at a level above Minimal says so explicitly instead of implying hidden thinking.
+- **Parallel subagent delegation** (v1.23): `delegate_research` fans out 2–4 read-only subagents that inherit the parent task's exact authority and dispatch through the same rule gate, with `sub-N` attribution on every audit event.
+- **Sandbox tiers** (v1.23): standard (honestly labeled "no OS-level isolation"), strict (extra deny rules as data), docker (real container isolation: workspace bind-mount, CPU/memory/pids caps, network off). Docker presence is probed per run — unavailable Docker fails closed with an actionable message and a consent-first guided install; nothing downloads silently.
 
-One boundary remains honest: an unresolved `ask` rule currently **fails
-closed** — the action is refused with a citation of the deciding rule — rather
-than pausing mid-run for an interactive per-action approval conversation.
-Silently proceeding would make `ask` read as `allow`, which is the authority
-escalation this layer exists to prevent; a true interactive approval queue is
-tracked as follow-up work, and raising the level or adding an explicit
-per-resource override are the supported ways to grant these actions today.
+### Known gaps (disclosed on discovery, per the honest-gap-discipline)
+
+1. **Per-task permission overrides have no path to the loop yet.** The loop accepts `permissionOverrides` and the denial messages tell users to add an explicit per-resource override — but no schema column, API field, or UI supplies them today. Until this ships, the supported way to unblock an `ask` is raising the task's authority level.
+2. **GUI zone rules are enforced logic without a runtime consumer yet** (evaluation is exercised by contract tests only; the desktop shell does not call `evaluateGuiAct` in v1.23).
+3. **Docker sandbox tier covers execution tools** (`code_execute` bash/python); interactive terminal sessions still run on the host with a visible warning when the docker tier is selected.
+4. **Multi-platform presence** (Telegram/Discord, as Hermes offers) and **live skill self-improvement** (Hermes rewrites its skills from experience) are deliberately out of scope for v1.23 — see the competitive analysis below.
+5. **Subagent delegation is read-only by construction** in v1.23; write-capable parallel delegation waits for a proven concurrent-write design.
+
+### How we compare — Hermes Agent and OpenHands (verified, not vibes)
+
+Full evidence-backed studies live in [docs/competitive/hermes-analysis.md](docs/competitive/hermes-analysis.md) and [docs/competitive/openhands-analysis.md](docs/competitive/openhands-analysis.md). The short, honest version:
+
+| | Hermes Agent | OpenHands | Xeo Forge v1.23 |
+|---|---|---|---|
+| Loop | Budget-bounded, exit-reason taxonomy, persist-before-execute | `AgentBase.step()` with typed event stream + condenser | Single loop, row-as-truth reconciliation, exit reasons on fail/cancel events |
+| Tools | Self-registering registry, availability cache, sanitized errors | Pydantic `ToolDefinition`, resource-locked parallel executor | Zod-validated schemas, parallel READ batching, fail-closed authority gate with rule citations |
+| Delegation | Fresh-context children incl. writes; results as new turns | `DelegateExecutor` (max 5) | Read-only `delegate_research`, parent-authority inheritance, per-sub audit |
+| Sandbox | 7 execution backends (local…Vercel) | Docker runtime; "no sandbox" shown with a full-access warning | standard/strict/docker tiers, honest labels, consent-first Docker install |
+| Memory | FTS5 + summarization + Honcho profiles | Event stream + LLMSummarizingCondenser | SQLite tasks/events/messages with per-task recall (roadmap: cross-session search) |
+| Presence | Telegram/Discord/Slack/WhatsApp/Signal/CLI | Multi-server control center | Desktop + web app (roadmap) |
+| Authority UX | check_fn code gates | Explicit warnings, good defaults | **Declarative rule data, cited in UI and audit, fail-closed by default** — the differentiator |
+
+**The position we defend:** Hermes wins on reach (platforms, backends) and OpenHands on multi-agent orchestration; Xeo Forge is the one where a single governed agent works on your real project while **every permission decision is a citable rule you can read at runtime** — and every v1.23 capability (thinking levels, subagents, sandbox tiers) went through that same stack instead of around it.
 
 The next product layers are intentionally separate from the current core and are tracked in the [1.x roadmap](docs/roadmap-1x.md):
 

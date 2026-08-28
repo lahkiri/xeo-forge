@@ -15,7 +15,7 @@ import { IconDiamond, IconChevronDown } from './icons';
 /*  demand, styled as cooled metal per the forge identity.            */
 /* ------------------------------------------------------------------ */
 
-export function ThinkingBlock({ text, live }: { text: string; live?: boolean }) {
+export function ThinkingBlock({ text, live, levelLabel }: { text: string; live?: boolean; levelLabel?: string }) {
   const [open, setOpen] = useState(false);
   if (!text.trim()) return null;
 
@@ -39,6 +39,11 @@ export function ThinkingBlock({ text, live }: { text: string; live?: boolean }) 
         <span className={cx('text-micro font-medium uppercase tracking-[0.14em]', live ? 'text-signal-run' : 'text-content-muted')}>
           {live ? 'Thinking' : 'Thought process'}
         </span>
+        {levelLabel && (
+          <span className="rounded-full border border-line-subtle px-1.5 py-px text-micro text-content-muted" title={`Run at thinking effort: ${levelLabel}`}>
+            {levelLabel}
+          </span>
+        )}
         <span className="text-micro tabular-nums text-content-faint">{words} words</span>
         <span className="flex-1" />
         <span

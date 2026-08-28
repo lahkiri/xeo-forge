@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AgentProfile, AgentSkill, ProviderCatalog } from '@/lib/types';
 import { AUTONOMY_LEVELS, describeAutonomy, type AutonomyLevel } from '@/lib/agent/permissions';
+import { ThinkingEffortSelect } from '@/components/ThinkingEffortSelect';
+import type { ThinkingEffort } from '@/lib/model/thinking';
+import { SANDBOX_MODES as SANDBOX_SPECS, type SandboxMode } from '@/lib/agent/sandbox';
 import { Alert, Button, KeyHint, Select, StatusBadge, cx, useModKey } from '@/components/ui';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
 import { ThemeToggle } from '@/components/Theme';
@@ -26,7 +29,6 @@ import {
   IconUserRound,
   IconPlug,
   IconCommand,
-  IconMoreHorizontal,
   IconX,
 } from '@/components/icons';
 
@@ -83,7 +85,26 @@ export default function UnifiedWorkspace({
   const [providerModelId, setProviderModelId] = useState(providerCatalog.active_model_id ?? '');
   // v1.21: authority chosen at Work setup. chat never carries it (chat is read-only).
   const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('execute');
+  // v1.23: thinking effort is available on BOTH surfaces from the shell —
+  // chat tasks get it in the create body; work tasks set it in the context grid.
+  const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort>('high');
+  // v1.23 sandbox tier (Work only — chat has no execution tools to isolate).
+  const [sandboxMode, setSandboxMode] = useState<SandboxMode>('standard');
+  const [dockerStatus, setDockerStatus] = useState<{ available: boolean; detail: string; version?: string } | null>(null);
   const autonomyCopy = describeAutonomy(autonomyLevel);
+  useEffect(() => {
+    if (mode !== 'work' || dockerStatus) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch('/api/sandbox', { cache: 'no-store' });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!cancelled && body?.docker) setDockerStatus(body.docker);
+      } catch { /* offline: tier stays selectable, docker checked again at run time */ }
+    })();
+    return () => { cancelled = true; };
+  }, [mode, dockerStatus]);
 
   const selectedProvider = providerCatalog.providers.find((provider) => provider.id === providerId && provider.enabled);
   const selectedModel = selectedProvider?.models.find((model) => model.id === providerModelId && model.enabled);
@@ -240,7 +261,7 @@ export default function UnifiedWorkspace({
           goal: text,
           mode: isWork ? 'planning' : 'chat',
           surface: isWork ? 'work' : 'chat',
-          ...(isWork ? { projectPath, profileId: profileId || null, skillId: skillId || null, autonomyLevel } : {}),
+          ...(isWork ? { projectPath, profileId: profileId || null, skillId: skillId || null, autonomyLevel, thinkingEffort, sandboxMode } : { thinkingEffort }),
           ...(providerId && providerModelId ? { providerId, providerModelId } : {}),
         }),
       });
@@ -285,9 +306,19 @@ export default function UnifiedWorkspace({
             <span className="brand-mark h-7 w-7" aria-hidden="true"><span /></span>
             <span className="min-w-0"><strong>Xeo Forge</strong><small>Agent workspace</small></span>
           </Link>
-          <button type="button" className="codex-workspace-switcher" aria-label="Switch workspace">
-            <span><small>Workspace</small><strong>Local project</strong></span><span aria-hidden="true"><IconChevronDown size={12} /></span>
-          </button>
+          {/* v1.23 (audit #6): this button used to be a dead placeholder.
+              It now opens the REAL project chooser in desktop local mode and
+              shows the chosen path; on the web it is an honest indicator of
+              the managed workspace, not a fake switcher. */}
+          {localMode ? (
+            <button type="button" className="codex-workspace-switcher" aria-label="Switch workspace" title={projectPath ?? 'Choose a project folder'} onClick={() => void chooseProject()} disabled={choosingProject}>
+              <span><small>Workspace</small><strong className="codex-workspace-name">{projectPath ? projectPath.split(/[\\/]/).pop() : 'Choose a folder'}</strong></span><span aria-hidden="true"><IconChevronDown size={12} /></span>
+            </button>
+          ) : (
+            <div className="codex-workspace-switcher is-static" aria-label="Managed workspace">
+              <span><small>Workspace</small><strong className="codex-workspace-name">Managed</strong></span>
+            </div>
+          )}
         </div>
 
         <div className="codex-sidebar-actions">
@@ -319,8 +350,11 @@ export default function UnifiedWorkspace({
         </div>
 
         <div className="codex-sidebar-footer">
-          <div className="codex-runtime-row"><span><i className="codex-status-dot" />{localMode ? 'Local runtime' : 'Gateway connected'}</span><ThemeToggle /></div>
-          <div className="codex-account-row"><span className="codex-avatar">{localMode ? 'L' : 'X'}</span><span className="min-w-0 flex-1"><strong>{localMode ? 'Local operator' : 'Xeo account'}</strong><small>{typeof balance === 'number' ? `${balance.toLocaleString()} credits` : 'Offline-first'}</small></span><span className="codex-account-menu"><IconMoreHorizontal size={14} /></span></div>
+          <div className="codex-runtime-row"><span><i className="codex-status-dot" />{localMode ? 'Local runtime' : 'Web workspace'}</span><ThemeToggle /></div>
+          {/* v1.23 (audit #6): the account-menu glyph was decorative — a span
+              that looked like a menu but did nothing. Removed rather than
+              left dangling; the identity line stays as honest status. */}
+          <div className="codex-account-row"><span className="codex-avatar">{localMode ? 'L' : 'X'}</span><span className="min-w-0 flex-1"><strong>{localMode ? 'Local operator' : 'Xeo account'}</strong><small>{typeof balance === 'number' ? `${balance.toLocaleString()} credits` : 'Offline-first'}</small></span></div>
         </div>
       </aside>
       )}
@@ -355,7 +389,7 @@ export default function UnifiedWorkspace({
 
       <section className="codex-main min-w-0 flex-1">
         <header className="codex-topbar">
-          <div className="codex-breadcrumb"><span className="codex-breadcrumb-muted">Xeo Forge</span><span>/</span><strong>{mode === 'chat' ? 'Chat' : 'Work'}</strong><span className="codex-live-pill"><i className="codex-status-dot" />Ready</span></div>
+          <div className="codex-breadcrumb"><span className="codex-breadcrumb-muted">Xeo Forge</span><span>/</span><strong>{mode === 'chat' ? 'Chat' : 'Work'}</strong><span className={cx('codex-live-pill', mode === 'work' && workNeedsProject && 'is-warn')}><i className="codex-status-dot" />{mode === 'work' && workNeedsProject ? 'Setup needed' : 'Ready'}</span></div>
           <div className="codex-topbar-actions"><button type="button" className="codex-quiet-action" aria-label="Open command menu" title="Command menu" onClick={() => window.dispatchEvent(new CustomEvent('xeo:open-command-palette'))}><IconCommand size={14} /></button><button type="button" className="codex-quiet-action" aria-label="Open settings" title="Settings" onClick={() => router.push('/settings')}><IconSettings size={14} /></button></div>
         </header>
 
@@ -391,6 +425,8 @@ export default function UnifiedWorkspace({
                   <div className="codex-context-field"><span className="codex-field-index">02</span><Select label="Role" value={profileId} onChange={(event) => setProfileId(event.target.value)}><option value="">Default agent</option>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</Select></div>
                   <div className="codex-context-field"><span className="codex-field-index">03</span><Select label="Workflow" value={skillId} onChange={(event) => setSkillId(event.target.value)}><option value="">No workflow</option>{skills.map((skill) => <option key={skill.id} value={skill.id}>{skill.name}</option>)}</Select></div>
                   <div className="codex-context-field" title={autonomyCopy.detail}><span className="codex-field-index">04</span><span className="min-w-0 flex-1"><Select label="Authority" value={autonomyLevel} onChange={(event) => setAutonomyLevel(event.target.value as AutonomyLevel)}>{AUTONOMY_LEVELS.map((level) => { const copy = describeAutonomy(level); return <option key={level} value={level}>{copy.title}</option>; })}</Select></span></div>
+                  <div className="codex-context-field"><span className="codex-field-index">05</span><span className="min-w-0 flex-1"><ThinkingEffortSelect value={thinkingEffort} onChange={setThinkingEffort} label="Thinking" /></span></div>
+                  <div className="codex-context-field" title={SANDBOX_SPECS.find((s) => s.id === sandboxMode)?.describe}><span className="codex-field-index">06</span><span className="min-w-0 flex-1"><Select label="Sandbox" value={sandboxMode} onChange={(event) => setSandboxMode(event.target.value as SandboxMode)}>{SANDBOX_SPECS.map((spec) => <option key={spec.id} value={spec.id}>{spec.label}</option>)}</Select></span>{sandboxMode === 'docker' && <span className={cx('codex-model-dot', dockerStatus ? (dockerStatus.available ? 'is-ok' : 'is-warn') : 'is-warn')} title={dockerStatus?.detail ?? 'Checking Docker…'} aria-hidden="true" />}</div>
                 </div>
                 <div className="codex-context-footer"><span>{autonomyCopy.detail} It will still never write or run before you approve the plan{autonomyLevel === 'execute' ? ' — and git push or publishing stops for you.' : '.'}</span><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Attach context" /></div>
                 {staged.length > 0 && <div className="codex-context-files">{staged.map((file, index) => <span key={`${file.name}-${index}`}>{file.name}<button type="button" aria-label={`Remove ${file.name}`} onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}><IconX size={11} /></button></span>)}</div>}
@@ -419,7 +455,7 @@ export default function UnifiedWorkspace({
 
         <footer className="codex-composer-dock">
           {mode === 'chat' && staged.length > 0 && <div className="codex-attachment-row"><span>Context</span>{staged.map((file, index) => <button key={`${file.name}-${index}`} type="button" aria-label={`Remove ${file.name}`} onClick={() => setStaged((previous) => previous.filter((_, fileIndex) => fileIndex !== index))}>{file.name} <IconX size={11} /></button>)}</div>}
-          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{sweeping && <span className="codex-model-sweep"><span className={cx('codex-model-dot', 'is-warn')} />checking models…</span>}<input type="search" value={modelQuery} onChange={(e) => setModelQuery(e.target.value)} placeholder="Search models…" aria-label="Search models" className="codex-model-search" />{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const q = modelQuery.trim().toLowerCase(); const availableModels = provider.models.filter((model) => model.enabled && (!q || model.name.toLowerCase().includes(q) || model.model_id.toLowerCase().includes(q))); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => void chooseModel(provider.id, model.id)}><span className={cx('codex-model-dot', 'is-' + modelHealth(provider.id, model.id))} aria-hidden="true" /><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" /><span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
+          <div className="codex-composer-wrap"><div className="codex-composer-topline"><div className="codex-model-picker"><button type="button" className="codex-model-button" aria-haspopup="listbox" aria-expanded={modelPickerOpen} onClick={() => setModelPickerOpen((open) => !open)}><span className="codex-model-button-dot" /><span className="codex-model-button-label">{selectedModelLabel}</span><span aria-hidden="true"><IconChevronDown size={12} /></span></button>{modelPickerOpen && <div className="codex-model-popover" role="listbox" aria-label="Choose provider and model">{sweeping && <span className="codex-model-sweep"><span className={cx('codex-model-dot', 'is-warn')} />checking models…</span>}<input type="search" value={modelQuery} onChange={(e) => setModelQuery(e.target.value)} placeholder="Search models…" aria-label="Search models" className="codex-model-search" />{providerCatalog.providers.filter((provider) => provider.enabled).map((provider) => { const q = modelQuery.trim().toLowerCase(); const availableModels = provider.models.filter((model) => model.enabled && (!q || model.name.toLowerCase().includes(q) || model.model_id.toLowerCase().includes(q))); if (availableModels.length === 0) return null; return <div key={provider.id} className="codex-provider-group"><div className="codex-provider-heading"><span>{provider.name}</span><small>{availableModels.length} model{availableModels.length === 1 ? '' : 's'}</small></div>{availableModels.map((model) => <button key={model.id} type="button" role="option" aria-selected={model.id === providerModelId} className={cx('codex-model-option', model.id === providerModelId && 'is-selected')} onClick={() => void chooseModel(provider.id, model.id)}><span className={cx('codex-model-dot', 'is-' + modelHealth(provider.id, model.id))} aria-hidden="true" /><span className="codex-model-option-copy"><strong>{model.name}</strong><small>{model.model_id}</small></span><span className="codex-model-check">{model.id === providerModelId ? <IconCheck size={12} /> : ''}</span></button>)}</div>; })}{providerCatalog.providers.filter((provider) => provider.enabled && provider.models.some((model) => model.enabled)).length === 0 && <div className="codex-model-empty">Add an enabled provider and model in Settings.</div>}</div>}</div><span className="codex-composer-state">{mode === 'chat' ? 'Read-only conversation' : projectPath ? 'Project bound' : 'Managed workspace'} </span></div><textarea ref={composerRef} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={onComposerKey} rows={2} autoFocus placeholder={mode === 'chat' ? 'Message Xeo…' : 'Describe the outcome you want…'} aria-label={mode === 'chat' ? 'Chat message' : 'Work brief'} /><div className="codex-composer-toolbar"><div className="codex-composer-tools"><UploadButton taskId={null} onStaged={(file) => setStaged((previous) => [...previous, file])} label="Add context" />{mode === 'chat' && <ThinkingEffortSelect value={thinkingEffort} onChange={setThinkingEffort} compact />}<span className="codex-key-hint"><KeyHint keys={mode === 'chat' ? ['Enter'] : [mod, 'Enter']} /> {mode === 'chat' ? 'send' : 'plan'} <span>·</span> <KeyHint keys={['Shift', 'Enter']} /> newline</span></div><Button size="sm" onClick={() => void send()} loading={sending} disabled={!draft.trim() || workNeedsProject}>{mode === 'chat' ? 'Send' : 'Start planning'}</Button></div></div>
           <p className="codex-composer-note">{mode === 'chat' ? 'Switch to Work when you want Xeo to inspect files or make changes.' : 'Xeo will never write or run commands before you approve the plan.'}</p>
         </footer>
       </section>

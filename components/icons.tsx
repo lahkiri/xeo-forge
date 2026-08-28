@@ -284,15 +284,6 @@ export function IconTerminal({ size, ...rest }: IconProps) {
 }
 
 /** MoreHorizontal — overflow / account menu. Replaces "•••". */
-export function IconMoreHorizontal({ size, ...rest }: IconProps) {
-  return (
-    <Base size={size} {...rest}>
-      <circle cx="12" cy="12" r="1" />
-      <circle cx="19" cy="12" r="1" />
-      <circle cx="5" cy="12" r="1" />
-    </Base>
-  );
-}
 
 /* ── Appearance ─────────────────────────────────────────────────── */
 

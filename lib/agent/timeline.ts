@@ -148,6 +148,35 @@ export function stripTurnFraming(content: string, isFirstTurn: boolean): string 
   return out;
 }
 
+/**
+ * Split inline <think>…</think> content out of streamed answer text.
+ *
+ * Some OpenAI-compatible gateways deliver reasoning as <think> tags inside
+ * content deltas instead of the reasoning_content field (the server strips
+ * them from the PERSISTED answer — loop.ts — but the live deltas were already
+ * emitted as `text` events, so the client must mirror the cleanup or the user
+ * watches raw <think> markup scroll past). An unterminated trailing <think>
+ * (stream cut mid-thought) is treated as reasoning too: partial thinking must
+ * never leak as answer text. Mirrors the server contract in loop.ts.
+ */
+export function separateThinkTags(raw: string): { reasoning: string; answer: string } {
+  if (!raw.includes('<think>')) return { reasoning: '', answer: raw };
+  const reasoningParts: string[] = [];
+  let answer = raw.replace(/<think>([\s\S]*?)<\/think>\s*/g, (_m, inner: string) => {
+    if (inner.trim()) reasoningParts.push(inner);
+    return '';
+  });
+  const openIdx = answer.indexOf('<think>');
+  if (openIdx !== -1) {
+    const inner = answer.slice(openIdx + 7);
+    if (inner.trim()) reasoningParts.push(inner);
+    // Whitespace directly preceding the tag belonged to the separator, not
+    // the answer — a trailing blank line after extraction reads as a glitch.
+    answer = answer.slice(0, openIdx).replace(/\s+$/, '');
+  }
+  return { reasoning: reasoningParts.join('\n'), answer: answer.replace(/^\s+/, '').replace(/\s+$/, '') };
+}
+
 export interface BuildTimelineArgs {
   events: ParsedEvent[];
   messages: Message[];
@@ -194,7 +223,9 @@ export function buildTimeline({ events, messages, status, goal }: BuildTimelineA
     turns.push({
       id: CURRENT_RUN_TURN_ID,
       role: 'assistant',
-      content: currentRunText,
+      // Inline <think> tags never belong in the visible run text (same
+      // contract as the persisted answer — see separateThinkTags).
+      content: separateThinkTags(currentRunText).answer,
       toolEvents: currentRunToolEvents.length > 0 ? currentRunToolEvents : undefined,
     });
   }

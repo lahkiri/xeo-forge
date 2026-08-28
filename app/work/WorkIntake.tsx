@@ -5,6 +5,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import type { AgentProfile, AgentSkill } from '@/lib/types';
 import { AUTONOMY_LEVELS, describeAutonomy, type AutonomyLevel } from '@/lib/agent/permissions';
+import { ThinkingEffortSelect } from '@/components/ThinkingEffortSelect';
+import { SANDBOX_MODES as SANDBOX_SPECS, type SandboxMode } from '@/lib/agent/sandbox';
+import type { ThinkingEffort } from '@/lib/model/thinking';
 import {
   Alert,
   Button,
@@ -57,6 +60,10 @@ export default function WorkIntake({
   // v1.21: the authority level selected BEFORE the run exists — the whole point
   // of this intake surface. execute remains the default.
   const [autonomyLevel, setAutonomyLevel] = useState<AutonomyLevel>('execute');
+  // v1.23 thinking effort — chosen beside authority, stored on the task row.
+  const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort>('high');
+  // v1.23 sandbox tier — honest isolation choice, stored on the task row.
+  const [sandboxMode, setSandboxMode] = useState<SandboxMode>('standard');
   const [staged, setStaged] = useState<File[]>([]);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -126,6 +133,8 @@ export default function WorkIntake({
           profileId: profileId || null,
           skillId: skillId || null,
           autonomyLevel,
+          thinkingEffort,
+          sandboxMode,
         }),
       });
       const data = await res.json();
@@ -278,9 +287,23 @@ export default function WorkIntake({
                 <span className="text-content-secondary">Read and analyze files inside the project boundary</span>
               </li>
               <li className="flex items-start gap-2.5">
-                <span aria-hidden="true" className="mt-0.5 inline-flex text-content-muted"><IconCircle size={13} /></span>
-                <span className="text-content-muted">
-                  Write files and run commands — <span className="text-content-secondary">only after you approve the plan</span>
+                <span aria-hidden="true" className={cx('mt-0.5 inline-flex', autonomyLevel === 'read_only' ? 'text-signal-fail/70' : 'text-content-muted')}>
+                  {autonomyLevel === 'read_only' ? <IconX size={13} /> : <IconCircle size={13} />}
+                </span>
+                <span className={cx(autonomyLevel === 'read_only' ? 'text-content-faint line-through' : 'text-content-muted')}>
+                  Write files and run commands — {autonomyLevel === 'read_only'
+                    ? 'locked at this authority level'
+                    : autonomyLevel === 'assist'
+                      ? <span className="text-content-secondary">only after you approve each action</span>
+                      : <span className="text-content-secondary">only after you approve the plan</span>}
+                </span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span aria-hidden="true" className={cx('mt-0.5 inline-flex', autonomyLevel === 'read_only' ? 'text-signal-fail/70' : 'text-content-muted')}>
+                  {autonomyLevel === 'read_only' ? <IconX size={13} /> : <IconCircle size={13} />}
+                </span>
+                <span className={cx(autonomyLevel === 'read_only' ? 'text-content-faint line-through' : 'text-content-muted')}>
+                  {autonomyLevel === 'autonomous' ? 'Push/publish — still asks, always' : 'Anything leaving this machine — asks first'}
                 </span>
               </li>
               <li className="flex items-start gap-2.5">
@@ -301,6 +324,17 @@ export default function WorkIntake({
               >
                 {AUTONOMY_LEVELS.map((level) => (
                   <option key={level} value={level}>{describeAutonomy(level).title}</option>
+                ))}
+              </Select>
+              <ThinkingEffortSelect value={thinkingEffort} onChange={setThinkingEffort} id="work-thinking-effort" />
+              <Select
+                label="Sandbox"
+                hint={SANDBOX_SPECS.find((s) => s.id === sandboxMode)?.describe}
+                value={sandboxMode}
+                onChange={(e) => setSandboxMode(e.target.value as SandboxMode)}
+              >
+                {SANDBOX_SPECS.map((spec) => (
+                  <option key={spec.id} value={spec.id}>{spec.label}</option>
                 ))}
               </Select>
             </div>

@@ -24,6 +24,7 @@ import { promisify } from 'node:util';
 import fs from 'node:fs';
 import path from 'node:path';
 import { workspaceFor } from './files';
+import { dockerWrapCommand, type SandboxMode } from './sandbox';
 
 const execAsync = promisify(exec);
 
@@ -213,14 +214,42 @@ export class CodeTool {
    * when present, a shell decision here is the SAME decision the UI showed.
    */
   private rules?: readonly PermissionRule[];
+  /** v1.23 sandbox tier: docker wraps execution commands; standard/strict pass through. */
+  private sandbox: { mode: SandboxMode; dockerAvailable: boolean };
 
-  constructor(taskId: string, projectPath?: string | null, rules?: readonly PermissionRule[]) {
+  constructor(
+    taskId: string,
+    projectPath?: string | null,
+    rules?: readonly PermissionRule[],
+    /** v1.23 sandbox tier — see lib/agent/sandbox.ts. */
+    sandbox?: { mode: SandboxMode; dockerAvailable: boolean },
+  ) {
     this.workDir = workspaceFor(taskId, projectPath);
     this.rules = rules;
+    this.sandbox = sandbox ?? { mode: 'standard', dockerAvailable: false };
+  }
+
+  /**
+   * v1.23: the docker tier wraps EVERY execution command in an ephemeral
+   * container (workspace mounted, CPU/memory capped, network off). The
+   * payload stays INSIDE the wrapped string, so every deny rule still sees
+   * the inner command text — the wrap cannot smuggle anything past the
+   * blocklist. Docker-unavailable fails CLOSED with an honest message;
+   * it never silently falls back to host execution.
+   */
+  private commandFor(command: string): string {
+    if (this.sandbox.mode !== 'docker') return command;
+    if (!this.sandbox.dockerAvailable) {
+      throw new CommandBlockedError(
+        'Sandbox tier "docker" is active for this task, but Docker is not reachable on this machine. ' +
+          'Start Docker (or switch the task to strict/standard in Settings). Xeo Forge refuses to run this command on the host while docker isolation is selected — that is the fail-closed contract.',
+      );
+    }
+    return dockerWrapCommand(command, this.workDir);
   }
 
   async bash(command: string): Promise<ExecResult> {
-    return run(command, this.workDir, this.rules);
+    return run(this.commandFor(command), this.workDir, this.rules);
   }
 
   /**
@@ -243,13 +272,15 @@ export class CodeTool {
     // launcher ships with python.org installs) then `python` — the bare
     // `python3` name resolves to the Microsoft Store stub there.
     const runner = process.platform === 'win32' ? 'py -3 || python' : 'python3';
+    // v1.23 fix (audit #9): the second chained command (`del`) ran OUTSIDE
+    // the rules gate — the snippet path never passed assertBoundaries — and
+    // `del` does not exist on POSIX, so temp files lingered forever. The
+    // interpreter runs through the SAME gated run(); cleanup is unconditional
+    // and in-process, so no shell command can escape the policy.
     try {
-      return await run(`${runner} ${file} & del ${file}`, this.workDir);
-    } catch (err) {
-      // Ensure cleanup even when the command itself is rejected upstream
-      // (denylist match happens inside run(); the temp file must not linger).
+      return await run(this.commandFor(`${runner} ${file}`), this.workDir, this.rules);
+    } finally {
       try { fs.unlinkSync(abs); } catch { /* best effort */ }
-      throw err;
     }
   }
 }

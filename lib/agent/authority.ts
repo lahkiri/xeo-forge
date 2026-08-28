@@ -29,8 +29,8 @@ import { isMcpToolName } from '../mcp/client';
 const GIT_MUTATION_OPS = new Set(['checkout', 'add', 'commit', 'revert']);
 
 export type AuthorityVerdict =
-  | { decision: 'pass'; action: PermissionAction | null }
-  | { decision: 'deny'; message: string };
+  | { decision: 'pass'; action: PermissionAction | null; ruleIndex?: number; effect?: string }
+  | { decision: 'deny'; message: string; ruleIndex?: number; effect?: string };
 
 /**
  * Translate one tool call into the (action, resource) pair the rule set
@@ -64,6 +64,17 @@ function classifyToolCall(name: string, args: Record<string, any>): { action: Pe
       return { action: 'shell', resource: `preview ${String(args?.action ?? '')}` };
     case 'http_request':
       return { action: 'network', resource: String(args?.url ?? '') };
+    case 'web_search':
+      // Keyed under the network action with a dedicated resource prefix so a
+      // per-level allow rule (`web_search:*`) can grant exactly this — a
+      // GET-shaped read of public pages — without opening the network
+      // wildcard (http_request stays gated).
+      return { action: 'network', resource: `web_search:${String(args?.query ?? '')}` };
+    case 'delegate_research':
+      // Subagent delegation answers to the per-level `subagent` rules that
+      // already exist in AUTONOMY_RULES (denied at read_only, asked at
+      // assist, allowed from execute up) — no parallel policy path.
+      return { action: 'subagent', resource: String(args?.objective ?? '') };
     case 'git_op': {
       const op = String((args ?? {})?.op ?? '');
       if (!GIT_MUTATION_OPS.has(op)) return { action: 'read', resource: `git:${op}` };
@@ -115,10 +126,12 @@ export function authorizeToolCall(
   // allowed from execute up).
   if (isMcpToolName(name)) {
     const d = evaluatePermission(rules, 'subagent', name);
-    if (d.effect === 'allow') return { decision: 'pass', action: 'subagent' };
+    if (d.effect === 'allow') return { decision: 'pass', action: 'subagent', ruleIndex: d.ruleIndex, effect: d.effect };
     return {
       decision: 'deny',
       message: denialMessage(d.effect === 'deny' ? 'deny' : 'ask', d.ruleIndex, d.matched?.note, d.matched?.resource, 'subagent', name),
+      ruleIndex: d.ruleIndex,
+      effect: d.effect,
     };
   }
 
@@ -127,9 +140,11 @@ export function authorizeToolCall(
 
   const { action, resource } = classified;
   const d = evaluatePermission(rules, action, resource);
-  if (d.effect === 'allow') return { decision: 'pass', action };
+  if (d.effect === 'allow') return { decision: 'pass', action, ruleIndex: d.ruleIndex, effect: d.effect };
   return {
     decision: 'deny',
     message: denialMessage(d.effect === 'deny' ? 'deny' : 'ask', d.ruleIndex, d.matched?.note, d.matched?.resource, action, resource),
+    ruleIndex: d.ruleIndex,
+    effect: d.effect,
   };
 }

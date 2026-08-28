@@ -42,6 +42,11 @@ import {
   buildModePreamble,
 } from './prompts';
 import { createToolContext, executeTool, schemasForRun } from './tools';
+import { authorizeToolCall } from './authority';
+import { runDelegatedResearch, normalizeDelegation } from './subagents';
+import { normalizeSandboxMode, strictSandboxRules } from './sandbox';
+import { detectDocker } from './sandbox-node';
+import { normalizeThinkingEffort, thinkingLevel, thinkingDirective } from '../model/thinking';
 import { killSessionsForTask } from './terminal';
 import { registerRun } from './cancellation';
 import { isArchive } from './uploads';
@@ -281,6 +286,12 @@ export interface RunAgentArgs {
   autonomyLevel?: string | null;
   /** Extra per-task permission rules layered on top of the level's set. */
   permissionOverrides?: readonly PermissionRule[];
+  /**
+   * v1.23 thinking-effort level ('minimal'…'ultra'). Routes pass the value
+   * stored on the task row; loop.ts normalizes. Governs the native
+   * reasoning_effort parameter AND the simulated discipline directive.
+   */
+  thinkingEffort?: string | null;
 }
 
 
@@ -293,6 +304,7 @@ export async function runAgent({
   approvedPlan,
   autonomyLevel: taskAutonomyLevel,
   permissionOverrides: taskPermissionOverrides,
+  thinkingEffort: taskThinkingEffort,
 }: RunAgentArgs): Promise<void> {
   const task = await getTaskById(taskId);
   const model = await resolveModel({
@@ -345,8 +357,22 @@ export async function runAgent({
    * direct callers that omit both run under the default 'execute'.
    */
   const autonomyLevel = normalizeAutonomyLevel(taskAutonomyLevel ?? task?.autonomy_level);
-  const permissionRules = effectiveRules(autonomyLevel, taskPermissionOverrides);
-  const ctx = createToolContext(taskId, userId, mode, projectPath, permissionRules);
+  // v1.23 thinking effort: the task ROW is the truth (same contract as
+  // autonomy) — a follow-up run executes at the level the user saw.
+  const thinkingEffort = normalizeThinkingEffort(task?.thinking_effort ?? taskThinkingEffort);
+  const effortSpec = thinkingLevel(thinkingEffort);
+  // v1.23 sandbox tier: row-first, same contract. STRICT appends its deny
+  // rules as DATA in front of the level's set (first-match wins), so a
+  // strict task denies network/process tools even at execute authority —
+  // governance inheritance, not a parallel policy path.
+  const sandboxMode = normalizeSandboxMode(task?.sandbox_mode);
+  const permissionRules =
+    sandboxMode === 'strict'
+      ? [...strictSandboxRules(), ...effectiveRules(autonomyLevel, taskPermissionOverrides)]
+      : effectiveRules(autonomyLevel, taskPermissionOverrides);
+  // Docker tier needs ONE real detection per run — never an assumption.
+  const dockerAvailable = sandboxMode === 'docker' ? (await detectDocker()).available : false;
+  const ctx = createToolContext(taskId, userId, mode, projectPath, permissionRules, { mode: sandboxMode, dockerAvailable });
   // Structured domain events (git_status / git_commit) ride the same persisted
   // seq-ordered path as every other task event. The sink is an observation
   // channel: capability modules may report, never decide.
@@ -411,6 +437,20 @@ export async function runAgent({
 
   // Inject runtime context: detected language + engineering memory instructions.
   // This is ephemeral — appended to the in-memory prompt, not persisted.
+  // v1.23: the simulated half of the thinking-effort contract is injected the
+  // same way — a per-run system directive, visible in the thinking_level event.
+  const effortDirective = thinkingDirective(thinkingEffort);
+  if (effortDirective) {
+    systemPrompt += `\n\n${effortDirective}`;
+  }
+  await emitTaskEvent(taskId, 'thinking_level', {
+    level: effortSpec.id,
+    label: effortSpec.label,
+    kind: effortSpec.kind,
+    native_param: effortSpec.native,
+    simulated_passes: effortSpec.simulatePasses,
+    model: model.modelId,
+  });
   systemPrompt += `\n\nRUNTIME CONTEXT (this run only)
 - Detected user language: ${detectedLanguage}. ALL your explanatory text (plans, reports, summaries, verification results, final summary) MUST be in this language. Code, identifiers, filenames stay English.
 - During execution, RECORD in your memory (you will include these in your final summary):
@@ -864,7 +904,15 @@ export async function runAgent({
   /** Fire lifecycle hooks for a point and persist their results. */
   const fireHooks = async (
     point: HookPoint,
-    extra: { toolName?: string; args?: Record<string, unknown>; observation?: string },
+    extra: {
+      toolName?: string;
+      args?: Record<string, unknown>;
+      observation?: string;
+      /** v1.23 (audit #2): the authority verdict for THIS call, so audit
+          hooks cite the rule that governed it instead of persisting null. */
+      permissionRuleIndex?: number;
+      permissionEffect?: string;
+    },
   ): Promise<void> => {
     const hookCtx: HookContext = {
       taskId,
@@ -984,11 +1032,15 @@ export async function runAgent({
         await runCompaction(usage.percentage);
       }
 
-      // Reasoning-effort control (v1.20): 'default' sends nothing — the
-      // provider uses its own default. Levels pass through for models that
-      // support the parameter; others ignore it server-side.
-      const reasoningEffortParam =
-        model.reasoningEffort && model.reasoningEffort !== 'default'
+      // Reasoning-effort control (v1.23): the TASK's thinking-effort level
+      // governs — its native value maps straight to the provider parameter
+      // (probed live 2026-08-28: accepted by every working model on the
+      // reference proxy). Levels with native:null send nothing, by contract.
+      // The model-level config remains a fallback only for legacy rows that
+      // somehow predate the column default.
+      const reasoningEffortParam = effortSpec.native
+        ? { reasoning_effort: effortSpec.native }
+        : model.reasoningEffort && model.reasoningEffort !== 'default'
           ? { reasoning_effort: model.reasoningEffort }
           : {};
       const baseParams = {
@@ -999,12 +1051,6 @@ export async function runAgent({
         max_tokens: model.maxTokens,
         stream: true as const,
       };
-      // Reasoning-effort control (v1.20): 'default' sends nothing — the
-      // provider uses its own default. Levels map straight through for
-      // models that support the parameter; others ignore it.
-      if (model.reasoningEffort && model.reasoningEffort !== 'default') {
-        baseParams.reasoning_effort = model.reasoningEffort;
-      }
       const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming = useFallback
         ? baseParams
         : { ...baseParams, tools: toolSchemas, tool_choice: 'auto' };
@@ -1063,6 +1109,38 @@ export async function runAgent({
           }
         }
         if (choice.finish_reason) finishReason = choice.finish_reason;
+      }
+
+      // Some OpenAI-compatible gateways deliver reasoning as inline
+      // <think>…</think> tags inside content deltas (DeepSeek-R1 style
+      // through proxy providers) instead of the reasoning_content field.
+      // Left in place they pollute the answer text the user reads and the
+      // prose persisted to the DB. Extract them into the reasoning buffer so
+      // the ThinkingBlock surfaces them and the answer stays clean. The
+      // client mirrors this for the live stream (timeline.separateThinkTags)
+      // because these deltas were already emitted as text events.
+      const closedThink = textBuf.match(/<think>[\s\S]*?<\/think>/g);
+      if (closedThink) {
+        for (const block of closedThink) {
+          const inner = block.slice(7, -8);
+          if (inner.trim()) {
+            reasoningBuf += (reasoningBuf ? '\n' : '') + inner;
+            await emitTaskEvent(taskId, 'reasoning', { delta: inner, source: 'inline_think_tag' });
+          }
+        }
+        textBuf = textBuf.replace(/<think>[\s\S]*?<\/think>\s*/g, '');
+      }
+      const openThinkIdx = textBuf.indexOf('<think>');
+      if (openThinkIdx !== -1 && !textBuf.includes('</think>', openThinkIdx)) {
+        // Unterminated <think>: everything from the tag on is reasoning that
+        // happened to be the last thing the stream delivered. Never let
+        // partial thinking leak into the answer.
+        const inner = textBuf.slice(openThinkIdx + 7);
+        if (inner.trim()) {
+          reasoningBuf += (reasoningBuf ? '\n' : '') + inner;
+          await emitTaskEvent(taskId, 'reasoning', { delta: inner, source: 'inline_think_tag_unclosed' });
+        }
+        textBuf = textBuf.slice(0, openThinkIdx);
       }
 
       // The provider produced a stream (even one that yielded only an error
@@ -1150,7 +1228,11 @@ export async function runAgent({
           await failRun(taskId, 'Out of credits during execution.');
           return;
         }
-        await fireHooks('pre_tool', { toolName: action.tool, args: action.args as Record<string, unknown> });
+        await fireHooks('pre_tool', {
+          toolName: action.tool,
+          args: action.args as Record<string, unknown>,
+          ...verdictCitation(action.tool, action.args as Record<string, unknown>, permissionRules),
+        });
         const obs = await safeExecute(taskId, action.tool, action.args, ctx);
         messages.push({ role: 'user', content: `Observation:\n${obs}` });
 
@@ -1274,13 +1356,67 @@ export async function runAgent({
             iterationObservations.push(obs);
             continue;
           }
+          if (call.name === 'delegate_research') {
+            // v1.23 subagent delegation — intercepted here (not in
+            // executeTool) because it needs the model client. The authority
+            // gate runs HERE, explicitly, against the parent's rule set: the
+            // per-level `subagent` rules decide (denied at read_only, asked
+            // at assist, allowed from execute up). Deny/ask fails closed
+            // with the rule citation, exactly like any other tool.
+            const verdict = authorizeToolCall(call.name, args, permissionRules);
+            await emitTaskEvent(taskId, 'tool_call', { name: call.name, args });
+            if (verdict.decision === 'deny') {
+              const obs = `Error: ${verdict.message}`;
+              await emitTaskEvent(taskId, 'tool_result', { name: call.name, ok: false, error: verdict.message });
+              messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
+              iterationObservations.push(obs);
+              continue;
+            }
+            const ok = await debitForTool();
+            if (!ok) {
+              await failRun(taskId, 'Out of credits during execution.');
+              return;
+            }
+            await fireHooks('pre_tool', {
+              toolName: call.name,
+              args: args as Record<string, unknown>,
+              ...verdictCitation(call.name, args as Record<string, unknown>, permissionRules),
+            });
+            let obs: string;
+            try {
+              const delegation = normalizeDelegation(args);
+              obs = await runDelegatedResearch({
+                client,
+                modelId: model.modelId,
+                objective: delegation.objective,
+                prompts: delegation.prompts,
+                ctx,
+                abortSignal: runAbort.signal,
+              });
+            } catch (err: any) {
+              obs = `Error: ${String(err?.message ?? err).slice(0, 400)}`;
+            }
+            await emitTaskEvent(taskId, 'tool_result', {
+              name: call.name,
+              ok: !obs.startsWith('Error:'),
+              result: obs.slice(0, 400),
+            });
+            messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
+            iterationObservations.push(obs);
+            await recordToolEvidence(call.name, args, obs);
+            continue;
+          }
           await emitTaskEvent(taskId, 'tool_call', { name: call.name, args });
           const ok = await debitForTool();
           if (!ok) {
             await failRun(taskId, 'Out of credits during execution.');
             return;
           }
-          await fireHooks('pre_tool', { toolName: call.name, args: args as Record<string, unknown> });
+          await fireHooks('pre_tool', {
+            toolName: call.name,
+            args: args as Record<string, unknown>,
+            ...verdictCitation(call.name, args as Record<string, unknown>, permissionRules),
+          });
         const obs = await safeExecute(taskId, call.name, args, ctx);
           messages.push({ role: 'tool', tool_call_id: call.id, content: obs });
           iterationObservations.push(obs);
@@ -1310,6 +1446,21 @@ export async function runAgent({
 
         // Planning mode: text termination is acceptable — plans end in text.
         if (mode === 'planning') {
+          await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer, undefined, chatTextBuffer);
+          return;
+        }
+
+        // Chat mode: the streamed prose IS the deliverable — that contract is
+        // the entire point of the surface (v1.19.1). The build-mode detectors
+        // below assume a work surface where text without tool evidence is a
+        // fake completion. In chat, EVERY answer is text-only, so those
+        // detectors nudged pure conversation into an endless self-repeating
+        // loop: model answers → NO_WORK_PERFORMED_NUDGE (chat rarely executes
+        // tools) → model answers again → nudge again — the "reply repeats and
+        // writes forever" regression (v1.23 diagnosis). A chat answer that
+        // ends in a question is conversation, not an autonomy violation.
+        // Finalize on first text termination, verbatim.
+        if (mode === 'chat') {
           await finalizeComplete(taskId, userId, mode, text || 'Done.', planBuffer, undefined, chatTextBuffer);
           return;
         }
@@ -1463,6 +1614,30 @@ async function executeReadSilently(
       .slice(0, 500);
     console.error(`[agent] tool ${name} failed task=${taskId}:`, err);
     return `Error: ${message}`;
+  }
+}
+
+/**
+ * Recompute the authority verdict for a tool call so audit hooks can cite
+ * the exact rule that governed it (v1.23, audit #2 — the verdict already
+ * existed inside executeTool but never reached the hook context, so every
+ * persisted audit event carried null citations). authorizeToolCall is pure,
+ * so recomputing here is side-effect-free and cannot diverge from the gate
+ * that actually dispatched the call.
+ */
+function verdictCitation(
+  name: string,
+  args: Record<string, unknown>,
+  rules: readonly PermissionRule[],
+): { permissionRuleIndex?: number; permissionEffect?: string } {
+  try {
+    const verdict = authorizeToolCall(name, args, rules);
+    return {
+      permissionRuleIndex: verdict.ruleIndex,
+      permissionEffect: verdict.effect ?? verdict.decision,
+    };
+  } catch {
+    return {};
   }
 }
 
