@@ -140,8 +140,16 @@ virtual display, seeds through the live API, and captured six screenshots
    structured install guidance, 08 Subagents in the nav.
 5. `05-settings-runtime-pairing.png` — 3-step setup, pairing-first copy,
    manual token demoted to an advanced disclosure.
-6. `06-settings-providers-edit.png` — Edit buttons on provider and model
-   rows with the seeded provider.
+6. `06-settings-providers-edit.png` — provider-level Edit / Pause / Delete /
+   Import models / + Add model actions, the write-only "API key: Configured"
+   signal, and three seeded model rows each with Edit / Pause / Delete.
+   **Correction (owner-ordered re-capture):** the ORIGINAL frame in this batch
+   caught the catalog in its "Loading catalog…" state — the Edit affordances
+   were not visible in it, and the entry above originally overstated what the
+   frame showed. The re-capture (`scripts/recapture-06-providers.mjs`)
+   hard-fails unless the provider row, the auto-selected detail pane, exactly
+   3 model rows, and >=2 Edit buttons are all present, then captures — no
+   silent catches, assertions verified before the screenshot is written.
 
 ## Verification totals
 
