@@ -57,15 +57,21 @@ Desktop Local ships with a **recorded governed run**: press *Watch it work* on t
 
 ## Product preview
 
-Captured from the running application (v1.15.1 — the forge identity: ember on charcoal).
+Live captures from the running application (master, dark theme). The GIF is a real
+governed run — the real loop, guards, tools, persistence, credits, and UI — with only
+the model scripted by the repo's demo provider (`scripts/demo-provider.mjs`); the run
+plans, waits for approval, builds real files, executes the real test suite, and
+completes with memory proposals.
 
-| Work intake — every run starts with the contract | Governed workbench — run, review, govern |
-|---|---|
-| ![Work intake](docs/screenshots/intake-dark-v115.png) | ![Governed workbench](docs/screenshots/workbench-dark-v115.png) |
+![A governed run end to end: a goal becomes a plan, the plan is frozen on approval, build executes it with live tool activity, and the run completes](docs/screenshots/xeo-governed-run.gif)
 
-| Chat surface | Control Center |
+| The contract before execution: six knobs stated up front | The approval gate: nothing written yet — approving freezes the plan |
 |---|---|
-| ![Chat surface](docs/screenshots/chat-dark-v115.png) | ![Control Center](docs/screenshots/settings-dark-v115.png) |
+| ![Work intake](docs/screenshots/work-intake-dark.png) | ![Plan approval gate](docs/screenshots/plan-gate-dark.png) |
+
+| Completed build: tests green, memory proposals awaiting your review | Chat surface — answers and web search, never writes | Control Center — one global model, admin truth |
+|---|---|---|
+| ![Completed run](docs/screenshots/run-complete-dark.png) | ![Chat surface](docs/screenshots/chat-dark-live.png) | ![Control Center](docs/screenshots/control-center-dark.png) |
 
 ## Core workflow
 
