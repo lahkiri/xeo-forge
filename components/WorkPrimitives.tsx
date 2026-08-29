@@ -180,19 +180,25 @@ export function PlanReview({
 /* ── Decision gate ────────────────────────────────────────────────── */
 
 /**
- * Direct execution vs. plan first. The server enforces the same deadline and
- * performs the conditional transition, so expiry here can never execute.
+ * Direct execution vs. plan first. The conditional server transition is the
+ * authority; the countdown is presentation. An expired window never executes
+ * anything by itself — and since v1.25 the operator's explicit late choice
+ * stays valid, so the gate stays mounted with an honest window-closed state
+ * instead of disappearing and stranding the operator.
  */
 export function DecisionGate({
   seconds,
+  windowClosed = false,
   busy,
   onChoose,
 }: {
   seconds: number;
+  /** The presentation window closed — the choice itself remains valid. */
+  windowClosed?: boolean;
   busy: boolean;
   onChoose: (choice: 'direct' | 'plan') => void;
 }) {
-  const urgent = seconds <= 10;
+  const urgent = !windowClosed && seconds <= 10;
   return (
     <div className="heat-thread relative border-b border-signal-run/20 bg-signal-run/[0.06] px-4 py-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -205,15 +211,20 @@ export function DecisionGate({
             <span
               className={cx(
                 'rounded px-1.5 py-0.5 text-meta font-bold tabular-nums',
-                urgent ? 'bg-signal-fail/20 text-signal-fail' : 'bg-ink-600 text-content-secondary',
+                windowClosed
+                  ? 'bg-amber-300/15 text-amber-300'
+                  : urgent
+                    ? 'bg-signal-fail/20 text-signal-fail'
+                    : 'bg-ink-600 text-content-secondary',
               )}
             >
-              {seconds}s
+              {windowClosed ? 'window closed' : `${seconds}s`}
             </span>
           </div>
           <p className="mt-1 max-w-xl text-ui leading-5 text-content-secondary">
-            Choose how much autonomy to grant. If the timer expires, nothing runs — the choice closes and
-            never defaults to execution.
+            {windowClosed
+              ? 'The countdown window closed — nothing executed meanwhile. Your explicit choice is still valid: decide now, and the decision is recorded as late in the audit trail.'
+              : 'Choose how much autonomy to grant. If the timer expires, nothing runs — and your explicit choice stays valid afterwards.'}
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2">

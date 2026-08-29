@@ -101,8 +101,11 @@ export type TaskDecisionResolution =
 
 /**
  * Resolve the Work direct-vs-plan card exactly once. The conditional UPDATE is
- * the authority: the UI timer is only presentation and cannot authorize a late
- * or duplicate choice.
+ * the authority; the UI timer is only presentation — a window that closed
+ * never executes anything by itself, but the operator's explicit click
+ * remains valid at any time (v1.25: a late decision resolves the card and
+ * is marked honestly in the decision's audit event, instead of stranding
+ * the operator with no gate, no composer, and no escape).
  */
 export async function resolveTaskDecision(
   id: string,
@@ -124,10 +127,9 @@ export async function resolveTaskDecision(
        WHERE id = ?
          AND status = 'awaiting_decision'
          AND decision_state = 'pending'
-         AND decision_expires_at IS NOT NULL
-         AND decision_expires_at > ?`,
+         AND decision_expires_at IS NOT NULL`,
     )
-    .run(nextMode, approvedPlan, now, id, now);
+    .run(nextMode, approvedPlan, now, id);
 
   if (res.changes > 0) {
     const task = await getTaskById(id);
@@ -138,6 +140,8 @@ export async function resolveTaskDecision(
   const task = await getTaskById(id);
   if (!task) return { outcome: 'not_found' };
   if (task.status === 'awaiting_decision' && task.decision_state === 'pending') {
+    // Unreachable while the resolution UPDATE above has no deadline clause —
+    // kept as defense-in-depth so the vocabulary can never regress.
     const expired = await db
       .prepare(
         `UPDATE tasks
@@ -183,6 +187,8 @@ export async function listAllTasks(
  *
  * The conditional UPDATE is the single concurrency gate: only one request can
  * transition the task to pending, so only that request may start a runner.
+ * v1.25: 'cancelled' joined the claimable set — the Work composer renders on
+ * every terminal status, so a cancelled run must accept its follow-up too.
  */
 export async function claimTaskForFollowUp(id: string): Promise<Task | undefined> {
   const res = await db
@@ -191,7 +197,7 @@ export async function claimTaskForFollowUp(id: string): Promise<Task | undefined
        SET status = 'pending',
            error = NULL,
            updated_at = ?
-       WHERE id = ? AND status IN ('completed', 'failed', 'planned')`,
+       WHERE id = ? AND status IN ('completed', 'failed', 'planned', 'cancelled')`,
     )
     .run(nowIso(), id);
   if (res.changes === 0) return undefined;

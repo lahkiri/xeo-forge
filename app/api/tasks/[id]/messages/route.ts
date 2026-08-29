@@ -57,6 +57,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       );
     }
 
+    // v1.25: honest guidance instead of the misleading generic claim error.
+    // The decision card stays the authority for undecided direct requests;
+    // deciding after the window closed is explicitly allowed (late decision).
+    if (task.status === 'awaiting_decision' && task.decision_state === 'pending') {
+      return NextResponse.json(
+        { error: 'This run is waiting for your decision. Approve or reject it first — deciding after the window closed is allowed.' },
+        { status: 409 },
+      );
+    }
+
     const body = await req.json();
     const parsed = MessageSchema.safeParse(body);
     if (!parsed.success) {

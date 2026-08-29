@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Message, Task, TaskEvent, Upload } from '@/lib/types';
 import { useHotkeys } from '@/components/CommandPalette';
-import { Alert, Panel, useModKey } from '@/components/ui';
+import { Panel, useModKey } from '@/components/ui';
 import { DecisionGate } from '@/components/WorkPrimitives';
 import type { FlowStage } from '@/components/AgentPrimitives';
 import { useWorkRunState } from './useWorkRunState';
@@ -85,9 +85,14 @@ export default function WorkClient({
   const isTerminal = run.isTerminal;
   const isRunning = run.isRunning;
   const isPlanned = status === 'planned';
+  // v1.25: the gate renders while a decision is pending REGARDLESS of the
+  // countdown — an expired window never executes anything, but the operator's
+  // explicit choice stays valid (late decisions are allowed and audited).
+  // Hiding the gate at 0s used to strand the operator with no decision UI,
+  // a composer that 409ed, and no escape.
   const awaitingDecision =
-    status === 'awaiting_decision' && task.decision_state === 'pending' && decisionSeconds > 0;
-  const decisionExpired = status === 'awaiting_decision' && decisionSeconds <= 0;
+    status === 'awaiting_decision' && task.decision_state === 'pending';
+  const decisionWindowClosed = awaitingDecision && decisionSeconds <= 0;
 
   /* ── Autoscroll + run-log pinning ── */
   const logRef = useRef<HTMLDivElement>(null);
@@ -155,14 +160,13 @@ export default function WorkClient({
           isRunning={isRunning} busy={busy} onCancel={() => void actions.cancelRun()}
         />
 
-        {awaitingDecision && <DecisionGate seconds={decisionSeconds} busy={busy} onChoose={actions.decide} />}
-
-        {decisionExpired && (
-          <div className="border-b border-line-subtle px-4 py-3">
-            <Alert tone="warn" title="The decision window closed">
-              Nothing was executed. Send a new message to start again — expiry never defaults to execution.
-            </Alert>
-          </div>
+        {awaitingDecision && (
+          <DecisionGate
+            seconds={decisionSeconds}
+            windowClosed={decisionWindowClosed}
+            busy={busy}
+            onChoose={actions.decide}
+          />
         )}
 
         {tab === 'run' && (

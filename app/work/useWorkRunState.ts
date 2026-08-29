@@ -92,7 +92,11 @@ export function useWorkRunState({
 
     const { type, data } = event;
     if (type === 'task_status' && typeof data.status === 'string') {
-      if (data.status !== 'completed' && data.status !== 'failed') setStatus(data.status as Task['status']);
+      // The row is the truth — adopt every transition, terminal included.
+      // Pre-v1.25 this skipped completed/failed and waited for `done`; any
+      // lost done event (SSE reconnect window) left the surface stuck on
+      // 'running' with the follow-up composer hidden.
+      setStatus(data.status as Task['status']);
     } else if (type === 'done' && typeof data.status === 'string') {
       setStatus(data.status as Task['status']);
       if (typeof data.summary === 'string' && data.summary) {

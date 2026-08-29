@@ -53,10 +53,16 @@ export async function POST(
     }
 
     const resolvedTask = resolution.task;
+    // v1.25: a decision made after the presentation window closed is recorded
+    // honestly as late in the audit trail — same explicit consent, marked.
+    const decidedLate = Boolean(
+      task.decision_expires_at && task.decision_expires_at <= new Date().toISOString(),
+    );
     await appendTaskEvent(resolvedTask.id, 'intent', {
       kind: resolvedTask.intent_kind,
       decision: choice,
       decision_state: resolvedTask.decision_state,
+      decided_late: decidedLate,
       resolved_at: new Date().toISOString(),
     });
 
