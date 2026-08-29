@@ -87,9 +87,18 @@ export function WorkSecondaryTabs({
     );
   }
   if (tab === 'preview') {
+    // v1.25 (Phase 6.1): a failed run says so in the Preview tab, with the
+    // classified reason from its own error event — never a bare panel.
+    const failureReason = (() => {
+      const errorEvent = [...events].reverse().find((event) => event.type === 'error');
+      if (!errorEvent) return null;
+      const message = (errorEvent.data as Record<string, unknown>).message;
+      return typeof message === 'string' && message.trim() ? message : null;
+    })();
+    const failed = task.status === 'failed';
     return (
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <PreviewPanel taskId={task.id} isTerminal={isTerminal} />
+        <PreviewPanel taskId={task.id} isTerminal={isTerminal} failed={failed} failureReason={failureReason} />
       </div>
     );
   }

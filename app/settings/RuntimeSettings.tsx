@@ -14,6 +14,7 @@ export default function RuntimeSettings({ localMode }: { localMode: boolean }) {
   const [showToken, setShowToken] = useState(false);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const [newDomain, setNewDomain] = useState('');
 
   useEffect(() => {
     const desktop = typeof window !== 'undefined' ? window.xeoDesktop : undefined;
@@ -72,6 +73,28 @@ export default function RuntimeSettings({ localMode }: { localMode: boolean }) {
     } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not save browser policy.' }); }
   }
 
+  /** v1.25 (Phase 6.1): governed per-domain expansion — nothing external is
+   *  reachable until the operator types the domain and approves it here. */
+  function addAllowedDomain() {
+    if (!policy) return;
+    const domain = newDomain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+    setNewDomain('');
+    if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/.test(domain)) {
+      setNotice({ tone: 'error', text: 'Enter a bare hostname like example.com — the agent will be able to open it and its subdomains.' });
+      return;
+    }
+    if (policy.allowedDomains.includes(domain)) {
+      setNotice({ tone: 'ok', text: 'That domain is already allowlisted.' });
+      return;
+    }
+    void savePolicy({ allowedDomains: [...policy.allowedDomains, domain] });
+  }
+
+  function removeAllowedDomain(domain: string) {
+    if (!policy) return;
+    void savePolicy({ allowedDomains: policy.allowedDomains.filter((item) => item !== domain) });
+  }
+
   async function saveUpdates(patch: Partial<DesktopUpdateSettings>) {
     if (!window.xeoDesktop || !updateSettings) return;
     try { setUpdateSettings(await window.xeoDesktop.setUpdateSettings({ ...updateSettings, ...patch })); setNotice({ tone: 'ok', text: 'Update preferences saved locally.' }); }
@@ -115,6 +138,26 @@ export default function RuntimeSettings({ localMode }: { localMode: boolean }) {
         <section className="settings-panel">
           <div className="settings-panel-head"><div><span className="codex-kicker">Browser boundary</span><h3>{browserConnected ? 'Browser connected' : 'No browser connected'}</h3><p>{selectedProfile?.browserName || 'Connect the extension, then select a profile for Work.'}</p></div><span className={browserConnected ? 'settings-status-chip is-on' : 'settings-status-chip is-off'}>{browserConnected ? 'Connected' : 'Optional'}</span></div>
           {policy && <div className="settings-policy-list"><label className="settings-check"><input type="checkbox" checked={policy.interactionEnabled} onChange={(event) => void savePolicy({ interactionEnabled: event.target.checked })} /> Allow browser interaction</label><label className="settings-check"><input type="checkbox" checked={policy.redactSensitiveData} onChange={(event) => void savePolicy({ redactSensitiveData: event.target.checked })} /> Redact sensitive data</label><label className="settings-check"><input type="checkbox" checked={policy.allowSensitiveActions} onChange={(event) => void savePolicy({ allowSensitiveActions: event.target.checked })} /> Allow sensitive actions</label></div>}
+          {policy && (
+            <div className="settings-info-card" style={{ marginTop: '0.7rem' }}>
+              <span className="settings-empty-mark">d</span>
+              <div style={{ minWidth: 0 }}>
+                <h3>Domain allowlist — external browsing is OFF by default</h3>
+                <p>Only <code>127.0.0.1</code> and loopback addresses are reachable until you add a bare hostname here. The agent can then open <strong>{policy.allowedDomains.length === 0 ? 'no external domains yet' : `only ${policy.allowedDomains.join(', ')}`}</strong> — never anything else. Add a domain only if you want the browser tools to reach it.</p>
+                <div className="settings-header-actions" style={{ marginTop: '0.5rem' }}>
+                  <input className="settings-input" style={{ maxWidth: '16rem' }} value={newDomain} placeholder="example.com" onChange={(event) => setNewDomain(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); addAllowedDomain(); } }} />
+                  <Button size="sm" variant="secondary" onClick={() => addAllowedDomain()}>Approve domain</Button>
+                </div>
+                {policy.allowedDomains.length > 0 && (
+                  <div className="settings-header-actions" style={{ marginTop: '0.6rem', flexWrap: 'wrap' }}>
+                    {policy.allowedDomains.map((domain) => (
+                      <span key={domain} className="settings-status-chip is-on">{domain} <button type="button" aria-label={`Remove ${domain}`} onClick={() => removeAllowedDomain(domain)} style={{ marginLeft: 4, cursor: 'pointer' }}>×</button></span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {browser?.profiles?.length ? <div className="browser-profile-grid">{browser.profiles.map((profile) => { const selected = profile.browserId === browser.selectedBrowserId; return <div key={profile.browserId} className={`browser-profile-card ${selected ? 'is-selected' : ''}`}><div className="browser-profile-head"><div><strong>{profile.profileName}</strong><small>{profile.browserName} · {profile.connected ? 'connected' : 'disconnected'}</small></div><span className={profile.connected ? 'settings-status-chip is-on' : 'settings-status-chip is-off'}>{selected ? 'Selected' : profile.connected ? 'Ready' : 'Offline'}</span></div><p>{profile.tab?.title || 'No active tab reported'}</p><small>{profile.tab?.url || '—'}</small><Button variant="ghost" size="sm" disabled={!profile.connected || selected} onClick={() => window.xeoDesktop?.selectBrowser(profile.browserId).then(setBrowser).catch((error) => setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not select browser profile.' }))}>{selected ? 'Using this profile' : 'Use for Work'}</Button></div>; })}</div> : <p className="browser-setup-note">No browser profile is connected yet. Load the unpacked extension — the pairing request will appear above for one-click approval.</p>}
         </section>
       </div>}

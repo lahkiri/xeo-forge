@@ -49,7 +49,18 @@ interface BrowserTestResult {
   steps?: { action: string; ok: boolean; error?: string }[];
 }
 
-export function PreviewPanel({ taskId, isTerminal }: { taskId: string; isTerminal: boolean }) {
+export function PreviewPanel({
+  taskId,
+  isTerminal,
+  failed = false,
+  failureReason = null,
+}: {
+  taskId: string;
+  isTerminal: boolean;
+  /** v1.25 (Phase 6.1): a failed run has nothing to preview — say so, with the reason. */
+  failed?: boolean;
+  failureReason?: string | null;
+}) {
   const [preview, setPreview] = useState<PreviewStatus | null>(null);
   const [env, setEnv] = useState<EnvInfo | null>(null);
   const [envValues, setEnvValues] = useState<Record<string, string>>({});
@@ -182,7 +193,26 @@ export function PreviewPanel({ taskId, isTerminal }: { taskId: string; isTermina
     return (
       <div className="space-y-3">
         {browserCapabilityPanel}
+        {failed && (
+          <div className="rounded-control border border-signal-fail/25 bg-signal-fail/[0.06] px-4 py-3">
+            <p className="text-ui font-medium text-signal-fail">This run failed — there is nothing to preview.</p>
+            <p className="mt-1 text-meta leading-5 text-content-secondary">{failureReason || 'The run reached a failed state without a classified message.'}</p>
+          </div>
+        )}
         <div className="text-center py-4 text-meta text-content-muted">runtime preview becomes available after the task completes</div>
+      </div>
+    );
+  }
+
+  if (failed) {
+    return (
+      <div className="space-y-3">
+        {browserCapabilityPanel}
+        <div className="rounded-control border border-signal-fail/25 bg-signal-fail/[0.06] px-4 py-3">
+          <p className="text-ui font-medium text-signal-fail">This run failed — there is nothing to preview.</p>
+          <p className="mt-1 text-meta leading-5 text-content-secondary">{failureReason || 'The run reached a failed state without a classified message.'}</p>
+          <p className="mt-1 text-micro text-content-muted">The failure reason comes from the run's own error event in the audit trail.</p>
+        </div>
       </div>
     );
   }
