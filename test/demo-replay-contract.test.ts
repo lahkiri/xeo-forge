@@ -143,18 +143,9 @@ describe('decision event renders as a first-class timeline row', () => {
   });
 });
 
-describe('intake wiring', () => {
-  const intake = readSrc('app/work/WorkIntake.tsx');
-
-  it('shows the watch card only in Desktop Local mode', () => {
-    expect(intake).toMatch(/\{localMode && \(\r?\n\s*<button/);
-  });
-
-  it('navigates to the run with ?demo=1 after seeding', () => {
-    expect(intake).toMatch(/router\.push\(`\/work\/\$\{body\.task\.id\}\?demo=1`\)/);
-  });
-
-  it('surfaces API errors honestly instead of failing silently', () => {
-    expect(intake).toMatch(/setError\(body\.error \|\| 'Could not start the demo\.'\)/);
-  });
-});
+// NOTE (v1.24): the former `intake wiring` describe pinned app/work/
+// WorkIntake.tsx — a dead surface with zero production importers (the live
+// demo entry lives in app/chat/UnifiedWorkspace.tsx and /work redirects to
+// /chat). WorkIntake was deleted in v1.24 per maintainer decision; the demo
+// contract itself is still pinned above (golden script, seed route, pacer,
+// honesty markers).

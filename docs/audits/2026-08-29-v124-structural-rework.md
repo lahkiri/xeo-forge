@@ -1,8 +1,8 @@
 # v1.24 Structural Rework — Evidence Record
 
-**Date:** 2026-08-29 · **Status:** rework complete and pushed; **not released** —
-no tag, no version bump, no release notes. The release itself is a separate,
-explicitly authorized step.
+**Date:** 2026-08-29 · **Status:** rework complete and pushed, including the
+maintainer-ordered dead-surface removal below; the v1.24.0 release itself was
+explicitly authorized by the maintainer and follows this record.
 
 This document records the v1.24 structural rework of the repo's three largest
 source files, as identified by the Indxr MCP project map (v1.23.1 scan,
@@ -90,6 +90,38 @@ per function, the pre-split export surface frozen, external db-adapter users
 frozen to `{lib/credits/engine.ts, lib/mcp/registry.ts}`, deep domain imports
 forbidden, shared helpers package-private.
 
+### Phase 1.5 — dead-surface removal: `app/work/WorkIntake.tsx`
+
+Discovered during the README media refresh: `WorkIntake.tsx` (438 lines) had
+**zero production importers**. The `/work` route redirects to `/chat`
+(`app/work/page.tsx`), so the intake page was unreachable, and the LIVE demo
+entry lives in `app/chat/UnifiedWorkspace.tsx` (`POST /api/demo` →
+`router.push('/work/<id>?demo=1')`) — WorkIntake was a dead duplicate of that
+flow. Per the maintainer's explicit decision it was deleted in v1.24.
+
+**Verification before deletion (comprehensive grep across every file type):**
+
+- `WorkIntake` appears in exactly 5 places repo-wide: the file itself,
+  the `intake wiring` describe of `test/demo-replay-contract.test.ts` (a
+  source-reading pin, not an import), and three historical release-record
+  documents (`docs/release-notes/v1.21.0.md`, `v1.23.0.md`,
+  `docs/RELEASES.md`) which are left untouched as historical records.
+- No import, no dynamic `import()`/`lazy()`, no barrel re-export, no
+  tsconfig/next.config/script/workflow reference anywhere.
+- Icon hygiene checked: the 4 icons it imported (`IconArrowRight`, `IconX`,
+  `IconCheck`, `IconCircle`) remain used by 2–7 other files each — no
+  orphans created.
+
+**Removed with it:** the `intake wiring` describe block of
+`test/demo-replay-contract.test.ts` (3 assertions that read WorkIntake's
+source). The file's other four contract blocks — golden-run script integrity,
+demo seed route, WorkClient pacer, decision-event rendering — pin LIVE
+modules and stay. An in-file note records why the intake block is gone and
+where the live demo entry actually lives.
+
+**Verification after deletion:** full suite 50 files, 891/891 green
+(894 − 3); `tsc --noEmit` clean; ESLint clean on the touched file.
+
 ## Before → after
 
 | File | Before | After |
@@ -97,12 +129,13 @@ forbidden, shared helpers package-private.
 | `lib/agent/loop.ts` | 1,917 | 1,620 |
 | `app/work/WorkClient.tsx` | 1,091 | 216 |
 | `lib/db/queries.ts` | 1,476 | 28 (facade) + 9 domain modules |
-| Test suite | 866 tests (47 files) | 894 tests (50 files), all green |
+| Test suite | 866 tests (47 files) | 891 tests (50 files), all green (866 → 894 through the splits; −3 dead-surface intake pins removed with WorkIntake) |
 | `tsc --noEmit` | clean | clean |
 
 Commits, in order: `3c7460b` (loop split) → `4826fff` (WorkClient) →
 `4e1884b` (merge v1.23.1 Answer Keeper II, disjoint file sets, conflict-free)
-→ `c5576a3` (queries package) → `f4f3f09` (AGENTS.md layout truth).
+→ `c5576a3` (queries package) → `f4f3f09` (AGENTS.md layout truth) →
+`03c7e34` (evidence record) → the WorkIntake dead-surface removal.
 
 ## Honestly out of scope
 
@@ -111,4 +144,4 @@ Commits, in order: `3c7460b` (loop split) → `4826fff` (WorkClient) →
   largest files; cyclomatic-complexity debt inside the remaining functions
   (including `runAgent`) was **not** systematically attacked in this rework.
 - No behavior change is claimed anywhere: this rework is structure only, and
-  the 894-test suite pins exactly that claim.
+  the 891-test suite pins exactly that claim.
