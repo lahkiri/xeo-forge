@@ -28,7 +28,13 @@ export default function RuntimeSettings({ localMode }: { localMode: boolean }) {
       setUpdateSettings(nextSettings);
     }).catch((error) => setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not load runtime state.' }));
     const unsubscribe = window.xeoDesktopEvents?.onUpdateStatus((state) => alive && setUpdates(state));
-    return () => { alive = false; unsubscribe?.(); };
+    // v1.25: pairing requests arrive while the page is open — poll the local
+    // bridge state so the approval card appears without a manual reload.
+    const poll = setInterval(() => {
+      if (!alive) return;
+      desktop.getBrowserState().then((nextBrowser) => setBrowser(nextBrowser)).catch(() => {});
+    }, 3000);
+    return () => { alive = false; unsubscribe?.(); clearInterval(poll); };
   }, [localMode]);
 
   async function refresh() {
@@ -47,6 +53,15 @@ export default function RuntimeSettings({ localMode }: { localMode: boolean }) {
     } catch (error) {
       setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not open extension folder.' });
     }
+  }
+
+  async function decidePairing(pairingId: string, approve: boolean) {
+    if (!window.xeoDesktop) return;
+    try {
+      const next = approve ? await window.xeoDesktop.approvePairing(pairingId) : await window.xeoDesktop.denyPairing(pairingId);
+      setBrowser(next); setPolicy(next.browserPolicy);
+      setNotice({ tone: 'ok', text: approve ? 'Browser paired. Reconnections from this profile are now automatic.' : 'Pairing denied.' });
+    } catch (error) { setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Pairing decision failed.' }); }
   }
 
   async function savePolicy(patch: Partial<DesktopBrowserPolicy>) {
@@ -84,11 +99,11 @@ export default function RuntimeSettings({ localMode }: { localMode: boolean }) {
         </div>
         <ol className="browser-setup-steps">
           <li><span>1</span><p>Click <strong>Open extension folder</strong>, or locate <code>desktop/browser-extension</code> in the Xeo Forge project.</p></li>
-          <li><span>2</span><p>Open <code>chrome://extensions</code> in Chrome or Chromium and enable <strong>Developer mode</strong>.</p></li>
-          <li><span>3</span><p>Choose <strong>Load unpacked</strong> and select the <code>browser-extension</code> folder itself.</p></li>
-          <li><span>4</span><p>Open the extension’s <strong>Options</strong>, paste the local token below, keep the displayed port, name the profile, and choose <strong>Save and connect</strong>.</p></li>
+          <li><span>2</span><p>Open <code>chrome://extensions</code> in Chrome or Chromium, enable <strong>Developer mode</strong>, choose <strong>Load unpacked</strong>, and select the <code>browser-extension</code> folder itself.</p></li>
+          <li><span>3</span><p>Approve the pairing request that appears below — <strong>no token copying needed</strong>. Next time, this browser reconnects automatically.</p></li>
         </ol>
-        {!localMode || !bridgeReady ? <p className="browser-setup-note">Browser setup actions are available in the Xeo Forge Desktop app. This web preview can show the instructions but cannot open a local folder or expose the bridge token.</p> : browser?.token ? <div className="browser-token-card"><div><span className="codex-kicker">Local extension token · port {browser.port}</span><code>{showToken ? browser.token : '••••••••••••••••••••••••••••••••'}</code></div><div className="settings-header-actions"><Button variant="ghost" size="sm" onClick={() => setShowToken((value) => !value)}>{showToken ? 'Hide token' : 'Reveal token'}</Button><Button variant="ghost" size="sm" onClick={() => browser.token && navigator.clipboard.writeText(browser.token)}>Copy token</Button></div></div> : <p className="browser-setup-note">Start the Desktop app to generate a local token, then paste it in the extension Options page.</p>}
+        {browser?.pendingPairing?.length ? <div className="settings-stack" style={{ marginBottom: '0.8rem' }}>{browser.pendingPairing.map((request) => <div key={request.id} className="settings-info-card"><span className="settings-empty-mark">?</span><div><h3>Pairing request: {request.browserName}</h3><p>Profile “{request.profileName}” · extension v{request.extensionVersion} · requested {request.requestedAt ? new Date(request.requestedAt).toLocaleTimeString() : 'just now'}. Approve only if this is your own browser on this machine.</p></div><div className="settings-header-actions"><Button size="sm" onClick={() => void decidePairing(request.id, true)}>Approve &amp; connect</Button><Button variant="ghost" size="sm" onClick={() => void decidePairing(request.id, false)}>Deny</Button></div></div>)}</div> : null}
+        {!localMode || !bridgeReady ? <p className="browser-setup-note">Browser setup actions are available in the Xeo Forge Desktop app. This web preview can show the instructions but cannot approve a local pairing.</p> : browser?.token ? <details className="browser-token-card"><summary><span className="codex-kicker">Advanced: manual token · port {browser.port}</span></summary><div style={{ display: 'flex', gap: '0.8rem', alignItems: 'center', paddingTop: '0.4rem' }}><code>{showToken ? browser.token : '••••••••••••••••••••••••••••••••'}</code><div className="settings-header-actions"><Button variant="ghost" size="sm" onClick={() => setShowToken((value) => !value)}>{showToken ? 'Hide token' : 'Reveal token'}</Button><Button variant="ghost" size="sm" onClick={() => browser.token && navigator.clipboard.writeText(browser.token)}>Copy token</Button></div></div></details> : <p className="browser-setup-note">Start the Desktop app to pair your browser.</p>}
       </section>
 
       {!localMode || !bridgeReady ? <div className="settings-info-card"><span className="settings-empty-mark">i</span><div><h3>Runtime controls are available in the Desktop app</h3><p>The browser bridge, local token, update channel, and profile selection are intentionally local-only. The web preview keeps these controls read-only.</p></div></div> : <div className="settings-stack">
@@ -100,7 +115,7 @@ export default function RuntimeSettings({ localMode }: { localMode: boolean }) {
         <section className="settings-panel">
           <div className="settings-panel-head"><div><span className="codex-kicker">Browser boundary</span><h3>{browserConnected ? 'Browser connected' : 'No browser connected'}</h3><p>{selectedProfile?.browserName || 'Connect the extension, then select a profile for Work.'}</p></div><span className={browserConnected ? 'settings-status-chip is-on' : 'settings-status-chip is-off'}>{browserConnected ? 'Connected' : 'Optional'}</span></div>
           {policy && <div className="settings-policy-list"><label className="settings-check"><input type="checkbox" checked={policy.interactionEnabled} onChange={(event) => void savePolicy({ interactionEnabled: event.target.checked })} /> Allow browser interaction</label><label className="settings-check"><input type="checkbox" checked={policy.redactSensitiveData} onChange={(event) => void savePolicy({ redactSensitiveData: event.target.checked })} /> Redact sensitive data</label><label className="settings-check"><input type="checkbox" checked={policy.allowSensitiveActions} onChange={(event) => void savePolicy({ allowSensitiveActions: event.target.checked })} /> Allow sensitive actions</label></div>}
-          {browser?.profiles?.length ? <div className="browser-profile-grid">{browser.profiles.map((profile) => { const selected = profile.browserId === browser.selectedBrowserId; return <div key={profile.browserId} className={`browser-profile-card ${selected ? 'is-selected' : ''}`}><div className="browser-profile-head"><div><strong>{profile.profileName}</strong><small>{profile.browserName} · {profile.connected ? 'connected' : 'disconnected'}</small></div><span className={profile.connected ? 'settings-status-chip is-on' : 'settings-status-chip is-off'}>{selected ? 'Selected' : profile.connected ? 'Ready' : 'Offline'}</span></div><p>{profile.tab?.title || 'No active tab reported'}</p><small>{profile.tab?.url || '—'}</small><Button variant="ghost" size="sm" disabled={!profile.connected || selected} onClick={() => window.xeoDesktop?.selectBrowser(profile.browserId).then(setBrowser).catch((error) => setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not select browser profile.' }))}>{selected ? 'Using this profile' : 'Use for Work'}</Button></div>; })}</div> : <p className="browser-setup-note">No browser profile is connected yet. Load the unpacked extension, paste the token, and create a profile in the extension Options.</p>}
+          {browser?.profiles?.length ? <div className="browser-profile-grid">{browser.profiles.map((profile) => { const selected = profile.browserId === browser.selectedBrowserId; return <div key={profile.browserId} className={`browser-profile-card ${selected ? 'is-selected' : ''}`}><div className="browser-profile-head"><div><strong>{profile.profileName}</strong><small>{profile.browserName} · {profile.connected ? 'connected' : 'disconnected'}</small></div><span className={profile.connected ? 'settings-status-chip is-on' : 'settings-status-chip is-off'}>{selected ? 'Selected' : profile.connected ? 'Ready' : 'Offline'}</span></div><p>{profile.tab?.title || 'No active tab reported'}</p><small>{profile.tab?.url || '—'}</small><Button variant="ghost" size="sm" disabled={!profile.connected || selected} onClick={() => window.xeoDesktop?.selectBrowser(profile.browserId).then(setBrowser).catch((error) => setNotice({ tone: 'error', text: error instanceof Error ? error.message : 'Could not select browser profile.' }))}>{selected ? 'Using this profile' : 'Use for Work'}</Button></div>; })}</div> : <p className="browser-setup-note">No browser profile is connected yet. Load the unpacked extension — the pairing request will appear above for one-click approval.</p>}
         </section>
       </div>}
     </div>

@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('xeoDesktop', {
   installUpdate: () => ipcRenderer.invoke('update:install'),
   getBrowserState: () => ipcRenderer.invoke('browser:state'),
   selectBrowser: (browserId) => ipcRenderer.invoke('browser:select', browserId),
+  approvePairing: (pairingId) => ipcRenderer.invoke('browser:pairing:approve', pairingId),
+  denyPairing: (pairingId) => ipcRenderer.invoke('browser:pairing:deny', pairingId),
   getBrowserPolicy: () => ipcRenderer.invoke('browser:policy'),
   setBrowserPolicy: (policy) => ipcRenderer.invoke('browser:policy:set', policy),
   openBrowserExtension: () => ipcRenderer.invoke('browser:open-extension'),

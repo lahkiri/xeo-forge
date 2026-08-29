@@ -14,6 +14,7 @@ const {
 const MAX_PROFILE_NAME_LENGTH = 80;
 const MAX_BROWSER_NAME_LENGTH = 80;
 const MAX_VERSION_LENGTH = 40;
+const MAX_PENDING_PAIRINGS = 4;
 const READ_ACTIONS = new Set(['state', 'read_page', 'screenshot']);
 // MUST mirror lib/agent/browser.ts SENSITIVE_ACTIONS exactly. The agent
 // layer is the primary policy gate; this is defense-in-depth so the bridge
@@ -50,8 +51,33 @@ function savePreferredBrowserId(preferencePath, browserId) {
   }
 }
 
-function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } = {}) {
+function loadApprovedBrowserIds(approvedPath) {
+  if (!approvedPath) return [];
+  try {
+    if (!existsSync(approvedPath)) return [];
+    const value = JSON.parse(readFileSync(approvedPath, 'utf8'));
+    return Array.isArray(value.approved) ? value.approved.filter((id) => typeof id === 'string' && id.length >= 8).slice(0, 32) : [];
+  } catch (error) {
+    console.warn('[browser-bridge] could not read approved browser ids:', error);
+    return [];
+  }
+}
+
+function saveApprovedBrowserIds(approvedPath, ids) {
+  if (!approvedPath) return;
+  try {
+    mkdirSync(path.dirname(approvedPath), { recursive: true });
+    writeFileSync(approvedPath, JSON.stringify({ approved: ids }, null, 2), { encoding: 'utf8', mode: 0o600 });
+  } catch (error) {
+    console.error('[browser-bridge] could not persist approved browser ids:', error);
+  }
+}
+
+function startBrowserBridge({ port = 4321, token, preferencePath, policyPath, approvedPath } = {}) {
   const connections = new Map();
+  /** v1.25: tokenless pairing requests waiting for an explicit operator yes. */
+  const pendingPairing = new Map();
+  let approvedBrowserIds = loadApprovedBrowserIds(approvedPath);
   let browserPolicy = loadBrowserPolicy(policyPath);
   const pending = new Map();
   let preferredBrowserId = loadPreferredBrowserId(preferencePath);
@@ -93,8 +119,72 @@ function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } =
       tab: selected?.tab || null,
         permissions: selected?.permissions || [],
         browserPolicy,
+        pendingPairing: pendingPairingState(),
         updatedAt: new Date().toISOString(),
     };
+  };
+
+  /** v1.25: pairing requests that announced themselves and await a decision. */
+  const pendingPairingState = () =>
+    [...pendingPairing.entries()]
+      .filter(([, entry]) => entry.claimedBrowserId)
+      .map(([id, entry]) => ({
+        id,
+        browserId: entry.claimedBrowserId,
+        profileName: entry.profileName,
+        browserName: entry.browserName,
+        extensionVersion: entry.extensionVersion,
+        userAgent: entry.userAgent,
+        requestedAt: entry.requestedAt,
+      }));
+
+  /** Promote an approved pairing connection to a full registered profile. */
+  const promotePairingConnection = (connection) => {
+    const claimed = connection.claimedBrowserId;
+    const existing = connections.get(claimed);
+    if (existing && existing !== connection && existing.socket.readyState === 1) {
+      pendingPairing.delete(connection.pairingId);
+      connection.socket.close(1008, 'This browser profile is already connected.');
+      throw new Error('This browser profile is already connected.');
+    }
+    connections.delete(claimed); // stale disconnected row for the same id
+    connection.browserId = claimed;
+    connection.pairingPending = false;
+    connections.set(claimed, connection);
+    if (!approvedBrowserIds.includes(claimed)) {
+      approvedBrowserIds = [...approvedBrowserIds, claimed].slice(-32);
+      saveApprovedBrowserIds(approvedPath, approvedBrowserIds);
+    }
+    if (!preferredBrowserId) {
+      preferredBrowserId = connection.browserId;
+      try {
+        savePreferredBrowserId(preferencePath, preferredBrowserId);
+      } catch (error) {
+        console.error('[browser-bridge] pairing auto-selection failed:', error);
+      }
+    }
+    pendingPairing.delete(connection.pairingId);
+    try {
+      connection.socket.send(JSON.stringify({ type: 'paired', ok: true, browserId: connection.browserId }));
+    } catch (error) {
+      console.warn('[browser-bridge] paired ack failed:', error);
+    }
+    return state();
+  };
+
+  const approvePairing = (pairingId) => {
+    const connection = pendingPairing.get(pairingId);
+    if (!connection) throw new Error('That pairing request is no longer pending.');
+    if (!connection.claimedBrowserId) throw new Error('The extension has not announced itself yet.');
+    return promotePairingConnection(connection);
+  };
+
+  const denyPairing = (pairingId) => {
+    const connection = pendingPairing.get(pairingId);
+    if (!connection) throw new Error('That pairing request is no longer pending.');
+    pendingPairing.delete(pairingId);
+    connection.socket.close(1008, 'Pairing denied by the operator.');
+    return state();
   };
 
   const rejectPendingForBrowser = (browserId, reason) => {
@@ -208,7 +298,12 @@ function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } =
   });
 
   const wss = new WebSocketServer({ noServer: true });
-  wss.on('connection', (candidate) => {
+  wss.on('connection', (candidate, req) => {
+    // v1.25: /pair is the tokenless pairing path — the connection stays
+    // PENDING (never in `connections`, never commandable) until the operator
+    // explicitly approves it in the app, or until it re-announces a browserId
+    // that was already approved earlier.
+    const pairingMode = Boolean(req && new URL(req.url || '/', 'http://127.0.0.1').pathname === '/pair');
     const connection = {
       browserId: crypto.randomUUID(),
       profileName: 'Browser profile',
@@ -219,18 +314,33 @@ function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } =
       tab: null,
       permissions: [],
       updatedAt: new Date().toISOString(),
+      pairingPending: pairingMode,
+      claimedBrowserId: null,
     };
-    connections.set(connection.browserId, connection);
-    if (!preferredBrowserId || (!connections.has(preferredBrowserId) && connections.size === 1)) {
-      preferredBrowserId = connection.browserId;
-      try {
-        savePreferredBrowserId(preferencePath, preferredBrowserId);
-      } catch (error) {
-        console.error('[browser-bridge] initial browser selection failed:', error);
+    if (pairingMode) {
+      const pairingId = crypto.randomUUID();
+      connection.pairingId = pairingId;
+      pendingPairing.set(pairingId, connection);
+      while (pendingPairing.size > MAX_PENDING_PAIRINGS) {
+        const oldest = pendingPairing.keys().next().value;
+        const stale = pendingPairing.get(oldest);
+        pendingPairing.delete(oldest);
+        try { stale.socket.close(1008, 'Too many pending pairing requests.'); } catch {}
+      }
+    } else {
+      connections.set(connection.browserId, connection);
+      if (!preferredBrowserId || (!connections.has(preferredBrowserId) && connections.size === 1)) {
+        preferredBrowserId = connection.browserId;
+        try {
+          savePreferredBrowserId(preferencePath, preferredBrowserId);
+        } catch (error) {
+          console.error('[browser-bridge] initial browser selection failed:', error);
+        }
       }
     }
 
     const publishConnection = (message) => {
+      if (connection.pairingPending) return; // pre-approval updates are just metadata
       if (message && typeof message === 'object') {
         const metadata = message.state && typeof message.state === 'object' ? { ...message.state, ...message } : message;
         const announcedId = typeof metadata.browserId === 'string' && metadata.browserId.length > 0
@@ -268,6 +378,22 @@ function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } =
     candidate.on('message', (raw) => {
       try {
         const message = JSON.parse(String(raw));
+        if (message.type === 'pair') {
+          connection.claimedBrowserId = typeof message.browserId === 'string' && message.browserId.length >= 8
+            ? message.browserId.slice(0, 120)
+            : null;
+          connection.profileName = cleanLabel(message.profileName, 'Browser profile', MAX_PROFILE_NAME_LENGTH);
+          connection.browserName = cleanLabel(message.browserName, 'Chromium browser', MAX_BROWSER_NAME_LENGTH);
+          connection.extensionVersion = cleanLabel(message.extensionVersion, 'unknown', MAX_VERSION_LENGTH);
+          connection.userAgent = cleanLabel(message.userAgent, '', 240);
+          if (Array.isArray(message.permissions)) connection.permissions = message.permissions.filter((item) => typeof item === 'string').slice(0, 20);
+          connection.requestedAt = new Date().toISOString();
+          if (connection.claimedBrowserId && approvedBrowserIds.includes(connection.claimedBrowserId)) {
+            promotePairingConnection(connection);
+          }
+          return;
+        }
+        if (connection.pairingPending) return; // nothing else is honored pre-approval
         if (message.type === 'register' || message.type === 'state') {
           publishConnection(message);
           return;
@@ -285,6 +411,10 @@ function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } =
     });
 
     candidate.on('close', () => {
+      if (connection.pairingPending) {
+        pendingPairing.delete(connection.pairingId);
+        return;
+      }
       if (connections.get(connection.browserId) === connection) connections.delete(connection.browserId);
       rejectPendingForBrowser(connection.browserId, 'The selected browser profile disconnected.');
     });
@@ -293,6 +423,10 @@ function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } =
 
   server.on('upgrade', (req, socketStream, head) => {
     const url = new URL(req.url || '/', 'http://127.0.0.1');
+    if (url.pathname === '/pair') {
+      wss.handleUpgrade(req, socketStream, head, (client) => wss.emit('connection', client, req));
+      return;
+    }
     if (url.pathname !== '/extension' || url.searchParams.get('token') !== token) {
       socketStream.destroy();
       return;
@@ -307,6 +441,8 @@ function startBrowserBridge({ port = 4321, token, preferencePath, policyPath } =
     token,
     state,
     selectBrowser: persistAndSelect,
+    approvePairing,
+    denyPairing,
     getPolicy: () => browserPolicy,
     setPolicy: persistPolicy,
     close: () => {

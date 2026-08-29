@@ -22,12 +22,24 @@ declare global {
     updatedAt?: string;
   };
 
+  /** v1.25: a tokenless pairing request waiting for an explicit operator yes. */
+  type DesktopPairingRequest = {
+    id: string;
+    browserId: string;
+    profileName: string;
+    browserName: string;
+    extensionVersion: string;
+    userAgent: string;
+    requestedAt: string;
+  };
+
   type DesktopBrowserState = {
     connected: boolean;
     selection: 'selected' | 'selected_disconnected' | 'selection_required';
     selectedBrowserId: string | null;
     selectedProfile: DesktopBrowserProfile | null;
     profiles: DesktopBrowserProfile[];
+    pendingPairing: DesktopPairingRequest[];
     tab: DesktopBrowserTab;
     permissions: string[];
     port: number;
@@ -73,6 +85,8 @@ declare global {
       installUpdate: () => Promise<DesktopUpdateState>;
       getBrowserState: () => Promise<DesktopBrowserState>;
       selectBrowser: (browserId: string) => Promise<DesktopBrowserState>;
+      approvePairing: (pairingId: string) => Promise<DesktopBrowserState>;
+      denyPairing: (pairingId: string) => Promise<DesktopBrowserState>;
       getBrowserPolicy: () => Promise<DesktopBrowserPolicy | null>;
       setBrowserPolicy: (policy: Partial<DesktopBrowserPolicy>) => Promise<DesktopBrowserState>;
       openBrowserExtension: () => Promise<string>;

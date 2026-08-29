@@ -47,6 +47,10 @@ function browserPolicyFile() {
   return browserPolicyPath(app.getPath('userData'));
 }
 
+function browserApprovedFile() {
+  return path.join(app.getPath('userData'), 'browser-approved.json');
+}
+
 function runtimeTokenPath() {
   return path.join(app.getPath('userData'), 'runtime-token');
 }
@@ -98,6 +102,7 @@ function startBrowserBridge() {
     token: getBrowserToken(),
     preferencePath: browserPreferencePath(),
     policyPath: browserPolicyFile(),
+    approvedPath: browserApprovedFile(),
   });
 }
 
@@ -227,6 +232,14 @@ ipcMain.handle('browser:state', () => browserState());
 ipcMain.handle('browser:select', (_event, browserId) => {
   if (!browserBridge) throw new Error('Browser bridge is disabled.');
   return browserBridge.selectBrowser(browserId);
+});
+ipcMain.handle('browser:pairing:approve', (_event, pairingId) => {
+  if (!browserBridge) throw new Error('Browser bridge is disabled.');
+  return browserBridge.approvePairing(pairingId);
+});
+ipcMain.handle('browser:pairing:deny', (_event, pairingId) => {
+  if (!browserBridge) throw new Error('Browser bridge is disabled.');
+  return browserBridge.denyPairing(pairingId);
 });
 ipcMain.handle('browser:policy', () => browserBridge?.getPolicy?.() || null);
 ipcMain.handle('browser:policy:set', (_event, policy) => {

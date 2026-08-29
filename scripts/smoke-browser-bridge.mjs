@@ -6,7 +6,7 @@ const port = Number(process.env.XEO_BROWSER_SMOKE_PORT || 4399);
 const token = 'smoke-token-' + 'x'.repeat(32);
 const preferencePath = `/tmp/xeo-forge-browser-smoke-${process.pid}.json`;
 const policyPath = `/tmp/xeo-forge-browser-policy-smoke-${process.pid}.json`;
-const bridge = startBrowserBridge({ port, token, preferencePath, policyPath });
+const bridge = startBrowserBridge({ port, token, preferencePath, policyPath, approvedPath: `/tmp/xeo-forge-browser-approved-smoke-${process.pid}.json` });
 const sockets = [];
 
 async function waitForBridge() {
@@ -145,6 +145,89 @@ try {
     throw new Error(`Disconnected selected profile did not fail closed: ${JSON.stringify(disconnectedBody)}`);
   }
 
+  /* ── v1.25: tokenless pairing with explicit operator approval ── */
+  const pairSocket = new WebSocket(`ws://127.0.0.1:${port}/pair`);
+  sockets.push(pairSocket);
+  pairSocket.on('error', () => {});
+  await new Promise((resolve, reject) => {
+    pairSocket.once('open', resolve);
+    pairSocket.once('error', reject);
+    setTimeout(() => reject(new Error('pair socket never opened')), 2000);
+  });
+  let pairedAck = null;
+  pairSocket.on('message', (raw) => {
+    const message = JSON.parse(String(raw));
+    if (message.type === 'paired') pairedAck = message;
+  });
+  pairSocket.send(JSON.stringify({
+    type: 'pair',
+    browserId: 'pair-smoke-browser',
+    profileName: 'Paired Chrome',
+    browserName: 'Smoke Chrome',
+    extensionVersion: '1.1.0',
+    userAgent: 'smoke-test',
+    tab: { id: 9, url: 'https://pair.example.test', title: 'Pair me' },
+    permissions: ['state', 'read_page', 'screenshot'],
+  }));
+  await waitFor(async () => (await state()).pendingPairing.length === 1, 'pending pairing request');
+  let current2 = await state();
+  if (current2.pendingPairing[0].browserName !== 'Smoke Chrome') {
+    throw new Error(`Pairing metadata did not arrive: ${JSON.stringify(current2.pendingPairing)}`);
+  }
+  // A pre-approval pending connection must NOT be commandable.
+  const preApproval = await state();
+  if (preApproval.connected || preApproval.profiles.some((p) => p.browserId === 'pair-smoke-browser')) {
+    throw new Error('Pending pairing connection leaked into the registered profiles.');
+  }
+  const approvedState = bridge.approvePairing(current2.pendingPairing[0].id);
+  const pairedProfile = approvedState.profiles.find((p) => p.browserId === 'pair-smoke-browser');
+  if (!pairedProfile?.connected) {
+    throw new Error(`Approved pairing did not connect: ${JSON.stringify(approvedState)}`);
+  }
+  await waitFor(async () => pairedAck !== null, 'paired acknowledgement');
+  commandResponder(pairSocket, { browserId: 'pair-smoke-browser', ok: true });
+  bridge.selectBrowser('pair-smoke-browser');
+  const pairedCommand = await fetch(`http://127.0.0.1:${port}/command`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-xeo-browser-token': token },
+    body: JSON.stringify({ action: 'state' }),
+  });
+  const pairedCommandBody = await pairedCommand.json();
+  if (pairedCommand.status !== 200 || pairedCommandBody.result.browserId !== 'pair-smoke-browser') {
+    throw new Error(`Approved pairing cannot route commands: ${JSON.stringify(pairedCommandBody)}`);
+  }
+
+  // Reconnect with the same browserId → auto-approved, no new request.
+  pairSocket.close();
+  await waitFor(async () => (await state()).profiles.find((p) => p.browserId === 'pair-smoke-browser')?.connected === false, 'paired profile disconnect');
+  const reSocket = new WebSocket(`ws://127.0.0.1:${port}/pair`);
+  sockets.push(reSocket);
+  reSocket.on('error', () => {});
+  await new Promise((resolve) => reSocket.once('open', resolve));
+  reSocket.send(JSON.stringify({ type: 'pair', browserId: 'pair-smoke-browser', profileName: 'Paired Chrome', browserName: 'Smoke Chrome', extensionVersion: '1.1.0', userAgent: 'smoke-test', permissions: ['state'] }));
+  await waitFor(async () => (await state()).profiles.some((p) => p.browserId === 'pair-smoke-browser' && p.connected), 'auto-approved reconnection');
+  const noPending = await state();
+  if (noPending.pendingPairing.length !== 0) {
+    throw new Error(`Reconnection was not auto-approved: ${JSON.stringify(noPending.pendingPairing)}`);
+  }
+  reSocket.close();
+
+  // A deny closes the socket without registering anything.
+  const denySocket = new WebSocket(`ws://127.0.0.1:${port}/pair`);
+  sockets.push(denySocket);
+  denySocket.on('error', () => {});
+  await new Promise((resolve) => denySocket.once('open', resolve));
+  denySocket.send(JSON.stringify({ type: 'pair', browserId: 'deny-smoke-browser', profileName: 'Deny Me', browserName: 'Smoke Chrome', extensionVersion: '1.1.0', userAgent: 'smoke-test', permissions: ['state'] }));
+  await waitFor(async () => (await state()).pendingPairing.length === 1, 'deny pairing request');
+  const deniedState = await state();
+  const denyEntry = deniedState.pendingPairing[0];
+  bridge.denyPairing(denyEntry.id);
+  await new Promise((resolve) => denySocket.once('close', resolve));
+  const afterDeny = await state();
+  if (afterDeny.pendingPairing.length !== 0 || afterDeny.profiles.some((p) => p.browserId === 'deny-smoke-browser')) {
+    throw new Error('Denied pairing was not cleanly rejected.');
+  }
+
   console.log(JSON.stringify({
     ok: true,
     checks: [
@@ -157,6 +240,10 @@ try {
       'read-only-default-blocks-write',
       'domain-allowlist-blocks-unknown-host',
       'sensitive-action-requires-confirmation',
+      'pending-pairing-holds-unapproved-connection',
+      'explicit-pairing-approval-connects-and-routes',
+      'approved-browser-reconnects-without-token',
+      'denied-pairing-closes-without-registration',
     ],
   }, null, 2));
 } finally {
@@ -164,4 +251,5 @@ try {
   bridge.close();
   rmSync(preferencePath, { force: true });
   rmSync(policyPath, { force: true });
+  try { rmSync(`/tmp/xeo-forge-browser-approved-smoke-${process.pid}.json`, { force: true }); } catch {}
 }

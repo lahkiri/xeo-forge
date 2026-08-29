@@ -1,5 +1,6 @@
 let socket;
 let reconnectTimer;
+let paired = false;
 
 async function config() {
   const stored = await chrome.storage.local.get({ port: 4321, token: '', browserId: '', profileName: '' });
@@ -50,18 +51,62 @@ async function sendState(type = 'state') {
 }
 
 function scheduleReconnect() {
+  // A healthy or connecting socket needs no rescue. Without this guard the
+  // close-event of an intentionally-closed socket scheduled a reconnect that
+  // tore down the NEW healthy connection every 2 seconds — the connection
+  // churn behind the app's flapping "Not connected" state.
+  if (socket && (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN)) return;
   clearTimeout(reconnectTimer);
   reconnectTimer = setTimeout(connect, 2000);
 }
 
+async function announcePairing() {
+  const settings = await config();
+  const tab = await activeTab().catch(() => null);
+  socket?.send(JSON.stringify({
+    type: 'pair',
+    browserId: settings.browserId,
+    profileName: settings.profileName,
+    browserName: browserName(),
+    extensionVersion: chrome.runtime.getManifest().version,
+    userAgent: navigator.userAgent,
+    tab: tab ? { id: tab.id, url: tab.url, title: tab.title } : null,
+    permissions: ['state', 'read_page', 'screenshot'],
+  }));
+}
+
 async function connect() {
   const settings = await config();
-  if (!settings.token) return;
   try {
     socket?.close();
-    socket = new WebSocket(`ws://127.0.0.1:${settings.port}/extension?token=${encodeURIComponent(settings.token)}`);
-    socket.addEventListener('open', () => sendState('register'));
-    socket.addEventListener('message', (event) => handleCommand(JSON.parse(event.data)));
+  } catch {}
+  paired = false;
+  try {
+    if (settings.token) {
+      // Manual (advanced) path: an exact local token authenticates directly.
+      socket = new WebSocket(`ws://127.0.0.1:${settings.port}/extension?token=${encodeURIComponent(settings.token)}`);
+      socket.addEventListener('open', () => {
+        paired = true;
+        sendState('register');
+      });
+    } else {
+      // v1.25 default: tokenless pairing. The bridge holds this connection
+      // until the operator approves it in the Xeo Forge app — and auto-approves
+      // browser profiles that were approved before. No token copying.
+      socket = new WebSocket(`ws://127.0.0.1:${settings.port}/pair`);
+      socket.addEventListener('open', () => {
+        void announcePairing();
+      });
+    }
+    socket.addEventListener('message', (event) => {
+      const message = JSON.parse(event.data);
+      if (message.type === 'paired' && message.ok) {
+        paired = true;
+        sendState('register');
+        return;
+      }
+      handleCommand(message);
+    });
     socket.addEventListener('close', scheduleReconnect);
     socket.addEventListener('error', scheduleReconnect);
   } catch (error) {
@@ -140,6 +185,7 @@ async function screenshot(tabId) {
 }
 
 async function handleCommand(message) {
+  if (!paired || !socket || socket.readyState !== WebSocket.OPEN) return;
   if (!message || message.type !== 'command' || typeof message.id !== 'string') return;
   try {
     const tab = await activeTab();
