@@ -1,6 +1,6 @@
-# Subagent Write Concurrency — Design Draft
+# Subagent Write Concurrency — Approved Design (Commit A landed)
 
-**Status: DRAFT — awaiting the owner's explicit approval. No executable code may land from this document until that approval is recorded.** This is the design the README "Known gaps #5" and the Settings → Subagents page both point to: write-capable parallel delegation is documented before any code exists.
+**Status: APPROVED by the owner (v1.25 workstream, 2026-08-29). All four §8 decision points were ruled: the defaults stand as written (lockout after 2 refusals; writer cap of 2, fixed; parent refusals stay ordinary failed tool calls; `file_mutation` in Commit A covers applied mutations plus ledger refusals — policy refusals remain on the governance path). Commit A has landed and been proven live; Commit B remains unstarted and requires the owner's explicit go.** This is the design the README "Known gaps #5" and the Settings → Subagents page both point to: write-capable parallel delegation is documented before any code exists.
 
 Author: agent (v1.25 workstream) · Date: 2026-08-29 · Governing law: v1.24 methodology (verify → fix → prove) + the standing rule that governance changes extend the existing zone-based, fail-closed stack — never around it.
 
@@ -104,6 +104,7 @@ Consequences:
 ## 6. Rollout — two provable commits (v1.24 law: verify → fix → prove)
 
 1. **Commit A — ledger under single writer.** WriteLedger + generation counters + `file_mutation` events land with **zero** capability change: only the parent writes, so no conflict can occur. Tests pin: every parent write emits `file_mutation` with `agent: "parent"`; repeated writes increment generations; refusal paths are unit-exercised directly against the ledger. Live proof: a desktop run showing `file_mutation` events in the timeline exactly as before, plus the new events.
+   — **LANDED (v1.25).** `lib/agent/write-ledger.ts` + FileTool boundary wiring + `file_mutation` timeline labels. Contract suite: `test/write-ledger.test.ts` (RED first, then GREEN; full suite 951 green). Live proof: `scripts/prove-ledger-commit-a.mjs` — real desktop run (planning → decision gate → build) with two parent writes landing as chained `file_mutation` events (gen 0→1→2, sha16 anchors linked) visible in the Activity timeline; evidence `07-ledger-file-mutation-timeline.png`.
 2. **Commit B — capability.** Conditional write toolset for subagents (§4.3) + lockout + cap of 2. Behavior tests, RED before B and GREEN after:
    - two subs, same file, same generation → exactly one applies; the other is refused-stale with `conflictWith` attribution;
    - two subs, disjoint files → both apply, no refusals;
@@ -117,11 +118,9 @@ Consequences:
 
 The Settings → Subagents page — which already promises "this page will carry that design's controls when it exists" — gains, only in Commit B: the write-delegation status (allowed/blocked by the task's level), the ≤2 writer cap, and the lockout disclosure. Read-only delegation keeps its existing panel untouched.
 
-## 8. Open questions for the owner (decision points before any code)
+## 8. Owner rulings (decided 2026-08-29 — no longer open)
 
-1. **Lockout threshold of 2 refusals per sub per path** — acceptable, or 1 (stricter)?
-2. **Writer cap of 2** — acceptable as a fixed constant for v1.25?
-3. **Refusal semantics for the parent**: today a refused parent write reads like any failed tool call. Keep that (parent self-recovers), or add a dedicated parent-facing banner in the timeline?
-4. **Should `file_mutation` be retrofitted to also fire for failed writes (policy refusals) in Commit A**, or only applied mutations plus ledger refusals as designed?
-
-Nothing here executes without the owner's explicit approval of this document.
+1. **Lockout threshold of 2 refusals per sub per path** — **APPROVED as designed** (not 1).
+2. **Writer cap of 2** — **APPROVED as a fixed constant for v1.25**.
+3. **Refusal semantics for the parent** — **APPROVED: keep ordinary failed-tool-call semantics** (parent self-recovers; no dedicated banner).
+4. **`file_mutation` scope in Commit A** — **APPROVED as designed**: applied mutations plus ledger refusals only; policy refusals stay on the existing governance event path.

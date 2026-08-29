@@ -266,6 +266,13 @@ export async function runAgent({
   ctx.emit = async (type, content) => {
     await emitTaskEvent(taskId, type, content);
   };
+  // v1.25 Commit A: every file mutation this run performs becomes a first-class
+  // file_mutation audit event (design §4.4). The ledger computes the event at
+  // the FileTool boundary; this sink persists it on the same seq-ordered path
+  // as every other task event. Observation only — it can never alter policy.
+  const emitSink = ctx.emit;
+  ctx.files.onMutation = (event) =>
+    emitSink('file_mutation', event as unknown as Record<string, unknown>);
   // MCP tools are enumerated once, here, so the model sees a stable tool set for
   // the whole run. A server that fails to connect does NOT fail the run: the
   // error is surfaced as a tool_result-shaped event so a silently missing tool

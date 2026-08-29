@@ -508,6 +508,27 @@ export function describeEvent(type: string, data: Record<string, unknown>): Acti
       const spent = num(data.spent);
       return spent === undefined ? null : { title: 'Credits spent', detail: String(spent), tone: 'neutral' };
     }
+    case 'file_mutation': {
+      // v1.25 Commit A (write-concurrency design §4.4): every file mutation is
+      // a first-class audit event. The timeline shows the human label; the raw
+      // event (exported with the audit trail) keeps agent, generations, sizes,
+      // sha16 anchors, outcome, and conflict attribution.
+      const op = str(data.op) === 'edit' ? 'File edited' : 'File written';
+      const path = str(data.path) ?? 'unknown path';
+      const genBefore = num(data.generationBefore);
+      const genAfter = num(data.generationAfter);
+      const agent = str(data.agent) ?? 'unknown agent';
+      const outcome = str(data.outcome) ?? 'applied';
+      if (outcome === 'applied') {
+        const gens = genBefore !== undefined && genAfter !== undefined ? ` · gen ${genBefore} → ${genAfter}` : '';
+        return { title: `${op}${gens}`, detail: `${path} · by ${agent}`, tone: 'good' };
+      }
+      const holder = str(data.conflictWith) ?? 'another writer';
+      const reason = outcome === 'refused-lease'
+        ? `path held by ${holder}`
+        : `your read is stale (gen ${num(data.readStampAt) ?? '?'} → ${genBefore ?? '?'}, last writer ${holder})`;
+      return { title: `${op} — refused`, detail: `${path} · ${reason}`, tone: 'warn' };
+    }
     case 'error':
       // The cause. 'done' reports the terminal transition separately, so these
       // two must never share a label or the timeline reads as a duplicate.

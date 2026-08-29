@@ -14,6 +14,7 @@ import type { SandboxMode } from './sandbox';
 import type { TaskMode } from '../types';
 import { z } from 'zod';
 import { FileTool } from './files';
+import { WriteLedger } from './write-ledger';
 import { CodeTool } from './code';
 import { analyzeProject, startPreviewWithStrategy, stopPreview, getPreviewStatus } from './preview';
 import { browserRequest } from './browser';
@@ -90,6 +91,14 @@ export interface ToolContext {
    * Optional so legacy internal callers stay functional on their own floors.
    */
   permissionRules?: readonly PermissionRule[];
+  /**
+   * v1.25 Commit A: the task's WriteLedger (generation counters + single-call
+   * leases + read stamps). Created here and handed to FileTool; the loop wires
+   * the file_mutation sink. Optional so legacy internal callers stay
+   * functional without one — with no ledger, FileTool is byte-identical to
+   * its pre-ledger behavior (design §4.1 no-op invariant).
+   */
+  ledger?: WriteLedger;
   files: FileTool;
   code: CodeTool;
   /**
@@ -112,13 +121,18 @@ export function createToolContext(
   /** v1.23 sandbox tier: docker wraps execution commands; standard/strict pass through. */
   sandbox?: { mode: SandboxMode; dockerAvailable: boolean },
 ): ToolContext {
+  // v1.25 Commit A: one ledger per tool context (= per running task). Only
+  // the parent writes today, so no lease is ever contended — the mechanism
+  // is a no-op on existing behavior. Second writers arrive in Commit B only.
+  const ledger = new WriteLedger();
   return {
     taskId,
     userId,
     mode,
     projectPath: projectPath ?? null,
     permissionRules,
-    files: new FileTool(taskId, projectPath),
+    ledger,
+    files: new FileTool(taskId, projectPath, ledger),
     code: new CodeTool(taskId, projectPath, permissionRules, sandbox),
   };
 }
@@ -785,8 +799,13 @@ async function httpRequest(args: Record<string, any>, taskId: string): Promise<s
  * Execute one tool call. Returns the observation string.
  * Throws on programmer/argument errors; the loop catches and feeds the error
  * back to the model as the tool result.
+ *
+ * `agentId` attributes the call for the write ledger (v1.25 Commit A): the
+ * parent loop and every legacy caller omit it → "parent". Commit B passes
+ * "sub-N" from the delegation runner; the capability set itself is UNCHANGED
+ * in A — subagents still physically lack write tools.
  */
-export async function executeTool(name: string, args: Record<string, any>, ctx: ToolContext): Promise<string> {
+export async function executeTool(name: string, args: Record<string, any>, ctx: ToolContext, agentId = 'parent'): Promise<string> {
   // System-level enforcement: planning mode is strictly read-only. Write/exec
   // tools are hard-locked here at the single dispatch chokepoint, regardless of
   // what the model was told or attempts.
@@ -826,12 +845,12 @@ export async function executeTool(name: string, args: Record<string, any>, ctx: 
   validateArgs(name, args);
   switch (name) {
     case 'file_read':
-      return clamp(await ctx.files.read(String(args.path)));
+      return clamp(await ctx.files.read(String(args.path), agentId));
     case 'file_write':
-      await ctx.files.write(String(args.path), String(args.content ?? ''));
+      await ctx.files.write(String(args.path), String(args.content ?? ''), agentId);
       return `Wrote ${args.path}`;
     case 'file_edit':
-      await ctx.files.edit(String(args.path), String(args.old_string), String(args.new_string));
+      await ctx.files.edit(String(args.path), String(args.old_string), String(args.new_string), agentId);
       return `Edited ${args.path}`;
     case 'file_list': {
       const list = await ctx.files.list(args.path ? String(args.path) : '.');
