@@ -93,8 +93,14 @@ describe('the cancel route and UI exist (source contract)', () => {
   });
 
   it('the Workbench shows a Cancel control only while running', () => {
+    // v1.24 structural rework: the Cancel button lives on the center header
+    // (app/work/WorkCenterHeader.tsx); WorkClient mounts that header and
+    // passes the live isRunning + cancel action — pinned both sides.
+    const header = fs.readFileSync(path.resolve(__dirname, '../app/work/WorkCenterHeader.tsx'), 'utf8');
+    expect(header).toMatch(/isRunning && \(\s*\n\s*<Button[^>]*\n?[^<]*Cancel/s);
     const work = fs.readFileSync(path.resolve(__dirname, '../app/work/WorkClient.tsx'), 'utf8');
-    expect(work).toMatch(/isRunning && \(\s*\n\s*<Button[^>]*\n?[^<]*Cancel/s);
+    expect(work).toContain('<WorkCenterHeader');
+    expect(work).toContain('onCancel={() => void actions.cancelRun()}');
   });
 
   it("'cancelled' is a first-class terminal status everywhere", () => {

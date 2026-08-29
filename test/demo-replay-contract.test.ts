@@ -85,28 +85,38 @@ describe('demo seed route contract', () => {
 });
 
 describe('WorkClient pacer contract', () => {
+  // v1.24 structural rework: the pacer + SSE subscription + event state live
+  // in app/work/useWorkRunState.ts; the demo badge lives on the governance
+  // rail; the Skip affordance on the secondary tabs. All three wired by
+  // WorkClient — pinned here so no layer can silently drop the contract.
   const client = readSrc('app/work/WorkClient.tsx');
+  const runState = readSrc('app/work/useWorkRunState.ts');
+  const rail = readSrc('app/work/WorkGovernanceRail.tsx');
+  const secondary = readSrc('app/work/WorkSecondaryTabs.tsx');
 
   it('starts visually empty in demo mode (pacer feeds addEvent)', () => {
-    expect(client).toMatch(/parseEvents\(demoMode \? \[\] : initialEvents\)/);
+    expect(runState).toMatch(/parseEvents\(demoMode \? \[\] : initialEvents\)/);
+    expect(client).toContain('demoMode={demoMode}');
   });
 
   it('suppresses the live SSE subscription during demo replay', () => {
     // Otherwise persisted events double-deliver alongside the pacer.
-    expect(client).toMatch(/if \(isTerminal \|\| demoMode\) return;/);
-    expect(client).toMatch(/\[task\.id, isTerminal, demoMode, addEvent\]/);
+    expect(runState).toMatch(/if \(isTerminal \|\| demoMode\) return;/);
+    expect(runState).toMatch(/\[task\.id, isTerminal, demoMode, addEvent\]/);
   });
 
   it('reveals events through addEvent on recorded cadence, honoring dtms bounds', () => {
-    expect(client).toMatch(/const dtmsOf = /);
-    expect(client).toMatch(/Math\.min\(2500, Math\.max\(150, d\.dtms\)\)/);
-    expect(client).toMatch(/addEvent\(\{ seq: ev\.seq, type: ev\.type,/);
+    expect(runState).toMatch(/const dtmsOf = /);
+    expect(runState).toMatch(/Math\.min\(2500, Math\.max\(150, d\.dtms\)\)/);
+    expect(runState).toMatch(/addEvent\(\{ seq: ev\.seq, type: ev\.type,/);
   });
 
   it('carries the honesty badge and a skip affordance', () => {
-    expect(client).toContain('recorded demo</Badge>');
-    expect(client).toContain('Skip to the end of the recording');
-    expect(client).toContain('demoRevealAllRef');
+    expect(rail).toContain('recorded demo</Badge>');
+    expect(secondary).toContain('Skip to the end of the recording');
+    expect(runState).toContain('demoRevealAllRef');
+    // The skip affordance flips the ref the pacer honors — same object.
+    expect(client).toContain('demoRevealAllRef={run.demoRevealAllRef}');
   });
 });
 

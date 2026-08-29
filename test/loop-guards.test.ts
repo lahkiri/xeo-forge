@@ -669,7 +669,10 @@ describe('the repetition defect (first real Opus-5 run)', () => {
   const loopSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/loop.ts'), 'utf8');
   const guardsSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/guards.ts'), 'utf8');
   const chatSource = fs.readFileSync(path.resolve(__dirname, '../app/chat/ChatClient.tsx'), 'utf8');
-  const workSource = fs.readFileSync(path.resolve(__dirname, '../app/work/WorkClient.tsx'), 'utf8');
+  // v1.24 structural rework: the work run pane (and its ThinkingBlock mount)
+  // lives in app/work/WorkRunPane.tsx; WorkClient wires it.
+  const workSource = fs.readFileSync(path.resolve(__dirname, '../app/work/WorkRunPane.tsx'), 'utf8');
+  const workClientSource = fs.readFileSync(path.resolve(__dirname, '../app/work/WorkClient.tsx'), 'utf8');
 
   it('both nudges forbid repeating the answer the user already read', () => {
     expect(guardsSource).toMatch(/Do NOT repeat your previous answer/);
@@ -690,5 +693,8 @@ describe('the repetition defect (first real Opus-5 run)', () => {
     expect(fs.readFileSync(path.resolve(__dirname, '../components/ThinkingBlock.tsx'), 'utf8')).toContain('reasoningTextOf');
     expect(chatSource).toMatch(/<ThinkingBlock text=\{shownThinking\} live/);
     expect(workSource).toMatch(/<ThinkingBlock text=\{liveThinking\} live/);
+    // ...and the pane must actually be mounted by the work surface.
+    expect(workClientSource).toContain('<WorkRunPane');
+    expect(workClientSource).toContain('liveThinking={derived.liveThinking}');
   });
 });

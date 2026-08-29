@@ -79,7 +79,16 @@ describe('H2 ChatClient: the stream is an input, the task row is the truth', () 
 });
 
 describe('H3 WorkClient: the work surface heals the same way', () => {
-  const src = readSrc('app/work/WorkClient.tsx');
+  // v1.24 structural rework: the reconciliation poll lives in
+  // app/work/useWorkRunState.ts (beside the SSE stream it heals); WorkClient
+  // wires the hook. Pinned both sides — poll text in the hook, wiring in the
+  // client.
+  const src = readSrc('app/work/useWorkRunState.ts');
+  const client = readSrc('app/work/WorkClient.tsx');
+
+  it('the client mounts the run-state hook that owns the poll', () => {
+    expect(client).toContain('useWorkRunState({');
+  });
 
   it('reconciles against the task row while a run is live', () => {
     expect(src).toMatch(/isTerminalStatus\(serverStatus\)/);
