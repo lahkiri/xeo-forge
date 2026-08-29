@@ -197,6 +197,14 @@ by a concurrent operation. SQLite keeps the existing re-SELECT (single-writer).
 
 ```
 app/                  # pages + API routes (App Router)
+  work/               # Work surface (v1.24 decomposition): WorkClient is a
+                      # ~216-line orchestrator; state lives in focused hooks
+                      # (useWorkRunState, useWorkspaceDiff, useGitStatus,
+                      # useWorkDerived, useWorkActions, useDecisionCountdown,
+                      # usePendingMemory, work-ingest) and panes in focused
+                      # components (WorkRunPane, WorkGovernanceRail,
+                      # WorkCenterHeader, WorkSecondaryTabs, WorkDiffTab,
+                      # WorkRunList, WorkComposer)
   api/                # auth, tasks, tasks/[id], tasks/[id]/stream,
                       # tasks/[id]/approve, tasks/[id]/reject,
                       # tasks/[id]/decision, tasks/[id]/messages,
@@ -206,13 +214,22 @@ app/                  # pages + API routes (App Router)
                       # tasks/[id]/export, agent/*, browser/*, runtime,
                       # credits, settings/model, admin/*
 lib/
-  db/                 # index (adapter), schema, bootstrap, queries — the ONLY DB writers
+  db/                 # index (adapter), schema, bootstrap — plus the queries
+                      # package: queries.ts (re-export facade) + queries/*
+                      # domain modules (users, tasks, events, admin, credits,
+                      # uploads, context, profiles, providers) — the ONLY DB
+                      # writers. Application-table SQL exists ONLY inside
+                      # lib/db/queries/**; import queries ONLY via
+                      # '@/lib/db/queries' (deep imports are a bug) —
+                      # enforced by test/db-queries-structure.test.ts.
   auth/               # password, session, guard
   credits/            # engine (atomic debit/grant/adjust), pricing
   model/              # config (global, env + DB row id=1), errors
-  agent/              # runner, loop, guards, tools, files, code, prompts, intent,
-                      # context, context-pack, events, runtime-state, compaction,
-                      # timeline, preview, uploads
+  agent/              # runner, loop, guards, tools, files, code, prompts,
+                      # intent, context, context-pack, events, runtime-state,
+                      # compaction, timeline, preview, uploads + run/ primitives
+                      # (protocol, model-client, language, memory, tool-bridge)
+                      # extracted from loop.ts in the v1.24 rework
   sse/                # emitter (seq-based, single delivery path)
   types.ts
 components/           # minimal shared UI
@@ -384,7 +401,7 @@ sufficient credits runs until it finishes — no iteration counting.
 Memory makes the agent more useful over time without letting it learn silently.
 
 **Approval gate.** A run proposes bounded candidates at `task_complete`
-(`persistMemoryCandidates` in `lib/agent/loop.ts`), written as `status='proposed'`.
+(`persistMemoryCandidates` in `lib/agent/run/memory.ts`), written as `status='proposed'`.
 `getActiveAgentMemories()` filters on `status='active'`, so a proposed memory is
 structurally incapable of reaching run context. The only transition from
 proposed to active is an explicit user decision through
