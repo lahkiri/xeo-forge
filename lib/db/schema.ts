@@ -343,6 +343,7 @@ const TASK_MODE_COLUMNS: Array<{ name: string; ddl: string }> = [
   { name: 'skill_id', ddl: `ADD COLUMN skill_id TEXT` },
   { name: 'provider_id', ddl: `ADD COLUMN provider_id TEXT` },
   { name: 'provider_model_id', ddl: `ADD COLUMN provider_model_id TEXT` },
+  { name: 'title', ddl: `ADD COLUMN title TEXT` },
   {
     name: 'autonomy_level',
     ddl: `ADD COLUMN autonomy_level TEXT NOT NULL DEFAULT 'execute'`,

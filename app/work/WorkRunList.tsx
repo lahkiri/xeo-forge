@@ -9,12 +9,13 @@
 import Link from 'next/link';
 import { IconButton, PanelHeader, StatusBadge, cx } from '@/components/ui';
 import { IconArrowLeft, IconPlus } from '@/components/icons';
+import { displaySessionLabel } from '@/lib/agent/session-title';
 
 export function WorkRunList({
   runs,
   activeTaskId,
 }: {
-  runs: { id: string; goal: string; status: string; mode: string }[];
+  runs: { id: string; goal: string; title?: string | null; status: string; mode: string }[];
   activeTaskId: string;
 }) {
   return (
@@ -43,7 +44,8 @@ export function WorkRunList({
                 : 'text-content-muted hover:bg-ink-700 hover:text-content-secondary',
             )}
           >
-            <span className="block truncate text-ui leading-5">{run.goal}</span>
+            {/* v1.25: stored session title, bidi-safe fallback for legacy rows. */}
+            <span className="block truncate text-ui leading-5">{displaySessionLabel(run.title, run.goal)}</span>
             <StatusBadge status={run.status} className="mt-1" />
           </Link>
         ))}

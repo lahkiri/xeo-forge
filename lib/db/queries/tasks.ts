@@ -8,7 +8,9 @@ import { isAutonomyLevel } from '../../agent/permissions';
 import { DEFAULT_THINKING_EFFORT, isThinkingEffort } from '../../model/thinking';
 import { DEFAULT_SANDBOX_MODE, isSandboxMode } from '../../agent/sandbox';
 import { nowIso } from './shared';
+import { getMessages } from './events';
 import { getAgentProfileById, getAgentSkillById } from './profiles';
+import { deriveTitleFromExchange } from '../../agent/session-title';
 import type {
   Task,
   TaskStatus,
@@ -37,6 +39,8 @@ export async function createTask(input: {
   thinkingEffort?: string | null;
   /** Validated upstream via normalizeSandboxMode; stored verbatim when valid. */
   sandboxMode?: string | null;
+  /** v1.25: short session title (bidi-safe). NULL = derive later from the first exchange. */
+  title?: string | null;
   status?: TaskStatus;
   intentKind?: TaskIntentKind | null;
   decisionState?: DecisionState;
@@ -62,8 +66,8 @@ export async function createTask(input: {
   }
   await db
     .prepare(
-      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, intent_kind, decision_state, decision_expires_at, plan_version, profile_id, skill_id, provider_id, provider_model_id, autonomy_level, thinking_effort, sandbox_mode, credits_spent, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
+      `INSERT INTO tasks (id, user_id, goal, status, mode, project_path, intent_kind, decision_state, decision_expires_at, plan_version, profile_id, skill_id, provider_id, provider_model_id, title, autonomy_level, thinking_effort, sandbox_mode, credits_spent, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`,
     )
     .run(
       id,
@@ -79,6 +83,7 @@ export async function createTask(input: {
       skillId,
       input.providerId ?? null,
       input.providerModelId ?? null,
+      input.title ?? null,
       isAutonomyLevel(input.autonomyLevel) ? input.autonomyLevel : 'execute',
       isThinkingEffort(input.thinkingEffort) ? input.thinkingEffort : DEFAULT_THINKING_EFFORT,
       isSandboxMode(input.sandboxMode) ? input.sandboxMode : DEFAULT_SANDBOX_MODE,
@@ -229,6 +234,24 @@ export async function updateTaskModel(
     .run(providerId, providerModelId, nowIso(), id, userId);
   if (res.changes === 0) return undefined;
   return getTaskById(id);
+}
+
+/**
+ * v1.25 (Phase 1.2): fill a missing session title from the first real
+ * exchange. Called after the assistant's first answer is persisted, so a
+ * greeting-only opener ("اهلا") does not become the thread's identity.
+ * Single-shot by construction: it only writes while title IS NULL.
+ */
+export async function refreshSessionTitle(taskId: string): Promise<void> {
+  const task = await getTaskById(taskId);
+  if (!task || task.title) return;
+  const messages = await getMessages(taskId);
+  const firstAnswer = messages.find((message) => message.role === 'assistant' && message.content?.trim())?.content ?? null;
+  const derived = deriveTitleFromExchange(task.goal, firstAnswer);
+  if (!derived) return;
+  await db
+    .prepare(`UPDATE tasks SET title = ?, updated_at = ? WHERE id = ? AND title IS NULL`)
+    .run(derived, nowIso(), taskId);
 }
 
 /**

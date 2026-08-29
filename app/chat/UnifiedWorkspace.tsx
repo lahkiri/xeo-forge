@@ -9,6 +9,7 @@ import { ThinkingEffortSelect } from '@/components/ThinkingEffortSelect';
 import type { ThinkingEffort } from '@/lib/model/thinking';
 import { SANDBOX_MODES as SANDBOX_SPECS, type SandboxMode } from '@/lib/agent/sandbox';
 import { Alert, Button, KeyHint, Select, StatusBadge, cx, useModKey } from '@/components/ui';
+import { displaySessionLabel, relativeDayLabel } from '@/lib/agent/session-title';
 import { UploadButton, uploadToTask } from '@/components/UploadButton';
 import { ThemeToggle } from '@/components/Theme';
 import {
@@ -33,7 +34,7 @@ import {
 } from '@/components/icons';
 
 type WorkspaceMode = 'chat' | 'work';
-type Thread = { id: string; goal: string; status: string; updated_at: string };
+type Thread = { id: string; goal: string; title?: string | null; status: string; updated_at: string };
 type Run = { id: string; goal: string; status: string; mode: string };
 
 const CHAT_STARTERS = [
@@ -291,7 +292,7 @@ export default function UnifiedWorkspace({
 
   const recentItems = [
     ...threads.map((thread) => ({ ...thread, kind: 'chat' as const })),
-    ...runs.map((run) => ({ ...run, kind: 'work' as const, updated_at: '' })),
+    ...runs.map((run) => ({ ...run, kind: 'work' as const, title: null as string | null, updated_at: '' })),
   ];
 
   return (
@@ -334,7 +335,10 @@ export default function UnifiedWorkspace({
             ) : recentItems.map((item) => (
               <Link key={`${item.kind}-${item.id}`} href={item.kind === 'work' ? `/work/${item.id}` : `/chat/${item.id}`} className="codex-session-row">
                 <span className={cx('codex-session-glyph', item.kind === 'work' && 'is-work')}>{item.kind === 'work' ? <IconFolder size={13} /> : <IconMessageCircle size={13} />}</span>
-                <span className="min-w-0 flex-1"><strong>{item.goal}</strong><small>{item.kind === 'work' ? 'Work session' : 'Chat session'}</small></span>
+                {/* v1.25: stored title first (greeting openers fall back to the
+                    first exchange server-side), bidi-safe truncation for legacy
+                    rows, and a small today/yesterday/date discriminator. */}
+                <span className="min-w-0 flex-1"><strong>{displaySessionLabel(item.title, item.goal)}</strong><small>{[relativeDayLabel(item.updated_at), item.kind === 'work' ? 'Work session' : 'Chat session'].filter(Boolean).join(' · ')}</small></span>
                 {item.kind === 'work' && <StatusBadge status={item.status} />}
               </Link>
             ))}

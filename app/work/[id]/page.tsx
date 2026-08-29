@@ -37,7 +37,7 @@ export default async function WorkRunPage(
 
   const runs = tasks
     .filter((t) => t.mode !== 'chat')
-    .map((t) => ({ id: t.id, goal: t.goal, status: t.status, mode: t.mode }));
+    .map((t) => ({ id: t.id, goal: t.goal, title: t.title, status: t.status, mode: t.mode }));
 
   // key binds client state to the run so seq/message refs cannot leak across
   // navigations (the cross-task state-bleed bug).

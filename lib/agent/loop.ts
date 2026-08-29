@@ -30,6 +30,7 @@ import {
   appendMessage,
   compactMessages,
   getReadyUploadsByTask,
+  refreshSessionTitle,
 } from '../db/queries';
 import { debit } from '../credits/engine';
 import { resolveModel } from '../model/config';
@@ -1518,6 +1519,9 @@ async function finalizeComplete(
   if (!lastAssistant || !summaryRestatesPrevious(persistedText, lastAssistant.content)) {
     await appendMessage(taskId, 'assistant', persistedText);
   }
+  // v1.25: the title may still be NULL (greeting-only opener) — the first
+  // real exchange exists now, so the thread gets a real identity.
+  await refreshSessionTitle(taskId).catch(() => {});
 
   if (mode === 'planning') {
     // Planning run finished: store the proposed plan and await user approval.

@@ -63,6 +63,8 @@ export interface Task {
   id: string;
   user_id: string;
   goal: string;
+  /** v1.25: short bidi-safe session title; NULL = derive from the first exchange. */
+  title?: string | null;
   status: TaskStatus;
   mode: TaskMode;
   /** Absolute local project root selected for this run, when applicable. */

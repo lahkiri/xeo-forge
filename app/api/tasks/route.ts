@@ -11,6 +11,7 @@ import { normalizeAutonomyInput } from '@/lib/agent/permissions';
 import { THINKING_LEVELS, isThinkingEffort } from '@/lib/model/thinking';
 import { SANDBOX_MODES, isSandboxMode } from '@/lib/agent/sandbox';
 import { errorResponse } from '../_lib/respond';
+import { deriveSessionTitle } from '@/lib/agent/session-title';
 import { rateLimit, RATE_LIMITS } from '../_lib/ratelimit';
 
 export const runtime = 'nodejs';
@@ -120,6 +121,10 @@ export async function POST(req: NextRequest) {
     const task = await createTask({
       userId: user.id,
       goal: parsed.data.goal,
+      // v1.25 (Phase 1.2): a real opener becomes the session title; a
+      // greeting-only opener stays NULL until the first assistant answer
+      // lands (refreshSessionTitle), so threads stop all being called "اهلا".
+      title: deriveSessionTitle(parsed.data.goal),
       mode,
       projectPath: parsed.data.projectPath,
       profileId: parsed.data.profileId,
