@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://github.com/lahkiri/xeo-forge/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
-  <img src="https://img.shields.io/badge/release-v1.24.0-blue.svg" alt="Xeo Forge v1.24.0">
+  <img src="https://img.shields.io/badge/release-v1.25.0-blue.svg" alt="Xeo Forge v1.25.0">
   <img src="https://img.shields.io/badge/TypeScript-strict-blue.svg?logo=typescript" alt="TypeScript strict">
   <img src="https://img.shields.io/badge/Next.js-14-black.svg?logo=nextdotjs" alt="Next.js 14">
   <img src="https://img.shields.io/badge/Tests-Vitest%20%2B%20desktop%20smoke-brightgreen.svg" alt="Vitest and desktop smoke tests">
@@ -132,7 +132,7 @@ Xeo Forge is a strong local-first foundation, not yet a full replacement for eve
 2. **GUI zone rules are enforced logic without a runtime consumer yet** (evaluation is exercised by contract tests only; the desktop shell does not call `evaluateGuiAct` in v1.23).
 3. **Docker sandbox tier covers execution tools** (`code_execute` bash/python); interactive terminal sessions still run on the host with a visible warning when the docker tier is selected.
 4. **Multi-platform presence** (Telegram/Discord, as Hermes offers) and **live skill self-improvement** (Hermes rewrites its skills from experience) are deliberately out of scope for v1.23 — see the competitive analysis below.
-5. **Subagent delegation is read-only by construction** in v1.23; write-capable parallel delegation waits for a proven concurrent-write design.
+5. **Subagent delegation is read-only by construction** in v1.23; write-capable parallel delegation waits for a proven concurrent-write design. That design is now **drafted** at [`docs/subagent-write-concurrency-design.md`](docs/subagent-write-concurrency-design.md) (per-file write ledger + refuse-never-merge conflict policy + `file_mutation` attribution events) — **DRAFT status: no code lands from it until the owner approves the document explicitly.**
 6. **Subagents still have no per-subagent follow-up or model override** (disclosed in the v1.25 desktop-parity batch): the v1.25 batch delivered the delegation Settings section and wider honest documentation, but per-subagent messaging/model choice requires loop-level design that was not rushed in. The Settings → Subagents page states this boundary verbatim.
 7. **Split/collapse layout controls for Chat and Work panes are not built yet** (v1.25 batch item, lowest priority): the panes use fixed widths; a resize/collapse control is a UX refinement queued after the functional fixes.
 
