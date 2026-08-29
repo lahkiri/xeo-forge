@@ -133,12 +133,14 @@ Xeo Forge is a strong local-first foundation, not yet a full replacement for eve
 3. **Docker sandbox tier covers execution tools** (`code_execute` bash/python); interactive terminal sessions still run on the host with a visible warning when the docker tier is selected.
 4. **Multi-platform presence** (Telegram/Discord, as Hermes offers) and **live skill self-improvement** (Hermes rewrites its skills from experience) are deliberately out of scope for v1.23 — see the competitive analysis below.
 5. **Subagent delegation is read-only by construction** in v1.23; write-capable parallel delegation waits for a proven concurrent-write design.
+6. **Subagents still have no per-subagent follow-up or model override** (disclosed in the v1.25 desktop-parity batch): the v1.25 batch delivered the delegation Settings section and wider honest documentation, but per-subagent messaging/model choice requires loop-level design that was not rushed in. The Settings → Subagents page states this boundary verbatim.
+7. **Split/collapse layout controls for Chat and Work panes are not built yet** (v1.25 batch item, lowest priority): the panes use fixed widths; a resize/collapse control is a UX refinement queued after the functional fixes.
 
 ### How we compare — Hermes Agent and OpenHands (verified, not vibes)
 
 Full evidence-backed studies live in [docs/competitive/hermes-analysis.md](docs/competitive/hermes-analysis.md) and [docs/competitive/openhands-analysis.md](docs/competitive/openhands-analysis.md). The short, honest version:
 
-| | Hermes Agent | OpenHands | Xeo Forge v1.23 |
+| | Hermes Agent | OpenHands | Xeo Forge v1.25 |
 |---|---|---|---|
 | Loop | Budget-bounded, exit-reason taxonomy, persist-before-execute | `AgentBase.step()` with typed event stream + condenser | Single loop, row-as-truth reconciliation, exit reasons on fail/cancel events |
 | Tools | Self-registering registry, availability cache, sanitized errors | Pydantic `ToolDefinition`, resource-locked parallel executor | Zod-validated schemas, parallel READ batching, fail-closed authority gate with rule citations |
