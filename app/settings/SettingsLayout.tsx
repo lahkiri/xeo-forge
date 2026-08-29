@@ -15,6 +15,10 @@ const SECTIONS = [
   { href: '/settings/skills', label: 'Skills', detail: 'Reusable workflows', marker: '04' },
   { href: '/settings/mcp', label: 'MCP', detail: 'External tools', marker: '05' },
   { href: '/settings/memory', label: 'Memory', detail: 'Instructions & recall', marker: '06' },
+  // v1.25 (Phase 5): governance features get visible Settings sections from
+  // day one — the rule now lives in AGENTS.md so the gap cannot recur.
+  { href: '/settings/sandbox', label: 'Sandbox', detail: 'Isolation tiers', marker: '07' },
+  { href: '/settings/subagents', label: 'Subagents', detail: 'Delegation rules', marker: '08' },
 ];
 
 export default function SettingsLayout({ user, localMode, children }: { user: AuthUser; localMode: boolean; children: React.ReactNode }) {

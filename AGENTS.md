@@ -492,3 +492,12 @@ provide.
   fact.
 - A component that lacks a backend value renders nothing rather than a
   placeholder.
+## 17. Settings visibility rule (v1.25)
+
+Any governance-critical feature — a new autonomy/authority surface, an
+isolation tier, a delegation mode, a safety policy — must ship with a
+visible Settings section from day one. It may also appear in the task-start
+form, but never ONLY there. A capability the operator cannot inspect and
+configure outside of a task-creation flow is a buried capability, and
+buried capabilities become invisible authority. The Sandbox and Subagents
+sections (07/08) exist because this rule was violated by their absence.
