@@ -41,7 +41,7 @@ import {
   STAGNATION_NUDGE,
   buildModePreamble,
 } from './prompts';
-import { createToolContext, executeTool, schemasForRun } from './tools';
+import { createToolContext, schemasForRun } from './tools';
 import { authorizeToolCall } from './authority';
 import { runDelegatedResearch, normalizeDelegation } from './subagents';
 import { normalizeSandboxMode, strictSandboxRules } from './sandbox';
@@ -58,9 +58,15 @@ import { summarizeMessages } from './compaction';
 import { canStartAgentRun } from './build-policy';
 import { isDesktopLocalMode } from '../auth/session';
 import { compileAgentContext } from './context-pack';
-import { createAgentMemory } from '../db/queries';
-import type { AgentMemoryKind, AgentMemoryScope } from '../types';
-import { classifyModelError, publicModelErrorMessage, shouldRetryModelError } from '../model/errors';
+import { classifyModelError, publicModelErrorMessage } from '../model/errors';
+/* v1.24 structural rework: run-scoped primitives extracted to ./run/* —
+ * definitions live there (single definition site, pinned by contract
+ * tests); loop.ts keeps the call sites. */
+import { detectLanguage } from './run/language';
+import { OPENAI_TIMEOUT_MS, createCompletionWithRetry } from './run/model-client';
+import { PendingToolCall, parseArgs, parseFallbackAction, computeToolSignature } from './run/protocol';
+import { persistMemoryCandidates, normalizeForDuplicate } from './run/memory';
+import { MAX_PARALLEL_READS, isParallelSafeRead, executeReadSilently, verdictCitation, safeExecute } from './run/tool-bridge';
 import {
   ACTION_REQUIRED_NUDGE,
   AUTONOMY_VIOLATION_NUDGE,
@@ -148,128 +154,8 @@ const MAX_VERIFICATION_ATTEMPTS = 2;
  */
 const MAX_EMPTY_RESPONSES = 3;
 
-/**
- * HTTP timeout for OpenAI-compatible completions. Without this, a hung
- * upstream stream can hold a task in 'running' forever (observed bug: a task
- * stuck running with no events). 5 minutes is generous for long tool-heavy
- * responses while still breaking dead connections.
- */
-const OPENAI_TIMEOUT_MS = 300_000;
-
 /** Number of most-recent active messages to keep during compaction. */
 const COMPACT_KEEP_COUNT = 8;
-const MODEL_MAX_RETRIES = 2;
-const MODEL_RETRY_BASE_MS = 1_000;
-const MODEL_RETRY_MAX_MS = 30_000;
-
-interface PendingToolCall {
-  id: string;
-  name: string;
-  arguments: string;
-}
-
-function parseArgs(raw: string): Record<string, any> {
-  if (!raw || !raw.trim()) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
-}
-
-/** Parse a fallback <action>{...}</action> block from assistant text. */
-function parseFallbackAction(text: string): { tool: string; args: Record<string, any> } | null {
-  const m = text.match(/<action>\s*([\s\S]*?)\s*<\/action>/i);
-  if (!m) return null;
-  try {
-    const obj = JSON.parse(m[1]);
-    if (obj && typeof obj.tool === 'string') {
-      return { tool: obj.tool, args: obj.args || {} };
-    }
-  } catch (err) {
-    console.error('[agent] failed to parse fallback action:', err);
-  }
-  return null;
-}
-
-/**
- * Compute a fingerprint for a set of tool calls. Two iterations with the
- * same tools, same arguments, AND same observations produce the same
- * fingerprint. Arguments are truncated to 100 chars to keep the fingerprint
- * stable across minor diffs.
- *
- * WHY OBSERVATIONS ARE INCLUDED: a frontier model fixing a failing test runs
- * the SAME test command repeatedly — identical name and arguments — but every
- * run returns a DIFFERENT observation as the fix converges. A fingerprint
- * over arguments alone counts that legitimate loop as stagnation and
- * eventually kills a productive run. Including a prefix of each observation
- * distinguishes "same call, different world" (progress) from "same call,
- * same world" (stuck). Tool output begins with the exit code for
- * code_execute, so even `exit=1` → `exit=0` flips the fingerprint.
- */
-function computeToolSignature(
-  calls: { name: string; arguments: string }[],
-  observations: string[] = [],
-): string {
-  const parts = calls.map((c, i) => {
-    const obs = observations[i] !== undefined ? `=>${observations[i].slice(0, 120)}` : '';
-    return `${c.name}:${c.arguments.slice(0, 100)}${obs}`;
-  });
-  return parts.sort().join('|');
-}
-
-/**
- * Detect the dominant language from a text string using Unicode ranges.
- * Returns a BCP-47 language tag. Falls back to 'en' if detection is uncertain.
- * This is a lightweight heuristic — no external library needed.
- */
-function detectLanguage(text: string): string {
-  const sample = text.slice(0, 500);
-  // Arabic: Unicode range 0600-06FF
-  const arabicChars = (sample.match(/[\u0600-\u06FF]/g) || []).length;
-  // French/Spanish/Portuguese/Italian detection via common diacritics + word patterns
-  const frenchIndicators = (sample.match(/[àâäéèêëïîôùûüÿçœæ]/gi) || []).length;
-  // CJK ranges
-  const cjkChars = (sample.match(/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/g) || []).length;
-  // Cyrillic
-  const cyrillicChars = (sample.match(/[\u0400-\u04FF]/g) || []).length;
-
-  const total = sample.length || 1;
-  // Thresholds: Arabic/CJK/Cyrillic are distinct Unicode blocks — a small
-  // fraction of their characters is already conclusive. Latin-script
-  // diacritics are weaker evidence (an English goal quoting a French word,
-  // or code comments, trips them), so that threshold stays deliberately low.
-  // Lowered from 0.15 to 0.08 (v1.18): a real Arabic goal mixed with English
-  // identifiers/paths commonly lands at 8-15% Arabic characters and was being
-  // misclassified as English, breaking the LANGUAGE AFFINITY contract.
-  if (arabicChars / total > 0.08) return 'ar';
-  if (cjkChars / total > 0.08) return 'zh';
-  if (cyrillicChars / total > 0.08) return 'ru';
-  if (frenchIndicators / total > 0.03) return 'fr';
-  return 'en';
-}
-
-async function createCompletionWithRetry(
-  client: OpenAI,
-  params: OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming,
-  onRetry: (info: { attempt: number; maxRetries: number; delayMs: number; kind: string }) => Promise<void>,
-): Promise<any> {
-  for (let attempt = 0; attempt <= MODEL_MAX_RETRIES; attempt += 1) {
-    try {
-      return await client.chat.completions.create(params);
-    } catch (error) {
-      if (attempt >= MODEL_MAX_RETRIES || !shouldRetryModelError(error)) throw error;
-      const info = classifyModelError(error);
-      const exponentialDelay = MODEL_RETRY_BASE_MS * (2 ** attempt);
-      const requestedDelay = info.retryAfterMs ?? exponentialDelay;
-      const jitter = Math.floor(Math.random() * 250);
-      const delayMs = Math.min(MODEL_RETRY_MAX_MS, Math.max(500, requestedDelay + jitter));
-      await onRetry({ attempt: attempt + 1, maxRetries: MODEL_MAX_RETRIES, delayMs, kind: info.kind });
-      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
-  throw new Error('Model request retry loop ended unexpectedly.');
-}
 
 export interface RunAgentArgs {
   taskId: string;
@@ -1563,189 +1449,6 @@ function withFallbackPrompt(messages: ChatCompletionMessageParam[]): ChatComplet
     copy[0] = { role: 'system', content: `${copy[0].content}\n\n${FALLBACK_TOOL_INSTRUCTIONS}` };
   }
   return copy;
-}
-
-/**
- * The maximum number of read-only tool calls executed CONCURRENTLY when the
- * model asks for several in one turn. Native tool-calling frontiers routinely
- * batch 4-8 file reads; running them sequentially is pure wall-clock loss.
- * Six covers the common batches while bounding concurrent file descriptors
- * and DB event writes.
- */
-const MAX_PARALLEL_READS = 6;
-
-/**
- * A tool call that is safe to run concurrently with its siblings: it only
- * READS (workspace files, repository state) and cannot mutate the workspace,
- * the task, or anything outside it. Anything stateful, mutating, external,
- * or write-capable-by-unknown-effect (MCP) stays sequential.
- *
- * Deliberately conservative: file_read/file_list and the four git READ ops.
- * http_request mutates external services on non-GET verbs; browser touches
- * the user's live session; todo_update/task_complete mutate run state.
- */
-function isParallelSafeRead(name: string, args: Record<string, any> | undefined): boolean {
-  if (name === 'file_read' || name === 'file_list') return true;
-  if (name === 'git_op' && args && isGitOp(args.op)) return GIT_READ_OPS.has(args.op);
-  return false;
-}
-
-/**
- * Run one read-only tool WITHOUT emitting its tool_result event — the
- * parallel batch emits results in deterministic call order after all
- * complete, so the audit stream stays ordered (call, call, … result, result)
- * instead of interleaving by completion time. Errors are shaped exactly like
- * safeExecute's so the model sees an identical observation either way.
- */
-async function executeReadSilently(
-  taskId: string,
-  name: string,
-  args: Record<string, any>,
-  ctx: ReturnType<typeof createToolContext>,
-): Promise<string> {
-  try {
-    return await executeTool(name, args, ctx);
-  } catch (err: any) {
-    const raw = err?.message ? String(err.message) : 'tool error';
-    const message = raw
-      .replace(/\/[\w/.-]+/g, '<path>')
-      .replace(/(?:^|\s)(\.\.?\/[^\s]+)/g, ' <relpath>')
-      .replace(/(?:EPERM|EACCES|ENOENT|EISDIR|ENOTDIR)/g, '<error>')
-      .slice(0, 500);
-    console.error(`[agent] tool ${name} failed task=${taskId}:`, err);
-    return `Error: ${message}`;
-  }
-}
-
-/**
- * Recompute the authority verdict for a tool call so audit hooks can cite
- * the exact rule that governed it (v1.23, audit #2 — the verdict already
- * existed inside executeTool but never reached the hook context, so every
- * persisted audit event carried null citations). authorizeToolCall is pure,
- * so recomputing here is side-effect-free and cannot diverge from the gate
- * that actually dispatched the call.
- */
-function verdictCitation(
-  name: string,
-  args: Record<string, unknown>,
-  rules: readonly PermissionRule[],
-): { permissionRuleIndex?: number; permissionEffect?: string } {
-  try {
-    const verdict = authorizeToolCall(name, args, rules);
-    return {
-      permissionRuleIndex: verdict.ruleIndex,
-      permissionEffect: verdict.effect ?? verdict.decision,
-    };
-  } catch {
-    return {};
-  }
-}
-
-async function safeExecute(
-  taskId: string,
-  name: string,
-  args: Record<string, any>,
-  ctx: ReturnType<typeof createToolContext>,
-): Promise<string> {
-  try {
-    const result = await executeTool(name, args, ctx);
-    await emitTaskEvent(taskId, 'tool_result', { name, ok: true, result });
-    return result;
-  } catch (err: any) {
-    const raw = err?.message ? String(err.message) : 'tool error';
-    // Sanitize error messages: strip filesystem paths and internal details.
-    const message = raw
-      .replace(/\/[\w/.-]+/g, '<path>')          // absolute paths
-      .replace(/(?:^|\s)(\.\.?\/[^\s]+)/g, ' <relpath>') // relative paths
-      .replace(/(?:EPERM|EACCES|ENOENT|EISDIR|ENOTDIR)/g, '<error>') // errno codes
-      .slice(0, 500); // cap error message length
-    console.error(`[agent] tool ${name} failed task=${taskId}:`, err);
-    await emitTaskEvent(taskId, 'tool_result', { name, ok: false, error: message });
-    return `Error: ${message}`;
-  }
-}
-
-type MemoryCandidate = {
-  content: string;
-  kind: AgentMemoryKind;
-  scope: AgentMemoryScope;
-  confidence: number;
-};
-
-function sanitizeMemoryCandidates(raw: unknown): MemoryCandidate[] {
-  if (!Array.isArray(raw)) return [];
-  const allowedKinds = new Set<AgentMemoryKind>(['preference', 'fact', 'decision', 'constraint', 'lesson']);
-  const allowedScopes = new Set<AgentMemoryScope>(['global', 'task']);
-  const secretPattern = /(api[_ -]?key|password|passwd|secret|token|private key|authorization:)/i;
-  const instructionPattern = /(ignore (all|previous)|system prompt|developer message|bypass|disable safety|grant permission)/i;
-  const result: MemoryCandidate[] = [];
-  for (const item of raw.slice(0, 8)) {
-    if (!item || typeof item !== 'object') continue;
-    const candidate = item as Record<string, unknown>;
-    const content = typeof candidate.content === 'string'
-      ? candidate.content.trim().replace(/\s+/g, ' ').slice(0, 1200)
-      : '';
-    const kind = candidate.kind;
-    const scope = candidate.scope;
-    const confidence = typeof candidate.confidence === 'number' ? candidate.confidence : 0.5;
-    if (!content || !allowedKinds.has(kind as AgentMemoryKind) || !allowedScopes.has(scope as AgentMemoryScope)) continue;
-    if (secretPattern.test(content) || instructionPattern.test(content)) continue;
-    result.push({
-      content,
-      kind: kind as AgentMemoryKind,
-      scope: scope as AgentMemoryScope,
-      confidence: Math.max(0, Math.min(1, confidence)),
-    });
-  }
-  return result;
-}
-
-async function persistMemoryCandidates(
-  userId: string,
-  taskId: string,
-  mode: TaskMode,
-  raw: unknown,
-): Promise<number> {
-  // Planning describes future work, so it must not teach the persistent agent.
-  if (mode !== 'build') return 0;
-  let saved = 0;
-  for (const candidate of sanitizeMemoryCandidates(raw)) {
-    try {
-      const memory = await createAgentMemory({
-        userId,
-        taskId: candidate.scope === 'task' ? taskId : null,
-        scope: candidate.scope,
-        kind: candidate.kind,
-        content: candidate.content,
-        status: 'proposed',
-        confidence: candidate.confidence,
-        sourceTaskId: taskId,
-      });
-      await emitTaskEvent(taskId, 'memory', {
-        memory_id: memory.id,
-        status: memory.status,
-        scope: memory.scope,
-        kind: memory.kind,
-        content: memory.content,
-      });
-      saved += 1;
-    } catch (err) {
-      // Learning is supplementary; a persistence failure must never turn a
-      // verified software task into a failed task.
-      console.error(`[agent] memory proposal failed task=${taskId}:`, err);
-    }
-  }
-  return saved;
-}
-
-/**
- * Normalize text for duplicate comparison: collapse whitespace, drop to
- * lowercase. Deliberately crude — the goal is catching the observed Opus-5
- * pattern (the task_complete summary restating the answer the user just
- * read), not forensic similarity.
- */
-function normalizeForDuplicate(text: string): string {
-  return text.toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
 /**

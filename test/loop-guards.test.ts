@@ -412,20 +412,40 @@ describe('the stagnation fingerprint includes tool observations', () => {
   // SAME command repeatedly; arguments alone are identical every round, so
   // the old fingerprint counted a converging loop as stagnation and killed
   // productive runs. The observation prefix distinguishes them.
+  //
+  // v1.24 structural rework: the definition lives in lib/agent/run/protocol.ts
+  // and the loop keeps the call sites. Pinned BOTH ways — the definition must
+  // exist exactly once across the two modules (no copy-back), and every call
+  // site in the loop must pass observations.
+  const protocolSource = fs.readFileSync(
+    path.resolve(__dirname, '..', 'lib', 'agent', 'run', 'protocol.ts'),
+    'utf8',
+  );
   const loopSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/loop.ts'), 'utf8');
 
-  it('computeToolSignature takes an observations parameter', () => {
-    expect(loopSource).toContain('function computeToolSignature(');
-    expect(loopSource).toMatch(/observations/);
+  it('the definition exists exactly once (protocol.ts), never copied back into loop.ts', () => {
+    expect(protocolSource).toContain('export function computeToolSignature(');
+    const definitionSites =
+      (loopSource.match(/function computeToolSignature\(/g) ?? []).length +
+      (protocolSource.match(/function computeToolSignature\(/g) ?? []).length;
+    expect(definitionSites).toBe(1);
   });
 
-  it('every signature call site passes observations', () => {
+  it('computeToolSignature takes an observations parameter', () => {
+    expect(protocolSource).toMatch(/observations/);
+  });
+
+  it('every loop call site passes observations', () => {
     const callSites = loopSource.match(/computeToolSignature\(/g) ?? [];
-    expect(callSites.length).toBeGreaterThanOrEqual(4); // definition + 3 call sites
+    expect(callSites.length).toBeGreaterThanOrEqual(3); // todo_update fallback + generic fallback + native
     // No call site uses the legacy single-argument form: every invocation
     // spreads over two lines or passes an array literal second argument.
     const legacy = loopServiceLegacyCalls(loopSource);
     expect(legacy).toEqual([]);
+  });
+
+  it('the loop imports the signature from the protocol module', () => {
+    expect(loopSource).toContain("from './run/protocol'");
   });
 
   function loopServiceLegacyCalls(source: string): string[] {
@@ -436,10 +456,9 @@ describe('the stagnation fingerprint includes tool observations', () => {
   }
 
   it('same arguments + different observations must differ (source contract)', () => {
-    // Direct behavioral proof through the module: import the live function.
-    // It is not exported (internal to the loop), so the contract is asserted
-    // on the source: the fingerprint line includes the observation prefix.
-    expect(loopSource).toContain('=>${observations[i].slice(0, 120)}');
+    // The fingerprint line includes the observation prefix — the exact line
+    // that makes a converging test-fix loop NOT stagnation.
+    expect(protocolSource).toContain('=>${observations[i].slice(0, 120)}');
   });
 
   it('the loop resolves thresholds from the model profile, not the constant', () => {
@@ -581,19 +600,35 @@ Workarounds:
 /* ───────── parallel read-only batch: source contract ───────── */
 
 describe('parallel read-only batch', () => {
+  // v1.24 structural rework: the whitelist and its cap live in
+  // lib/agent/run/tool-bridge.ts; the loop keeps the gating and the
+  // deterministic emission order. Definitions pinned in the bridge, call
+  // sites pinned in the loop.
+  const bridgeSource = fs.readFileSync(
+    path.resolve(__dirname, '..', 'lib', 'agent', 'run', 'tool-bridge.ts'),
+    'utf8',
+  );
   const loopSource = fs.readFileSync(path.resolve(__dirname, '../lib/agent/loop.ts'), 'utf8');
 
   it('exists: a whole-batch condition gates the parallel path', () => {
     expect(loopSource).toContain('calls.every((c) => isParallelSafeRead(');
-    expect(loopSource).toContain('const MAX_PARALLEL_READS = 6');
+    expect(bridgeSource).toContain('export const MAX_PARALLEL_READS = 6');
+  });
+
+  it('the bridge definition exists exactly once (no copy-back)', () => {
+    const definitionSites =
+      (loopSource.match(/function isParallelSafeRead/g) ?? []).length +
+      (bridgeSource.match(/function isParallelSafeRead/g) ?? []).length;
+    expect(definitionSites).toBe(1);
+    expect(loopSource).toContain("from './run/tool-bridge'");
   });
 
   it('only read-only tools qualify (writes, http, browser, MCP excluded)', () => {
     // isParallelSafeRead must whitelist by name, never blacklist.
-    expect(loopSource).toMatch(/function isParallelSafeRead[\s\S]{0,400}file_read/);
-    expect(loopSource).toMatch(/function isParallelSafeRead[\s\S]{0,500}GIT_READ_OPS/);
+    expect(bridgeSource).toMatch(/function isParallelSafeRead[\s\S]{0,400}file_read/);
+    expect(bridgeSource).toMatch(/function isParallelSafeRead[\s\S]{0,500}GIT_READ_OPS/);
     // The whitelist must NOT admit the mutating/external tools.
-    const fn = loopSource.match(/function isParallelSafeRead[\s\S]{0,700}?\n\}/)?.[0] ?? '';
+    const fn = bridgeSource.match(/function isParallelSafeRead[\s\S]{0,700}?\n\}/)?.[0] ?? '';
     for (const banned of ['file_write', 'file_edit', 'code_execute', 'http_request', 'browser', 'preview', 'mcp__']) {
       expect(fn, `isParallelSafeRead must not admit ${banned}`).not.toContain(`'${banned}'`);
     }

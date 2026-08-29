@@ -45,18 +45,31 @@ describe('F4: Arabic question-pattern guards', () => {
 });
 
 describe('F4: detectLanguage threshold raised for mixed-script goals', () => {
+  // v1.24 structural rework: detectLanguage lives in lib/agent/run/language.ts
+  // (single definition site; the loop imports it). The threshold contract is
+  // pinned against the module that OWNS the definition.
+  const langSource = readSrc('lib/agent/run/language.ts');
   const loopSource = readSrc('lib/agent/loop.ts');
 
+  it('the definition exists exactly once (no copy-back into the loop)', () => {
+    const sites =
+      (loopSource.match(/function detectLanguage/g) ?? []).length +
+      (langSource.match(/function detectLanguage/g) ?? []).length;
+    expect(sites).toBe(1);
+    expect(langSource).toContain('export function detectLanguage');
+    expect(loopSource).toContain("from './run/language'");
+  });
+
   it('uses the 0.08 threshold for Arabic detection', () => {
-    expect(loopSource).toMatch(/arabicChars \/ total > 0\.08/);
+    expect(langSource).toMatch(/arabicChars \/ total > 0\.08/);
   });
 
   it('documents why the threshold moved from 0.15', () => {
-    expect(loopSource).toMatch(/Lowered from 0\.15 to 0\.08/);
+    expect(langSource).toMatch(/Lowered from 0\.15 to 0\.08/);
   });
 
   it('keeps the French diacritic threshold unchanged', () => {
-    expect(loopSource).toMatch(/frenchIndicators \/ total > 0\.03/);
+    expect(langSource).toMatch(/frenchIndicators \/ total > 0\.03/);
   });
 });
 
