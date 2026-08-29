@@ -205,6 +205,33 @@ export async function claimTaskForFollowUp(id: string): Promise<Task | undefined
 }
 
 /**
+ * v1.25: switch the provider/model a task runs on, between runs.
+ *
+ * The conditional UPDATE is the concurrency gate: a task with a live run
+ * (running/pending) is refused — the in-flight run keeps the credentials it
+ * loaded at start (they are resolved once per run), and the NEXT run picks
+ * the new model. Callers append the `model_switch` audit event.
+ */
+export async function updateTaskModel(
+  id: string,
+  userId: string,
+  providerId: string,
+  providerModelId: string,
+): Promise<Task | undefined> {
+  const res = await db
+    .prepare(
+      `UPDATE tasks
+       SET provider_id = ?,
+           provider_model_id = ?,
+           updated_at = ?
+       WHERE id = ? AND user_id = ? AND status NOT IN ('running', 'pending')`,
+    )
+    .run(providerId, providerModelId, nowIso(), id, userId);
+  if (res.changes === 0) return undefined;
+  return getTaskById(id);
+}
+
+/**
  * Update the thinking-effort level on a task (v1.23). Called by the
  * follow-up-message route when the user picks a new level before sending —
  * the NEXT run then executes at the level shown in the UI. Ownership-scoped.

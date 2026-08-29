@@ -36,6 +36,7 @@ const PINNED_EXPORTS = [
   // tasks
   'createTask', 'getTaskById', 'resolveTaskDecision', 'getTasksByUser',
   'listAllTasks', 'claimTaskForFollowUp', 'updateTaskThinkingEffort',
+  'updateTaskModel', // v1.25: in-session model switch (deliberate surface addition)
   'updateTaskStatus', 'addTaskCredits', 'approveTaskPlan',
   'rejectTaskPlan', 'switchTaskMode',
   // events & messages

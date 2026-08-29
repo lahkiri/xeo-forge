@@ -8,11 +8,17 @@
  * rows, same honesty rules — the repository card renders NOTHING while the
  * workspace is not a repo root, and the not-a-repo answer is stated, never
  * papered over (AGENTS.md §16).
+ *
+ * v1.25: the rail also owns the in-session model switch. The task row is
+ * the truth; switching POSTs /api/tasks/:id/model (refused while a run is
+ * live) and the `model_switch` audit event carries old → new.
  */
 
-import type { Task, Upload } from '@/lib/types';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { ProviderCatalog, Task, Upload } from '@/lib/types';
 import { AuthorityRow, authorityForMode } from '@/components/AgentPrimitives';
-import { Badge, Divider, Meter, StatusBadge, cx } from '@/components/ui';
+import { Badge, Divider, Meter, StatusBadge, cx, useToast } from '@/components/ui';
 import type { GitStatusSnapshot } from './work-ingest';
 
 /**
@@ -64,6 +70,59 @@ export function WorkGovernanceRail({
   /** Full re-plan action from useWorkActions — owns its own toasts + refresh. */
   replan: () => Promise<void>;
 }) {
+  const router = useRouter();
+  const toast = useToast();
+  // The catalog powers both the current-model label and the switcher. The
+  // task row stores ids only; names resolve from the same source Settings
+  // uses, so the rail can never disagree with it.
+  const [catalog, setCatalog] = useState<ProviderCatalog | null>(null);
+  const [switching, setSwitching] = useState(false);
+
+  useEffect(() => {
+    if (demoMode) return;
+    let cancelled = false;
+    fetch('/api/providers', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (!cancelled && body?.catalog) setCatalog(body.catalog as ProviderCatalog);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [demoMode]);
+
+  const currentModel = (() => {
+    for (const provider of catalog?.providers ?? []) {
+      const model = provider.models.find((m) => m.id === task.provider_model_id);
+      if (model) return { providerName: provider.name, modelName: model.name };
+    }
+    return null;
+  })();
+
+  const switchModel = async (modelId: string) => {
+    if (!modelId || modelId === task.provider_model_id || switching) return;
+    const provider = catalog?.providers.find((p) => p.models.some((m) => m.id === modelId));
+    if (!provider) return;
+    setSwitching(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/model`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ providerId: provider.id, modelId }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.push('error', body.error || 'Model switch failed.');
+        return;
+      }
+      toast.push('success', 'Model switched. The next run uses it — the active run keeps the credentials it loaded.');
+      router.refresh();
+    } finally {
+      setSwitching(false);
+    }
+  };
+
   return (
     <aside className="hidden w-rail shrink-0 flex-col overflow-y-auto border-l border-line-subtle xl:flex">
       <div className="space-y-4 p-3">
@@ -111,6 +170,62 @@ export function WorkGovernanceRail({
             <p className="break-all rounded-control border border-line-subtle bg-black/20 px-2.5 py-2 font-mono text-micro leading-4 text-content-secondary">
               {task.project_path}
             </p>
+          </div>
+        )}
+
+        {/* v1.25: in-session model switch. Hidden in demo mode (a recording
+            has nothing to switch); refused server-side while a run is live —
+            the select is disabled there with an honest reason. */}
+        {!demoMode && (
+          <div>
+            <p className="mb-1.5 text-micro font-semibold uppercase tracking-[0.14em] text-content-muted">
+              Model
+            </p>
+            <div className="rounded-control border border-line-subtle bg-black/20 px-2.5 py-2">
+              <p className="truncate text-ui text-content-secondary" title={currentModel ? `${currentModel.providerName} · ${currentModel.modelName}` : undefined}>
+                {currentModel ? (
+                  <>
+                    <span className="text-content-primary">{currentModel.modelName}</span>
+                    <span className="text-content-faint"> · {currentModel.providerName}</span>
+                  </>
+                ) : (
+                  <span className="text-content-faint">No model selected for this task</span>
+                )}
+              </p>
+              {(catalog?.providers ?? []).some((p) => p.enabled && p.models.some((m) => m.enabled)) ? (
+                <select
+                  aria-label="Switch model for this session"
+                  className="mt-1.5 w-full rounded-control border border-line-subtle bg-transparent px-2 py-1.5 text-meta text-content-secondary outline-none transition focus:border-signal-run/40"
+                  value={task.provider_model_id ?? ''}
+                  disabled={switching || isRunning}
+                  onChange={(event) => void switchModel(event.target.value)}
+                >
+                  {!task.provider_model_id && <option value="">Choose a model…</option>}
+                  {(catalog?.providers ?? [])
+                    .filter((p) => p.enabled)
+                    .map((provider) => (
+                      <optgroup key={provider.id} label={provider.name}>
+                        {provider.models
+                          .filter((m) => m.enabled)
+                          .map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.name}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                </select>
+              ) : (
+                <p className="mt-1 text-micro leading-4 text-content-faint">
+                  No enabled models available — add one in Settings → Providers.
+                </p>
+              )}
+              <p className="mt-1 text-micro leading-4 text-content-faint">
+                {isRunning
+                  ? 'Locked while a run is active — the live run keeps the credentials it loaded.'
+                  : 'Switching applies to the next run and is recorded in the audit trail.'}
+              </p>
+            </div>
           </div>
         )}
 

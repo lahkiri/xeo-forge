@@ -38,6 +38,7 @@ export const AGENT_EVENT_TYPES = [
   'memory',
   'memory_decision',
   'decision',
+  'model_switch',
   'git_status',
   'git_commit',
   'terminal',
@@ -102,6 +103,7 @@ export const AGENT_EVENTS: Record<AgentEventType, EventDescriptor> = {
   memory: { purpose: 'A memory candidate was proposed. NOT yet in context.', surfaces: ['work'] },
   memory_decision: { purpose: 'The user kept, rejected, or deleted a memory.', surfaces: ['work'] },
   decision: { purpose: 'A recorded operator decision on a run (approve/reject).', surfaces: ['work'] },
+  model_switch: { purpose: 'The operator switched the provider/model for this task; the audit trail records old → new.', surfaces: ['work'] },
   // Git and terminal are Work-only. Both are supervision of a real repository and
   // a real host process; Chat cannot reach either, so subscribing there would
   // advertise an authority that surface does not have.
@@ -517,6 +519,21 @@ export function describeEvent(type: string, data: Record<string, unknown>): Acti
         title: 'Operator decision recorded',
         detail: note,
         tone: 'warn',
+      };
+    }
+    case 'model_switch': {
+      // v1.25: in-session model switch. The row is the truth; the event is
+      // the honest trail of what changed and when.
+      const to = (data.to ?? {}) as Record<string, unknown>;
+      const from = (data.from ?? {}) as Record<string, unknown>;
+      const label = (side: Record<string, unknown>) =>
+        [str(side.model_name) ?? str(side.model_id), str(side.provider_name)]
+          .filter(Boolean)
+          .join(' · ') || 'unknown';
+      return {
+        title: 'Model switched',
+        detail: `${label(from)} → ${label(to)}`,
+        tone: 'neutral',
       };
     }
     case 'hook': {
