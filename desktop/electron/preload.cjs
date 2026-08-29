@@ -14,6 +14,9 @@ contextBridge.exposeInMainWorld('xeoDesktop', {
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
   getBrowserState: () => ipcRenderer.invoke('browser:state'),
+  windowMinimize: () => ipcRenderer.invoke('window:minimize'),
+  windowMaximizeToggle: () => ipcRenderer.invoke('window:maximize:toggle'),
+  windowClose: () => ipcRenderer.invoke('window:close'),
   selectBrowser: (browserId) => ipcRenderer.invoke('browser:select', browserId),
   approvePairing: (pairingId) => ipcRenderer.invoke('browser:pairing:approve', pairingId),
   denyPairing: (pairingId) => ipcRenderer.invoke('browser:pairing:deny', pairingId),
@@ -32,5 +35,10 @@ contextBridge.exposeInMainWorld('xeoDesktopEvents', {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on('update:status', listener);
     return () => ipcRenderer.removeListener('update:status', listener);
+  },
+  onWindowMaximized: (callback) => {
+    const listener = (_event, value) => callback(Boolean(value));
+    ipcRenderer.on('window:maximized', listener);
+    return () => ipcRenderer.removeListener('window:maximized', listener);
   },
 });

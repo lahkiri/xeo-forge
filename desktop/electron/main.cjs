@@ -229,6 +229,16 @@ ipcMain.handle('update:install', () => {
   return updateState;
 });
 ipcMain.handle('browser:state', () => browserState());
+// v1.25 (Phase 1.1): frameless window controls — the custom titlebar's only
+// path to minimize/maximize/close.
+ipcMain.handle('window:minimize', () => mainWindow?.minimize());
+ipcMain.handle('window:maximize:toggle', () => {
+  if (!mainWindow) return false;
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+  return mainWindow.isMaximized();
+});
+ipcMain.handle('window:close', () => mainWindow?.close());
 ipcMain.handle('browser:select', (_event, browserId) => {
   if (!browserBridge) throw new Error('Browser bridge is disabled.');
   return browserBridge.selectBrowser(browserId);
@@ -341,6 +351,10 @@ async function createWindow() {
     height: 920,
     minWidth: 1100,
     minHeight: 720,
+    // v1.25 (Phase 1.1): no OS chrome — the app's own titlebar (components/
+    // DesktopTitleBar.tsx) carries the identity with the same design tokens,
+    // on Windows and Linux alike. Window controls go through IPC below.
+    frame: false,
     backgroundColor: '#080c14',
     autoHideMenuBar: true,
     title: 'Xeo Forge — Control Plane for Agentic Work',
@@ -351,6 +365,11 @@ async function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
     },
   });
+  const publishMaximized = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('window:maximized', mainWindow.isMaximized());
+  };
+  mainWindow.on('maximize', publishMaximized);
+  mainWindow.on('unmaximize', publishMaximized);
   mainWindow.webContents.setWindowOpenHandler(({ url: target }) => {
     if (target.startsWith('https://')) shell.openExternal(target);
     return { action: 'deny' };

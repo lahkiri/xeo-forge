@@ -206,6 +206,15 @@ export function IconSquare({ size, ...rest }: IconProps) {
   );
 }
 
+/** Minus — window minimize (desktop titlebar). */
+export function IconMinus({ size, ...rest }: IconProps) {
+  return (
+    <Base size={size} {...rest}>
+      <path d="M5 12h14" />
+    </Base>
+  );
+}
+
 /** Plus — create. Replaces "+" in icon buttons. */
 export function IconPlus({ size, ...rest }: IconProps) {
   return (

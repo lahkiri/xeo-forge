@@ -9,6 +9,7 @@ import { Badge, Button, KeyHint, ToastProvider, cx, useModKey } from './ui';
 import { IconSearch } from './icons';
 import { ThemeToggle } from './Theme';
 import { CommandPalette, useBaseCommands, useHotkeys, type Command } from './CommandPalette';
+import { DesktopTitleBar } from './DesktopTitleBar';
 
 /**
  * Navigation model. One glyph per surface — drawn from the same restrained
@@ -128,9 +129,13 @@ export default function AppShell({
     : NAV;
 
   const shell = (
-    <div className={cx(
-          'app-shell flex text-content-primary',
-          flush ? 'h-screen overflow-hidden' : 'min-h-screen',
+    <div className={cx('flex flex-col', flush ? 'h-screen overflow-hidden' : 'min-h-screen')}>
+      {/* v1.25 (Phase 1.1): the OS frame is gone on Desktop — this bar carries
+          the window identity with the app's own tokens. Renders null on web. */}
+      <DesktopTitleBar />
+      <div className={cx(
+          'app-shell flex flex-1 text-content-primary',
+          flush ? 'min-h-0 flex-1 overflow-hidden' : 'min-h-screen',
           flush && 'app-shell-flush',
         )}>
       <a href="#main" className="skip-link">Skip to main content</a>
@@ -301,6 +306,7 @@ export default function AppShell({
       </div>
 
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} commands={commands} />
+    </div>
     </div>
   );
 

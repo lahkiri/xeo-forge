@@ -84,6 +84,9 @@ declare global {
       downloadUpdate: () => Promise<DesktopUpdateState>;
       installUpdate: () => Promise<DesktopUpdateState>;
       getBrowserState: () => Promise<DesktopBrowserState>;
+      windowMinimize: () => Promise<void>;
+      windowMaximizeToggle: () => Promise<boolean>;
+      windowClose: () => Promise<void>;
       selectBrowser: (browserId: string) => Promise<DesktopBrowserState>;
       approvePairing: (pairingId: string) => Promise<DesktopBrowserState>;
       denyPairing: (pairingId: string) => Promise<DesktopBrowserState>;
@@ -94,6 +97,7 @@ declare global {
     xeoDesktopEvents?: {
       onProjectChanged: (callback: (project: { path: string | null }) => void) => () => void;
       onUpdateStatus: (callback: (state: DesktopUpdateState) => void) => () => void;
+      onWindowMaximized: (callback: (maximized: boolean) => void) => () => void;
     };
   }
 }
