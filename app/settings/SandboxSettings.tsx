@@ -20,7 +20,12 @@ interface SandboxSpec {
 
 export default function SandboxSettings() {
   const [modes, setModes] = useState<SandboxSpec[]>([]);
-  const [docker, setDocker] = useState<{ available: boolean; version: string | null; detail: string; guidance: string | null } | null>(null);
+  const [docker, setDocker] = useState<{
+    available: boolean;
+    version: string | null;
+    detail: string;
+    guidance: { title: string; steps: string[]; downloadUrl: string; approxDownload: string } | null;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,7 +74,18 @@ export default function SandboxSettings() {
               <span className="settings-status-chip is-off">{mode.isolation}</span>
             </div>
             {mode.id === 'docker' && docker && !docker.available && docker.guidance && (
-              <p className="browser-setup-note">{docker.detail} — {docker.guidance}</p>
+              <div className="browser-setup-note">
+                <p>{docker.detail}</p>
+                <p className="mt-1 font-medium">{docker.guidance.title}</p>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-5">
+                  {docker.guidance.steps.map((step) => <li key={step}>{step}</li>)}
+                </ol>
+                <p className="mt-1">
+                  Official installer (~{docker.guidance.approxDownload}):{' '}
+                  <a href={docker.guidance.downloadUrl} target="_blank" rel="noreferrer" className="underline">{docker.guidance.downloadUrl}</a>
+                  {' '}— nothing downloads silently; you open the page yourself.
+                </p>
+              </div>
             )}
           </section>
         ))}

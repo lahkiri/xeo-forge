@@ -298,7 +298,13 @@ function startRuntimeBroker() {
 }
 
 function startNextServer() {
-  const serverPath = resourcePath('app', 'server.js');
+  // Packaged: electron-builder maps the standalone build into resources/app.
+  // Dev (v1.25 fix): desktop:dev was UNBOOTABLE before this — the path pointed
+  // at projectRoot/app/server.js, which is the Next.js app-router directory,
+  // never the standalone server. The dev layout is .next/standalone.
+  const serverPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'app', 'server.js')
+    : path.join(projectRoot, '.next', 'standalone', 'server.js');
   if (!existsSync(serverPath)) throw new Error(`Packaged Next server is missing: ${serverPath}`);
   const localDbPath = path.join(app.getPath('userData'), 'data', 'xeo.db');
   nextProcess = spawn(process.execPath, [serverPath], {

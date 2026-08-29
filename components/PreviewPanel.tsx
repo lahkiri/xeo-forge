@@ -211,7 +211,7 @@ export function PreviewPanel({
         <div className="rounded-control border border-signal-fail/25 bg-signal-fail/[0.06] px-4 py-3">
           <p className="text-ui font-medium text-signal-fail">This run failed — there is nothing to preview.</p>
           <p className="mt-1 text-meta leading-5 text-content-secondary">{failureReason || 'The run reached a failed state without a classified message.'}</p>
-          <p className="mt-1 text-micro text-content-muted">The failure reason comes from the run's own error event in the audit trail.</p>
+          <p className="mt-1 text-micro text-content-muted">The failure reason comes from the run&apos;s own error event in the audit trail.</p>
         </div>
       </div>
     );
