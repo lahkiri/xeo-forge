@@ -9,9 +9,18 @@ const policyPath = `/tmp/xeo-forge-browser-policy-smoke-${process.pid}.json`;
 const bridge = startBrowserBridge({ port, token, preferencePath, policyPath, approvedPath: `/tmp/xeo-forge-browser-approved-smoke-${process.pid}.json` });
 const sockets = [];
 
+// Shared CI runners jank for whole seconds at a time right after the vitest
+// suite (GC pauses, CPU steal). The original flat attempt counts — 20×25ms for
+// startup, 40×25ms = 1s for every state propagation — flaked at tag time on
+// 'paired profile disconnect' (Desktop release run #53, build-linux) while the
+// same commit passed CI minutes earlier. Budgets are now deadline-based;
+// every assertion below is unchanged — only how long we are willing to wait.
+const WAIT_BUDGET_MS = Number(process.env.XEO_SMOKE_WAIT_BUDGET_MS || 10_000);
+
 async function waitForBridge() {
+  const deadline = Date.now() + WAIT_BUDGET_MS;
   let lastError;
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  while (Date.now() < deadline) {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/state`, { headers: { 'x-xeo-browser-token': token } });
       if (response.status === 200) return;
@@ -21,15 +30,16 @@ async function waitForBridge() {
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`Browser bridge did not start.${lastError ? ` Last error: ${lastError.message || lastError}` : ''}`);
+  throw new Error(`Browser bridge did not start within ${WAIT_BUDGET_MS}ms.${lastError ? ` Last error: ${lastError.message || lastError}` : ''}`);
 }
 
 async function waitFor(predicate, label) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  const deadline = Date.now() + WAIT_BUDGET_MS;
+  while (Date.now() < deadline) {
     if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`Timed out waiting for ${label}.`);
+  throw new Error(`Timed out after ${WAIT_BUDGET_MS}ms waiting for ${label}.`);
 }
 
 async function state() {
