@@ -209,7 +209,18 @@ try {
 
   // Reconnect with the same browserId → auto-approved, no new request.
   pairSocket.close();
-  await waitFor(async () => (await state()).profiles.find((p) => p.browserId === 'pair-smoke-browser')?.connected === false, 'paired profile disconnect');
+  // The bridge's close handler DROPS the profile from the connections map
+  // (browser-bridge.cjs `candidate.on('close')`), so after disconnect the row
+  // is gone from /state profiles — `connected === false` only exists inside the
+  // few-ms closing-handshake window. Asserting that transient alone was a race
+  // lottery: it passed CI #106, failed Desktop run #53, and failed again with a
+  // 10s budget (CI on 5ff4f15). The semantic contract is "the paired profile is
+  // no longer connected" — either still-present-but-disconnected or dropped.
+  // Before close the row is connected:true so this still fails honestly.
+  await waitFor(async () => {
+    const row = (await state()).profiles.find((p) => p.browserId === 'pair-smoke-browser');
+    return !row || row.connected === false;
+  }, 'paired profile disconnect');
   const reSocket = new WebSocket(`ws://127.0.0.1:${port}/pair`);
   sockets.push(reSocket);
   reSocket.on('error', () => {});
