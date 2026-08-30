@@ -20,6 +20,7 @@ import type { ProviderCatalog, Task, Upload } from '@/lib/types';
 import { AuthorityRow, authorityForMode } from '@/components/AgentPrimitives';
 import { Badge, Divider, Meter, StatusBadge, cx, useToast } from '@/components/ui';
 import type { GitStatusSnapshot } from './work-ingest';
+import { adoptProviderCatalog, resolveCurrentModel } from './rail-catalog';
 
 /**
  * Product language for the deterministic intent kinds. The DB stores the
@@ -81,10 +82,18 @@ export function WorkGovernanceRail({
   useEffect(() => {
     if (demoMode) return;
     let cancelled = false;
+    // GET /api/providers returns the catalog DIRECTLY — v1.25.0 read
+    // body.catalog off the GET response here (that wrapped shape belongs to
+    // POST only) and the switcher rendered permanently empty while the API
+    // was correct. The adoption helper is unit-pinned in
+    // test/rail-catalog-adoption.test.ts and the rendered result is proven
+    // live by scripts/recapture-03-work.mjs.
     fetch('/api/providers', { cache: 'no-store' })
       .then((res) => (res.ok ? res.json() : null))
       .then((body) => {
-        if (!cancelled && body?.catalog) setCatalog(body.catalog as ProviderCatalog);
+        if (cancelled) return;
+        const next = adoptProviderCatalog(body);
+        if (next) setCatalog(next);
       })
       .catch(() => {});
     return () => {
@@ -92,13 +101,7 @@ export function WorkGovernanceRail({
     };
   }, [demoMode]);
 
-  const currentModel = (() => {
-    for (const provider of catalog?.providers ?? []) {
-      const model = provider.models.find((m) => m.id === task.provider_model_id);
-      if (model) return { providerName: provider.name, modelName: model.name };
-    }
-    return null;
-  })();
+  const currentModel = catalog ? resolveCurrentModel(catalog, task.provider_model_id) : null;
 
   const switchModel = async (modelId: string) => {
     if (!modelId || modelId === task.provider_model_id || switching) return;
