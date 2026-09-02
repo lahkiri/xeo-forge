@@ -51,6 +51,11 @@ const PLAN_PATTERNS: RegExp[] = [
 
 const DIRECT_PATTERNS: RegExp[] = [
   /\b(do it|just do it|execute|implement|build|fix|change|edit|modify|create|run|ship)\b/i,
+  // Software-work verbs that pair with a target noun ("add a function",
+  // "update the test", "write a script"). Safe to treat as direct ONLY in
+  // combination with a TARGET_PATTERN hit — the classifier already requires
+  // explicitDirect && hasTarget, so bare "add some notes" stays conversational.
+  /\b(add|update|write|refactor|delete|remove|install|generate|scaffold|set up|setup)\b/i,
   /\b(go ahead|make the change|apply the change|start working|take care of)\b/i,
   /(نفذ|نفّذ|اعمل|طب(?:ّ|ي)ق|إصلح|اصلح|عدّل|عدل|أنشئ|انشئ|شغّل|شغل|ابدأ التنفيذ|طبق التغيير)/u,
   // zh — execution verbs. `完成` lives here, where it can actually match.
@@ -58,7 +63,11 @@ const DIRECT_PATTERNS: RegExp[] = [
   // ru — imperative and infinitive stems for the same verbs.
   /(сделай|выполни|реализуй|исправ|измени|поменяй|создай|запусти|собери|начни|примени)/iu,
   // fr — imperative/infinitive, with and without accents.
-  /(\bfais(-le)?\b|\bfaire\b|\bexécute|\bexecute|\bimplémente|\bimplemente|\bcorrige|\bmodifie|\bchange\b|\bcrée|\bcree\b|\blance\b|\bvas-y\b|\bconstruis)/iu,
+  // NOTE: \b is unreliable around accented capitals ("Écris…" at sentence
+  // start never matches \bécrit): É is not \w, so the boundary collapses —
+  // the same dead-pattern class the CJK note above warns about. Alternatives
+  // that can begin with an accented letter are left unanchored.
+  /(\bfais(-le)?\b|\bfaire\b|\bexécute|\bexecute|\bimplémente|\bimplemente|\bcorrige|\bmodifie|\bchange\b|\bcrée|\bcree\b|\blance\b|\bvas-y\b|\bconstruis|écrit?s?|ecrits?|créé?s?|cree?s?|\binstalle?\b|génère|genere|\bmets?\b|\bmettez\b)/iu,
 ];
 
 const QUESTION_PATTERNS: RegExp[] = [
@@ -73,14 +82,16 @@ const QUESTION_PATTERNS: RegExp[] = [
 ];
 
 const TARGET_PATTERNS: RegExp[] = [
-  /\b(file|folder|project|code|app|website|browser|page|repository|repo|component|api|database)\b/i,
-  /(ملف|مجلد|مشروع|كود|تطبيق|موقع|متصفح|صفحة|مستودع|قاعدة بيانات)/u,
+  // Software-work nouns a direct request most often names. Kept conservative:
+  // generic words ("thing", "it") stay out so they cannot fabricate a target.
+  /\b(file|folder|project|code|app|website|browser|page|repository|repo|component|api|database|script|feature|bug|test|tests|suite|function|module|package|library|endpoint|route|service|config|dependency|dependencies)\b/i,
+  /(ملف|مجلد|مشروع|كود|تطبيق|موقع|متصفح|صفحة|مستودع|قاعدة بيانات|سكربت|سكرِبت|خاصية|ميزة|خطأ|وظيفة|دالة|اختبار|حزمة|خدمة)/u,
   // zh
-  /(文件|檔案|文件夹|文件夾|目录|目錄|项目|項目|专案|專案|代码|程式碼|代碼|应用|應用|网站|網站|浏览器|瀏覽器|页面|頁面|仓库|倉庫|组件|組件|元件|接口|介面|数据库|資料庫|函数|函數)/u,
+  /(文件|檔案|文件夹|文件夾|目录|目錄|项目|項目|专案|專案|代码|程式碼|代碼|应用|應用|网站|網站|浏览器|瀏覽器|页面|頁面|仓库|倉庫|组件|組件|元件|接口|介面|数据库|資料庫|函数|函數|脚本|腳本|功能|缺陷|测试|測試|模块|模組|包|库|庫|服务|服務)/u,
   // ru
-  /(файл|папк|проект|код|приложени|сайт|браузер|страниц|репозитор|компонент|api|база данных|базу данных)/iu,
+  /(файл|папк|проект|код|приложени|сайт|браузер|страниц|репозитор|компонент|api|база данных|базу данных|скрипт|функци|фича|баг|тест|тесты|модул|пакет|библиотек|сервис|зависимост)/iu,
   // fr
-  /(\bfichier|\bdossier|\bprojet|\bcode\b|\bapplication|\bsite\b|\bnavigateur|\bpage\b|\bdépôt|\bdepot\b|\bcomposant|\bapi\b|\bbase de données)/iu,
+  /(\bfichier|\bdossier|\bprojet|\bcode\b|\bapplication|\bsite\b|\bnavigateur|\bpage\b|\bdépôt|\bdepot\b|\bcomposant|\bapi\b|\bbase de données|\bscript|\bfonction|\bbug\b|\btest(s)?\b|\bmodule|\bbibliothèque|\bservice\b)/iu,
 ];
 
 function normalize(input: string): string {

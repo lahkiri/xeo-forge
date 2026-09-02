@@ -42,7 +42,12 @@ const rebuildCommand = join(
 if (!existsSync(rebuildCommand)) {
   throw new Error(`Missing local electron-rebuild executable: ${rebuildCommand}`);
 }
-const rebuild = spawnSync(rebuildCommand, [
+const skipRebuild = process.env.XEO_SKIP_NATIVE_REBUILD === '1';
+// The command must be quoted on Windows: spawnSync(shell: true) joins the
+// command and args into one cmd.exe line, and an unquoted project path that
+// contains a space (e.g. "C:\My Projects\xeo-forge") is split at the space —
+// the shell then tries to run a nonexistent program instead of electron-rebuild.
+const rebuild = skipRebuild ? { status: 0 } : spawnSync(process.platform === 'win32' ? `"${rebuildCommand}"` : rebuildCommand, [
   '--version',
   electronVersion,
   '--force',
@@ -51,7 +56,19 @@ const rebuild = spawnSync(rebuildCommand, [
 ], { cwd: root, env: process.env, stdio: 'inherit', shell: process.platform === 'win32' });
 if (rebuild.error || rebuild.status !== 0) {
   const detail = rebuild.error?.message || `exit code ${rebuild.status}`;
-  throw new Error(`Could not rebuild native modules for Electron ${electronVersion}: ${detail}`);
+  if (skipRebuild) {
+    throw new Error(
+      `Could not rebuild native modules for Electron ${electronVersion}: ${detail}`,
+    );
+  }
+  throw new Error(
+    `Could not rebuild native modules for Electron ${electronVersion}: ${detail}\n` +
+      'Hints: (1) rebuilding native modules requires a C/C++ toolchain — on Windows install ' +
+      '"Visual Studio Build Tools" with the "Desktop development with C++" workload; ' +
+      '(2) if your project path contains spaces, node-gyp may still fail — prefer a space-free checkout path; ' +
+      '(3) for a UI-only local run you can set XEO_SKIP_NATIVE_REBUILD=1 to skip this step, ' +
+      'but then only run the standalone server with the same Node ABI it was built for.',
+  );
 }
 
 /** Native modules whose standalone-traced copy must be replaced wholesale. */
@@ -87,7 +104,19 @@ const targets = [
   { goos: 'linux', goarch: 'amd64', name: 'xeo-forge-runtime-broker' },
   { goos: 'windows', goarch: 'amd64', name: 'xeo-forge-runtime-broker.exe' },
 ];
-for (const target of targets) {
+// The broker is an optional local-process supervisor: the shell boots without
+// it (it warns and disables broker-backed features). Missing Go in a dev
+// checkout is therefore a skip with a visible warning, not a hard failure —
+// the packaged builds (CI runners) always have Go and produce both binaries.
+const goCheck = spawnSync('go', ['version'], { stdio: 'ignore' });
+const goMissing = !!goCheck.error || goCheck.status !== 0;
+if (goMissing) {
+  console.warn(
+    '[desktop] Go toolchain not found — skipping runtime-broker builds; ' +
+      'the shell will boot without the runtime broker (local process supervision is disabled).',
+  );
+}
+if (!goMissing) for (const target of targets) {
   const result = spawnSync('go', ['build', '-trimpath', '-ldflags=-s -w', '-o', join(nativeTarget, target.name), '.'], {
     cwd: brokerSource,
     env: { ...process.env, GOOS: target.goos, GOARCH: target.goarch, CGO_ENABLED: '0' },

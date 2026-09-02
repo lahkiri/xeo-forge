@@ -51,8 +51,11 @@ export const MCP_PROTOCOL_VERSION = '2025-06-18';
 /** Identity we send in `initialize`. */
 // Single source of truth: the package version. Drifted for five releases
 // (1.11.0 sent while shipping 1.16.0) because it was a hardcoded literal.
-import { version as APP_VERSION } from '../../package.json';
-export const MCP_CLIENT_INFO = { name: 'xeo-forge', version: APP_VERSION } as const;
+// Default-import the JSON module: Webpack warns that a default-exporting
+// module "will soon" stop exposing its named properties, and named-importing
+// `version` from package.json is exactly that deprecated shape.
+import pkg from '../../package.json';
+export const MCP_CLIENT_INFO = { name: 'xeo-forge', version: pkg.version } as const;
 
 export const MCP_LIMITS = {
   /** Longest single stdout line we will buffer before declaring the peer hostile. */
