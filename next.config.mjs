@@ -8,6 +8,14 @@ const nextConfig = {
   experimental: {
     serverComponentsExternalPackages: ["better-sqlite3", "pg"],
   },
+  async redirects() {
+    return [
+      // The Work surface at /work is the only task list UI; /tasks predates it
+      // and would otherwise 404. Keep the natural URL working for users and
+      // old bookmarks. /tasks/:id keeps its real page (app/tasks/[id]).
+      { source: "/tasks", destination: "/work", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

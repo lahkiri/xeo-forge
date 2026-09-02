@@ -116,4 +116,28 @@ describe('the router covers every language detectLanguage advertises', () => {
     const result = classifyWorkIntent('修改这个文件');
     expect(result.kind).toBe('direct_execution');
   });
+
+  // Regression: common software-work nouns used to sit outside TARGET_PATTERNS,
+  // so an unambiguous request like "build a small script" was classified
+  // clarification_needed and Work stalled on a visible choice for no reason.
+  const targetNounCases: Array<[string, string]> = [
+    ['en', 'Build a small script that says hello and verify it'],
+    ['en', 'Add a helper function to the utils module and test it'],
+    ['en', 'Fix the bug in the auth endpoint'],
+    ['en', 'Update the failing test for the parser package'],
+    ['en', 'Add a rate-limit feature to the login service'],
+    ['ar', 'نفّذ سكربت صغير يطبع رسالة ثم اختبره'],
+    ['fr', 'Écris un script qui affiche bonjour puis teste-le'],
+  ];
+
+  it.each(targetNounCases)('treats a direct request naming a %s software noun as direct execution', (_lang, input) => {
+    const result = classifyWorkIntent(input);
+    expect(result.kind).toBe('direct_execution');
+    expect(result.options).toEqual(['direct', 'plan']);
+  });
+
+  it('still asks for clarification when action language names no target at all', () => {
+    const result = classifyWorkIntent('just do it from the beginning');
+    expect(result.kind).toBe('clarification_needed');
+  });
 });

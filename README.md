@@ -25,6 +25,19 @@ The product is built around one principle:
 
 > **Give your agent a forge, not a blank check.**
 
+## Quick start
+
+```bash
+git clone https://github.com/lahkiri/xeo-forge.git
+cd xeo-forge
+npm install
+cp .env.example .env.local   # set ROOT_ADMIN_EMAIL / ROOT_ADMIN_PASSWORD / MODEL_*
+npm run db:init
+npm run dev                  # open http://localhost:3000
+```
+
+Or watch a full governed run with zero configuration: `npm run desktop:dev`, then press **Watch it work** on the Work surface. Desktop prerequisites are listed under [Desktop, OTA, and Browser Bridge](#desktop-ota-and-browser-bridge).
+
 ## Product identity
 
 **Xeo Forge is not another terminal wrapper and not a cloud-only agent.** Claude Code, Codex, and OpenCode are powerful execution surfaces for developers. Manus and Cowork are broader general-purpose agents. Xeo Forge occupies the local control-plane layer: it is the place where a person or team defines how agents should behave, what they may remember, which local browser they may inspect, what they may execute, who must approve them, and how their work is reviewed.
@@ -166,6 +179,16 @@ Xeo Forge ships a thin Windows/Linux desktop shell for users who prefer an insta
 
 The desktop build shares the same task governance, context compilation, and persistence contracts as the web app, but it is intentionally **surface-aware**. Desktop Local opens without a login wall and does not render or call SaaS-only credits, account, billing, or admin surfaces; Web SaaS retains those capabilities.
 
+**Desktop dev prerequisites.** `npm run desktop:dev` prepares the Electron shell, and the prepare step compiles the native modules (`better-sqlite3`, `node-pty`) against Electron's Node ABI and builds the Go runtime broker. That means a dev checkout needs, on top of the web requirements:
+
+- **Windows:** [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) with the *Desktop development with C++* workload (native module compilation), and [Go](https://go.dev/dl/) for the runtime broker.
+- **Linux:** a C/C++ toolchain (`build-essential` or equivalent) and Go.
+- **Both:** a checkout path without spaces. `node-gyp` cannot build reliably in a path containing a space (a long-standing node-gyp limitation), so the desktop prepare step is the one place where `C:\My Projects\xeo-forge` fails while `C:\dev\xeo-forge` works.
+
+If Go is missing the shell still boots — the broker-backed local process supervision is disabled with a visible warning. If you only want the web surface, none of these are needed; the plain `npm run dev` quick start above runs on SQLite with no toolchain.
+
+`XEO_SKIP_NATIVE_REBUILD=1` skips the native rebuild for UI-only local runs; the standalone server must then run under the same Node ABI it was built for (the same Node that ran `npm install`).
+
 ```bash
 npm ci
 npm run desktop:dev
@@ -192,23 +215,11 @@ Xeo Forge is intentionally polyglot by boundary, not by fashion. TypeScript rema
 
 The first native component is documented in [`native/runtime-broker`](native/runtime-broker/README.md), while the Windows lifecycle is documented in [`desktop/README.md`](desktop/README.md).
 
-## Quick start
+## Setup details
 
 ### Local development with SQLite
 
-```bash
-git clone https://github.com/lahkiri/xeo-forge.git
-cd xeo-forge
-npm install
-cp .env.example .env.local
-```
-
-Set `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_PASSWORD`, and the `MODEL_*` variables in `.env.local`, then initialize and run:
-
-```bash
-npm run db:init
-npm run dev
-```
+The five-command quick start at the top covers the common path. The extra detail that matters here: set `ROOT_ADMIN_EMAIL`, `ROOT_ADMIN_PASSWORD`, and the `MODEL_*` variables in `.env.local` before `npm run db:init` — the init step seeds those values once and keeps existing rows on re-runs.
 
 Open <http://localhost:3000> for the Web SaaS surface, sign in as the root admin, and create a planning task. For the Desktop Local surface, use `npm run desktop:dev`; it enters the local workbench directly without an account login. A task starts in read-only Planning mode. Approve its plan before Build mode can write or execute.
 
